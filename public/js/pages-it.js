@@ -19,7 +19,7 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/cyber-security': {
     category: 'IT Services', title: 'Cyber Security', image: IMAGES.cyber,
-    imageAlt: 'Professional cybersecurity workspace with code and security interfaces on monitors',
+    imageAlt: 'Cybersecurity specialist reviewing code and security information across multiple monitors in a real office',
     lead: 'Security services that reduce exposure across users, endpoints, applications and business data.',
     introTitle: 'Build security into technology delivery',
     intro: 'Cyber security is treated as a system quality, not a final checklist. We help teams identify practical control gaps, reduce attack surface and make security requirements visible through design, engineering and operations.',
@@ -32,7 +32,7 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/artificial-intelligence': {
     category: 'IT Services', title: 'Artificial Intelligence', image: IMAGES.ai,
-    imageAlt: 'Close-up of real computer hardware representing machine learning infrastructure',
+    imageAlt: 'Data scientist working with a laptop in a real professional office environment',
     lead: 'AI and machine-learning initiatives designed around useful outcomes, reliable data and controlled operational risk.',
     introTitle: 'Move from AI experimentation to governed capability',
     intro: 'We help organisations frame AI problems correctly, validate whether AI is warranted, establish data and evaluation requirements, and integrate solutions into existing systems with appropriate human oversight.',
@@ -45,7 +45,7 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/cloud-computing': {
     category: 'IT Services', title: 'Cloud Computing', image: IMAGES.cloud,
-    imageAlt: 'Rows of real enterprise servers in a modern data centre',
+    imageAlt: 'Infrastructure engineer working directly with enterprise server and network equipment in a real data centre',
     lead: 'Cloud architecture and modernisation that balance delivery speed with resilience, security, operability and cost.',
     introTitle: 'Use cloud where it creates an operational advantage',
     intro: 'We design cloud adoption around workload characteristics and business constraints. The goal is not migration for its own sake, but an environment that is secure, observable, recoverable and maintainable.',
@@ -64,7 +64,7 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/big-data': {
     category: 'IT Services', title: 'Big Data', image: IMAGES.bigData,
-    imageAlt: 'Real laptop displaying business analytics dashboards and charts',
+    imageAlt: 'Technology and business professionals collaborating around data analysis on a laptop in a real office',
     lead: 'Data engineering and analytics foundations that make high-volume, high-variety information useful and governable.',
     introTitle: 'Engineer data for reliable decisions',
     intro: 'We help teams build ingestion, transformation, storage and analytics capabilities around clear ownership and quality expectations. Architecture is driven by latency, scale, governance and the decisions the data needs to support.',
@@ -82,7 +82,7 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/it-support-services': {
     category: 'IT Services', title: 'IT Support Services', image: IMAGES.support,
-    imageAlt: 'Professional technology team working in a modern office environment',
+    imageAlt: 'Professional IT support team using laptops and headsets in a real office environment',
     lead: 'Structured technology support focused on continuity, issue ownership and transparent service operation.',
     introTitle: 'Support that connects users, systems and operations',
     intro: 'We structure support around clear service ownership, incident priority, escalation and repeatable resolution. The aim is to reduce disruption while creating the operational evidence needed to prevent recurring problems.',
