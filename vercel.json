@@ -3,6 +3,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/consult-expert", "destination": "/contact?intent=consultation", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/api/:action", "destination": "/api/[action]?action=:action" },
     { "source": "/(.*)", "destination": "/index.html" }
