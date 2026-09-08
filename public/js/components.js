@@ -55,7 +55,7 @@ export function headerTemplate(pathName) {
           <span class="brand-copy"><strong>RC IT Services</strong><span>Technology & Consulting</span></span>
         </a>
         <nav class="desktop-nav" aria-label="Primary navigation">${PRIMARY_NAV.map((item, index) => navItem(item, pathName, index)).join('')}</nav>
-        <a class="btn btn--primary btn--small header-cta" href="/consult-expert">Consult our Expert</a>
+        <a class="btn btn--primary btn--small header-cta" href="/contact?intent=consultation#contact-form">Consult our Expert</a>
         <button class="mobile-menu-button" type="button" aria-expanded="false" aria-controls="mobile-panel" aria-label="Open navigation menu">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
@@ -70,6 +70,7 @@ export function headerTemplate(pathName) {
         <nav class="mobile-nav" aria-label="Mobile navigation">
           ${PRIMARY_NAV.map((item, index) => mobileItem(item, pathName, index)).join('')}
           <a href="/blog">Blog</a><a href="/faqs">FAQs</a><a href="/login">Login</a>
+          <a href="/contact?intent=consultation#contact-form">Consult our Expert</a>
         </nav>
       </div>
     </div>`;
