@@ -1,4 +1,4 @@
-import { getPublishedJob } from './career-jobs.js';
+import { getPublishedJob } from './career-job-catalog.js';
 import { arrow, esc } from './components.js';
 
 function detailList(title, items = []) {
