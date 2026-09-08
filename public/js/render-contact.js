@@ -1,74 +1,86 @@
 import { COMPANY, IMAGES } from './site-config.js';
-import { pageHero, sectionHeading, arrow, esc } from './components.js';
+import { pageHero, sectionHeading, esc } from './components.js';
 import { field } from './forms.js';
-import { pageTitle, imageTag } from './render-helpers.js';
+import { pageTitle } from './render-helpers.js';
 
 export function renderContact() {
   pageTitle('Contact');
   return `<main id="main-content" class="contact-page">
     ${pageHero({
       category:'Contact',
-      title:'Contact RC IT Services',
-      lead:'One contact route for consulting, project delivery, specialist capability, managed support, product enquiries, partnerships and general business questions. Tell us what you are trying to achieve and we will route the enquiry to the appropriate service area.',
+      title:'Let’s discuss what your business needs next',
+      lead:'Use one enquiry route for technology consulting, project delivery, specialist capability, managed support, products, partnerships and general business questions. Give us the context and we will route the conversation to the right service area.',
       image:IMAGES.contact,
-      imageAlt:'Professional customer service representative using a headset in a real modern office',
+      imageAlt:'Professional business consultation and client discussion in a real office environment',
       crumbs:[{label:'Home',href:'/'},{label:'Contact'}]
     })}
 
-    <section class="section"><div class="container split contact-intro">
-      <div>${imageTag(IMAGES.contactDetail,'Professional customer support team using headsets and computers in a real office')}</div>
-      <div><span class="eyebrow">Business & consultation enquiries</span><h2>One destination. Clear routing.</h2>
-        <p>We have consolidated general contact and expert consultation into one professional enquiry journey. You do not need to decide which internal team to approach before contacting us.</p>
-        <p>Start with the business outcome, current environment, affected users or systems, target timeline and any constraints already known. The consultation topic in the form helps route the enquiry without creating multiple competing contact pages.</p>
-        <ul class="list-check"><li>Technology strategy and architecture</li><li>Application, cloud, data and AI modernisation</li><li>Cyber security and IT support</li><li>Management and education consultancy</li><li>Products, partnerships and general business enquiries</li></ul>
-      </div>
-    </div></section>
-
-    <section class="section section--soft"><div class="container">
-      ${sectionHeading('Contact options','Choose the route that matches your intent','Each option uses the same enquiry form. The selected intent is retained so your message arrives with the right context.')}
-      <div class="contact-options contact-options--grid">
-        <div class="contact-option"><span>01</span><h3>Consult our Expert</h3><p>Bring a technology decision, delivery problem, capability gap or transformation requirement into a focused discussion.</p><button class="btn btn--text" type="button" data-contact-intent="Consult our Expert">Start consultation ${arrow()}</button></div>
-        <div class="contact-option"><span>02</span><h3>Write to Us</h3><p>Send a structured business enquiry with the relevant project, service or partnership context.</p><button class="btn btn--text" type="button" data-contact-intent="Write to Us">Start enquiry ${arrow()}</button></div>
-        <div class="contact-option"><span>03</span><h3>Talk to Us</h3><p>Request a phone conversation and include your number, organisation and the subject you want to discuss.</p><button class="btn btn--text" type="button" data-contact-intent="Talk to Us">Request contact ${arrow()}</button></div>
-        <div class="contact-option"><span>04</span><h3>Chat With Us</h3><p>Send a focused message to the technology team without leaving the current page.</p><button class="btn btn--text" type="button" data-chat-now>Chat Now &gt;&gt;&gt;</button></div>
-      </div>
-    </div></section>
-
-    <section class="section"><div class="container contact-form-layout">
-      <div><span class="eyebrow">What to include</span><h2>Help us understand the requirement.</h2>
-        <p>A useful first enquiry does not need to be a complete specification. It should give enough information to understand the problem, determine the relevant capability and decide the next step.</p>
-        <div class="contact-guidance">
-          <div><strong>Business context</strong><span>What is changing, what is not working, or what decision needs to be made?</span></div>
-          <div><strong>Technology context</strong><span>Which applications, platforms, data, integrations or teams are involved?</span></div>
-          <div><strong>Timing</strong><span>Is there a target date, dependency, procurement window or urgent issue?</span></div>
-          <div><strong>Outcome</strong><span>What would a successful engagement improve or enable?</span></div>
+    <section class="section contact-enquiry-section"><div class="container contact-enquiry-layout">
+      <div class="contact-enquiry-copy">
+        <span class="eyebrow">Business enquiries</span>
+        <h2>Start with the outcome, not the org chart.</h2>
+        <p>You do not need to know which RC team should receive your enquiry before you contact us. Tell us what you are trying to achieve, what is getting in the way and what timing or constraints matter.</p>
+        <p>For consulting and delivery conversations, useful context includes the current environment, affected users or systems, target outcome, known dependencies and any decision that needs to be made.</p>
+        <div class="contact-principles" aria-label="What to include in your enquiry">
+          <div><strong>Business context</strong><span>What needs to change, improve or be decided?</span></div>
+          <div><strong>Technology context</strong><span>Which systems, data, platforms or teams are involved?</span></div>
+          <div><strong>Timing</strong><span>Is there a deadline, dependency, procurement window or urgent issue?</span></div>
+          <div><strong>Success measure</strong><span>What would a useful outcome look like for the organisation?</span></div>
         </div>
       </div>
 
       <div id="contact-form" class="contact-form-panel">
-        ${sectionHeading('Enquiry form','Tell us how to route your request','Select the consultation topic and provide enough context for the team to understand the requirement and appropriate next step.')}
+        <div class="contact-form-heading">
+          <span class="eyebrow">Get in touch</span>
+          <h2>Tell us how we can help.</h2>
+          <p>Select the consultation topic and provide enough context for the team to understand the requirement and determine the appropriate next step.</p>
+        </div>
         <form data-api-form="/api/contact" novalidate>
           <input type="hidden" name="intent" id="contact-intent" value="General enquiry">
           <div class="form-grid">
             ${field('firstName','First Name','text',true)}
             ${field('lastName','Last Name','text',true)}
-            ${field('company','Company','text',true)}
-            ${field('phone','Phone Number','tel',true,'phone')}
-            ${field('businessEmail','Business Email','email',true)}
+            ${field('company','Company / Organisation','text',true)}
             ${field('jobTitle','Job Title','text',true)}
+            ${field('businessEmail','Business Email','email',true)}
+            ${field('phone','Phone Number','tel',true,'phone')}
             <div class="form-field form-field--full"><label for="consultation-topic">Consultation topic *</label><select id="consultation-topic" name="consultationTopic" required><option value="">Choose a topic</option><option>IT Consultancy</option><option>Cyber Security</option><option>Artificial Intelligence</option><option>Cloud Computing</option><option>Big Data / Data Engineering</option><option>IT Support Services</option><option>Risk & Management Consulting</option><option>Strategy and Implementation</option><option>Sustainability</option><option>Education Consultancy</option><option>Products / Demonstration</option><option>Partnership</option><option>General Business Enquiry</option></select><span class="field-error"></span></div>
-            <div class="form-field form-field--full"><label for="message">Message</label><textarea id="message" name="message" placeholder="Describe your requirement, target outcome, current environment, known constraints and preferred timeline."></textarea><span class="field-error"></span></div>
+            <div class="form-field form-field--full"><label for="message">How can we help? *</label><textarea id="message" name="message" required placeholder="Describe the requirement, target outcome, current environment, known constraints and preferred timeline."></textarea><span class="field-error"></span></div>
+            <div class="form-field form-field--full contact-consent"><label class="consent-row" for="privacy-consent"><input id="privacy-consent" type="checkbox" name="privacyConsent" required><span>I understand that RC IT Services will use the information I provide to respond to this enquiry. See the <a href="/privacy">Privacy Policy</a>.</span></label><span class="field-error"></span></div>
           </div>
-          <div class="form-actions"><button class="btn btn--primary" type="submit">Submit Enquiry</button><p class="form-status" data-form-status></p></div>
+          <div class="form-actions"><button class="btn btn--primary" type="submit">Send Enquiry</button><p class="form-status" data-form-status></p></div>
         </form>
       </div>
     </div></section>
 
-    <section class="section section--soft"><div class="container contact-office-grid">
-      <div>${sectionHeading('Registered office','Corporate details','The registered-office details below identify the legal entity operating RC IT Services.')}<div class="empty-state"><h2>${esc(COMPANY.legalName)}</h2><p>${esc(COMPANY.registeredOffice)}<br>Company No. ${esc(COMPANY.companyNumber)}</p></div></div>
-      <div><span class="eyebrow">After you submit</span><h2>Clear routing and next-step ownership.</h2><p>The enquiry is reviewed against the selected topic and business context. Where a follow-up is appropriate, the next step may be clarification, a focused consultation, product demonstration or scoped delivery discussion.</p><p>Do not include passwords, secret keys, payment-card data or other unnecessary sensitive information in a public website enquiry.</p></div>
+    <section class="section section--soft contact-context-section"><div class="container">
+      ${sectionHeading('How we can help','One contact point, several types of conversation','These are informational routes only. Every enquiry uses the same contact form so visitors do not have to choose between competing contact experiences.')}
+      <div class="contact-context-strip">
+        <article><span>01</span><h3>Expert consultation</h3><p>For technology decisions, transformation planning, architecture questions, delivery constraints or specialist capability requirements.</p></article>
+        <article><span>02</span><h3>Business enquiry</h3><p>For project discussions, partnerships, product questions, commercial conversations and general company enquiries.</p></article>
+        <article><span>03</span><h3>Phone follow-up</h3><p>If a conversation is more useful than email, include a phone number and the subject you want to discuss so the right person can follow up.</p></article>
+        <article><span>04</span><h3>Digital message</h3><p>Use the enquiry form for a structured written message. There is no separate chat journey competing with the main contact route.</p></article>
+      </div>
     </div></section>
 
-    <section class="section"><div class="container">${sectionHeading('Map','Find the registered office')}<div style="overflow:hidden;border:1px solid var(--color-line);border-radius:.55rem;background:var(--color-surface-soft)"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="420" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div></section>
+    <section class="section"><div class="container">
+      ${sectionHeading('What happens next','Clear routing, ownership and follow-up','A professional contact experience should make the next step predictable without overpromising response times or routing visitors through unnecessary forms.')}
+      <div class="contact-next-steps">
+        <article><span>01</span><div><h3>Review</h3><p>The enquiry is reviewed against the selected topic, business context and requested outcome.</p></div></article>
+        <article><span>02</span><div><h3>Route</h3><p>The request is directed to the most relevant service, product or business contact rather than asking the visitor to resubmit it elsewhere.</p></div></article>
+        <article><span>03</span><div><h3>Respond</h3><p>Where follow-up is appropriate, the next step may be clarification, a focused consultation, product demonstration or scoped delivery discussion.</p></div></article>
+      </div>
+    </div></section>
+
+    <section class="section section--soft"><div class="container contact-location-layout">
+      <div class="contact-office-card">
+        <span class="eyebrow">Registered office</span>
+        <h2>${esc(COMPANY.legalName)}</h2>
+        <p>${esc(COMPANY.registeredOffice)}</p>
+        <p class="contact-company-number">Registered in England and Wales · Company No. ${esc(COMPANY.companyNumber)}</p>
+        <p class="contact-privacy-note">Please do not include passwords, secret keys, payment-card information or other unnecessary sensitive data in a public website enquiry.</p>
+      </div>
+      <div class="contact-map-shell"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="440" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+    </div></section>
   </main>`;
 }
