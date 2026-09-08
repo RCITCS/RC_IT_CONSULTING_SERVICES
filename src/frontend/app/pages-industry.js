@@ -89,8 +89,8 @@ export const HOME_INDUSTRIES = [
 
 export const FAQS = [
   ['What services does RC IT Services provide?', 'RC IT Services covers technology consultancy, cyber security, artificial intelligence, cloud computing, data engineering and analytics, IT support, management services and education consultancy, supported by dedicated industry capability.'],
-  ['How can an organisation engage RC IT Services?', 'Start through Contact or Consult our Expert and describe the business outcome, systems involved, timeline and known constraints. The appropriate engagement model and scope can then be defined around the requirement.'],
+  ['How can an organisation engage RC IT Services?', 'Use Contact and describe the business outcome, systems involved, timeline and known constraints. The consultation topic routes the enquiry to the appropriate service area without creating a separate competing contact journey.'],
   ['Can I request a product demonstration?', 'Yes. Open Our Products, choose the relevant product and select Request a Demo to provide your organisation and evaluation requirements.'],
-  ['How do I apply for a role?', 'Open Careers and choose Upload your Resume. You can provide your experience, primary skills, work-authorisation information and CV for consideration against relevant opportunities.'],
+  ['How do I apply for a role?', 'Open Careers and select a published vacancy. Review the complete job description, qualifications, experience expectations, working style and location, then use the Apply button for that specific role. RC does not use a separate speculative resume-upload page.'],
   ['Who can use the Login area?', 'Client and staff access is reserved for authorised users. Workspace access is provisioned directly for the relevant engagement, project or internal role rather than through public self-registration.']
 ];
