@@ -36,6 +36,7 @@ Each image must answer a page-specific question before it is approved:
 | Homepage — banking & finance | Colleagues discussing financial charts and graphs | Pexels 7693745 |
 | Homepage — media | Media professionals collaborating on video editing and colour grading | Pexels 8102691 |
 | Homepage — education industry | Students using laptops in a university lecture environment | Pexels 8199133 |
+| Homepage — client/delivery context | Professionals collaborating around data and delivery work | Pexels 3183185 |
 | IT Consultancy — hero | Business/technology consultation around laptops | Pexels 36733315 |
 | IT Consultancy — body | Professional team in a strategy/project discussion | Pexels 7433872 |
 | Cyber Security — hero | Cybersecurity professional reviewing code on multiple monitors | Pexels 5380603 |
@@ -69,7 +70,7 @@ Each image must answer a page-specific question before it is approved:
 | Job Opportunities | Real job-interview conversation with laptop/documents | Pexels 5439138 |
 | Upload your Resume | Candidate handing a CV/resume to a recruiter | Pexels 5673502 |
 | Contact Us — hero | Professional customer-service representative using a headset | Pexels 7504886 |
-| Contact Us — body | Real customer/support team using headsets and computers | Pexels 8867267 |
+| Contact Us — body | Customer service team at a call centre using laptops and headsets | Pexels 7709227 |
 | Legal / governance pages | Real professional contract/document workspace | Pexels 5313170 |
 | Products — hero | Team reviewing a digital product/project around a laptop | Pexels 6476266 |
 | Products — body | Team discussing a digital workflow/product on a laptop | Pexels 8837486 |
