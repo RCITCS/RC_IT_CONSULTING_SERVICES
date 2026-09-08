@@ -10,11 +10,18 @@
 
 ## Cloudflare ownership
 
-The Worker declares both apex and `www` as Custom Domains in `wrangler.jsonc`. On the production `main` deployment, Wrangler/Cloudflare owns the hostname mapping, DNS record creation and certificate issuance. Non-production Workers Builds use `wrangler versions upload`, so branch previews create Worker versions without promoting the production domain routes.
+The first production attempt declared apex and `www` as Worker Custom Domains. The application and preview builds passed, but Cloudflare rejected production route promotion before either hostname became live. Because Custom Domain creation replaces/creates DNS records and cannot attach to a hostname with a conflicting CNAME, the controlled hotfix uses zone-scoped Worker routes for both hostnames instead of attempting DNS replacement.
+
+Current Wrangler production routes are:
+
+- `rcitcs.com/*` in zone `rcitcs.com`
+- `www.rcitcs.com/*` in zone `rcitcs.com`
+
+This route model uses the existing Cloudflare DNS hostname records and only attaches the Worker execution route. Workers Builds already has the required Workers Routes permission. If live verification proves either hostname lacks a proxied DNS record, DNS provisioning remains the next infrastructure action rather than being hidden behind a false successful deploy.
 
 ## SEO ownership
 
-`https://rcitcs.com` is the default `SITE_ORIGIN`. Canonicals, sitemap URLs, robots sitemap reference, Organization/WebSite/WebPage identifiers, Service schema and social URL metadata therefore point at the real production domain. The temporary Workers hostname must never regain canonical ownership.
+`https://rcitcs.com` remains the default `SITE_ORIGIN`. Canonicals, sitemap URLs, robots sitemap reference, Organization/WebSite/WebPage identifiers, Service schema and social URL metadata therefore point at the real production domain. The temporary Workers hostname must never regain canonical ownership.
 
 ## Email routing boundary
 
@@ -26,9 +33,10 @@ Outbound transactional mail remains the Phase 13 provider responsibility (Resend
 
 After merge to `main`, CI must prove:
 
-1. `rcitcs.com` serves all protected deep routes and `/api/health` over HTTPS
-2. canonical metadata, sitemap and robots use `https://rcitcs.com`
-3. `www.rcitcs.com` returns a permanent redirect preserving path/query
-4. the workers.dev production hostname returns `X-Robots-Tag: noindex, nofollow`
-5. real 404, legacy redirects, immutable assets and HTML revalidation remain correct
-6. Vercel fallback remains reachable and isolated
+1. the Cloudflare production deploy succeeds with both zone routes
+2. `rcitcs.com` resolves and serves all protected deep routes and `/api/health` over HTTPS
+3. canonical metadata, sitemap and robots use `https://rcitcs.com`
+4. `www.rcitcs.com` returns a permanent redirect preserving path/query
+5. the workers.dev production hostname returns `X-Robots-Tag: noindex, nofollow`
+6. real 404, legacy redirects, immutable assets and HTML revalidation remain correct
+7. Vercel fallback remains reachable and isolated

@@ -6,9 +6,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
 const wrangler = JSON.parse(await read('wrangler.jsonc'));
-const customDomains = new Map((wrangler.routes || []).map((route) => [route.pattern, route.custom_domain]));
-for (const hostname of ['rcitcs.com', 'www.rcitcs.com']) {
-  if (customDomains.get(hostname) !== true) throw new Error(`Cloudflare custom domain missing: ${hostname}`);
+const zoneRoutes = new Map((wrangler.routes || []).map((route) => [route.pattern, route.zone_name]));
+for (const pattern of ['rcitcs.com/*', 'www.rcitcs.com/*']) {
+  if (zoneRoutes.get(pattern) !== 'rcitcs.com') throw new Error(`Cloudflare zone route missing or mis-scoped: ${pattern}`);
+}
+if ((wrangler.routes || []).some((route) => route.custom_domain === true)) {
+  throw new Error('Hotfix routing must not attempt Custom Domain DNS replacement until the hostname conflict is resolved.');
 }
 if (wrangler.workers_dev !== true || wrangler.preview_urls !== true) {
   throw new Error('workers.dev and preview URLs must remain enabled as isolated deployment/debug surfaces.');
@@ -45,4 +48,4 @@ if (!packageJson.scripts?.['check:domain-architecture'] || !packageJson.scripts?
   throw new Error('Domain architecture checks must run in the architecture gate.');
 }
 
-console.log('PASS: rcitcs.com Cloudflare custom-domain ownership, canonical SEO, www normalization and secondary-origin isolation verified.');
+console.log('PASS: rcitcs.com Cloudflare zone-route ownership, canonical SEO, www normalization and secondary-origin isolation verified.');

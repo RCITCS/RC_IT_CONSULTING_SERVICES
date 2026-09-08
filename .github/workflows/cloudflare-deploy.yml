@@ -68,7 +68,7 @@ jobs:
           grep -q 'drop-trailing-slash' wrangler.jsonc
           grep -q 'rcitcservices' wrangler.jsonc
           grep -q 'rcitcs.com' wrangler.jsonc
-          grep -q 'custom_domain' wrangler.jsonc
+          grep -q 'zone_name' wrangler.jsonc
           grep -q 'serveApplication' worker/index.js
           grep -q 'getPrerenderRoutes' scripts/build.mjs
 
@@ -80,7 +80,7 @@ jobs:
     timeout-minutes: 12
 
     steps:
-      - name: Wait for current Cloudflare custom-domain deployment and verify deep routes
+      - name: Wait for current Cloudflare domain-route deployment and verify deep routes
         shell: bash
         run: |
           set -euo pipefail
@@ -121,7 +121,7 @@ jobs:
             fi
 
             if [[ "$attempt" == '60' ]]; then
-              echo 'rcitcs.com did not become healthy within the custom-domain verification window.' >&2
+              echo 'rcitcs.com did not become healthy within the domain-route verification window.' >&2
               exit 1
             fi
             sleep 5
@@ -247,7 +247,7 @@ jobs:
       - name: Deployment ownership
         run: |
           echo 'CI and live-route verification passed.'
-          echo 'rcitcs.com is the canonical Cloudflare Workers Custom Domain.'
+          echo 'rcitcs.com is the canonical Cloudflare zone-routed production origin.'
           echo 'www.rcitcs.com permanently redirects to the canonical apex domain.'
           echo 'workers.dev remains an isolated deployment/debug surface.'
           echo 'Vercel is retained as a secondary noindex fallback.'

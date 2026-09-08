@@ -7,12 +7,12 @@
   "preview_urls": true,
   "routes": [
     {
-      "pattern": "rcitcs.com",
-      "custom_domain": true
+      "pattern": "rcitcs.com/*",
+      "zone_name": "rcitcs.com"
     },
     {
-      "pattern": "www.rcitcs.com",
-      "custom_domain": true
+      "pattern": "www.rcitcs.com/*",
+      "zone_name": "rcitcs.com"
     }
   ],
   "assets": {
