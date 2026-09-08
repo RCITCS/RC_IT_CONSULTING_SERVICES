@@ -22,16 +22,58 @@ export function renderIndustryPage(page) {
   return `<main id="main-content">
     ${pageHero({ ...page, crumbs:[{label:'Home',href:'/'},{label:'Industry',href:'/industry/automotive-industry-it-services'},{label:page.title}] })}
     <section class="section"><div class="container split"><div>${imageTag(page.image,page.imageAlt)}</div><div><span class="eyebrow">Industry context</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b)=>`<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
-    <section class="section section--soft"><div class="container">${sectionHeading('How we work', 'Industry context informs architecture and delivery', 'We do not use an industry label as decoration. Security, data, integration, availability, compliance and operating requirements change by context.')}
+    <section class="section section--soft"><div class="container">${sectionHeading('How we work', 'Industry context informs architecture and delivery', 'Security, data, integration, availability, compliance and operating requirements change by context. Our delivery approach is shaped around those realities.')}
       <div class="trust-strip"><div class="trust-item"><strong>Discover</strong><span>Clarify users, systems, constraints and required outcomes.</span></div><div class="trust-item"><strong>Design</strong><span>Define solution boundaries, risks, interfaces and quality attributes.</span></div><div class="trust-item"><strong>Deliver</strong><span>Implement, verify, release and support against explicit acceptance criteria.</span></div></div>
     </div></section>${ctaPanel(`Discuss ${page.title} requirements`)}</main>`;
 }
 
 export function renderAbout() {
   pageTitle('About Us');
-  return `<main id="main-content">${pageHero({category:'About Us',title:'Technology delivery with clear ownership',lead:'RC IT Services is the dedicated technology-service presentation of R C OVERSEAS LTD, covering IT, management and education consulting capabilities.',image:IMAGES.about,imageAlt:'Professional technology team working together in a real office',crumbs:[{label:'Home',href:'/'},{label:'About Us'}]})}
-    <section class="section"><div class="container split"><div>${imageTag(IMAGES.about,'Diverse professional team collaborating')}</div><div><span class="eyebrow">Company</span><h2>Built around delivery accountability.</h2><p>The company structure supports contract-based technology work, consulting and delivery teams. The website therefore emphasises clear capability, contact paths, careers intake and service ownership without inventing customer proof.</p><ul class="list-check"><li>Legal entity: ${esc(COMPANY.legalName)}</li><li>Company number: ${esc(COMPANY.companyNumber)}</li><li>IT consultancy activity aligned with the company SIC profile</li><li>Dedicated technology presentation separated from the education experience</li></ul></div></div></section>
-    <section class="section section--soft"><div class="container">${sectionHeading('Delivery principles','What should remain true behind every page')}<div class="topic-grid"><article class="topic-card"><h3>Useful interactions</h3><p>Every interaction should have a clear purpose, destination and outcome.</p></article><article class="topic-card"><h3>Architecture before fashion</h3><p>Technology choices must match delivery and operational requirements.</p></article><article class="topic-card"><h3>Credibility through evidence</h3><p>Public claims should be specific, supportable and relevant to the service being discussed.</p></article></div></div></section>${ctaPanel()}</main>`;
+  return `<main id="main-content">
+    ${pageHero({
+      category:'About Us',
+      title:'Technology and consulting focused on lasting improvement',
+      lead:'RC IT Services brings together technology consulting, digital transformation, management advisory and education consulting under R C OVERSEAS LTD.',
+      image:IMAGES.about,
+      imageAlt:'Professional technology and consulting team collaborating in a real office',
+      crumbs:[{label:'Home',href:'/'},{label:'About Us'}]
+    })}
+
+    <section class="section"><div class="container split">
+      <div>${imageTag(IMAGES.consulting,'Consultants collaborating during a business and technology meeting')}</div>
+      <div><span class="eyebrow">Who we are</span><h2>Business understanding first. Technology applied with purpose.</h2>
+        <p>We work with organisations that need to improve performance, modernise digital capabilities and turn strategy into practical delivery. Our approach is based on clear communication, transparent working relationships and teams that listen carefully to client priorities before recommending a solution.</p>
+        <p>Technology programmes are most valuable when they improve the way a business operates. We therefore connect consulting, architecture, engineering and implementation so that digital change is tied to measurable business needs rather than isolated technology activity.</p>
+        <ul class="list-check"><li>Technology consulting and digital transformation</li><li>Cloud, automation, artificial intelligence and data</li><li>Management consulting and implementation support</li><li>Education consulting and digital service capability</li></ul>
+      </div>
+    </div></section>
+
+    <section class="section section--soft"><div class="container">
+      ${sectionHeading('Digital transformation','From existing landscape to a stronger operating model','We help organisations evaluate where they are today, identify opportunities for improvement and build a practical path toward modern platforms, processes and digital services.')}
+      <div class="topic-grid">
+        <article class="topic-card"><h3>Modernise</h3><p>Improve existing applications, infrastructure, data and operating processes without losing sight of business continuity.</p></article>
+        <article class="topic-card"><h3>Innovate</h3><p>Use advances in cloud, automation, AI and connected technologies where they can create meaningful operational or customer value.</p></article>
+        <article class="topic-card"><h3>Implement</h3><p>Translate strategy into delivery plans, accountable workstreams and technology outcomes that can be operated and improved over time.</p></article>
+      </div>
+    </div></section>
+
+    <section class="section"><div class="container split">
+      <div><span class="eyebrow">Our direction</span><h2>Building capability for the next stage of business.</h2>
+        <p>Our aim is to help clients remain relevant as technology, customer expectations and operating models change. That can include cloud modernisation, intelligent automation, secure digital platforms, data-driven decision support, connected systems and the management change required to make those capabilities useful.</p>
+        <p>We also recognise that technology is only one part of transformation. Management and education consulting remain part of the broader RC service model where organisations need process, people and technology considerations to work together.</p>
+      </div>
+      <div class="topic-grid" style="grid-template-columns:1fr;">
+        <article class="topic-card"><span class="eyebrow">Vision</span><h3>Help organisations use technology to create stronger, more adaptable businesses.</h3><p>We focus on practical improvement, responsible innovation and digital capability that can continue to evolve.</p></article>
+        <article class="topic-card"><span class="eyebrow">Mission</span><h3>Connect strategy, technology and implementation through transparent delivery.</h3><p>We aim to make complex change easier to understand, govern and execute with clear responsibilities and measurable outcomes.</p></article>
+      </div>
+    </div></section>
+
+    <section class="section section--soft"><div class="container">
+      ${sectionHeading('Corporate identity','R C OVERSEAS LTD')}
+      <div class="trust-strip"><div class="trust-item"><strong>${esc(COMPANY.legalName)}</strong><span>Registered legal entity operating the RC IT Services presentation.</span></div><div class="trust-item"><strong>Company No. ${esc(COMPANY.companyNumber)}</strong><span>Registered in England and Wales.</span></div><div class="trust-item"><strong>London</strong><span>${esc(COMPANY.registeredOffice)}</span></div></div>
+    </div></section>
+    ${ctaPanel('Talk to RC IT Services','Tell us where your organisation is today, what needs to change and the outcome you need to achieve.')}
+  </main>`;
 }
 
 export function renderProducts() {
@@ -64,5 +106,5 @@ export function renderContact() {
     <section class="section"><div class="container contact-grid"><div><span class="eyebrow">Contact options</span><h2>One destination, clear intent.</h2><div class="contact-options"><div class="contact-option"><h3>Write to Us</h3><p>Send a structured business enquiry through the form.</p><button class="btn btn--text" type="button" data-contact-intent="Write to Us">Start enquiry ${arrow()}</button></div><div class="contact-option"><h3>Talk to Us</h3><p>Request a phone conversation by including your number and preferred context.</p><button class="btn btn--text" type="button" data-contact-intent="Talk to Us">Request contact ${arrow()}</button></div><div class="contact-option"><h3>Email Us</h3><p>Use the business email field so the request can be routed correctly.</p><button class="btn btn--text" type="button" data-contact-intent="Email Us">Start enquiry ${arrow()}</button></div><div class="contact-option"><h3>Chat With Us</h3><p>Send a focused message to the technology team without leaving the page.</p><button class="btn btn--text" type="button" data-chat-now>Chat Now &gt;&gt;&gt;</button></div></div></div>
       <div id="contact-form">${sectionHeading('Enquiry form','Tell us how to route your request')}<form data-api-form="/api/contact" novalidate><input type="hidden" name="intent" id="contact-intent" value="General enquiry"><div class="form-grid">${field('firstName','First Name','text',true)}${field('lastName','Last Name','text',true)}${field('company','Company','text',true)}${field('phone','Phone Number','tel',true,'phone')}${field('businessEmail','Business Email','email',true)}${field('jobTitle','Job Title','text',true)}<div class="form-field form-field--full"><label for="message">Message</label><textarea id="message" name="message"></textarea><span class="field-error"></span></div></div><div class="form-actions"><button class="btn btn--primary" type="submit">Submit</button><p class="form-status" data-form-status></p></div></form></div></div></section>
     <section class="section section--soft"><div class="container">${sectionHeading('Registered office','Corporate details')}<div class="empty-state"><h2>${esc(COMPANY.legalName)}</h2><p>${esc(COMPANY.registeredOffice)}<br>Company No. ${esc(COMPANY.companyNumber)}</p></div></div></section>
-    <section class="section"><div class="container">${sectionHeading('Map','Find the registered office')}<div style="overflow:hidden;border:1px solid var(--color-line);border-radius:1rem;background:var(--color-surface-soft)"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="420" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div></section></main>`;
+    <section class="section"><div class="container">${sectionHeading('Map','Find the registered office')}<div style="overflow:hidden;border:1px solid var(--color-line);border-radius:.55rem;background:var(--color-surface-soft)"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="420" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div></section></main>`;
 }
