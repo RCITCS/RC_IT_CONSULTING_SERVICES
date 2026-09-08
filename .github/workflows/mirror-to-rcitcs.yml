@@ -1,0 +1,33 @@
+name: Mirror to RCITCS Repository
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rcitcs-repository-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror main to RCITCS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout complete repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push main branch to RCITCS repository
+        env:
+          RCITCS_MIRROR_TOKEN: ${{ secrets.RCITCS_MIRROR_TOKEN }}
+        run: |
+          git remote add rcitcs "https://x-access-token:${RCITCS_MIRROR_TOKEN}@github.com/RCITCS/RC_IT_CONSULTING_SERVICES.git"
+          git push rcitcs HEAD:main --force
+          git push rcitcs --tags --force
