@@ -13,14 +13,26 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function concatBytes(...parts) {
+  const arrays = parts.map((part) => typeof part === 'string' ? new TextEncoder().encode(part) : new Uint8Array(part));
+  const output = new Uint8Array(arrays.reduce((total, part) => total + part.byteLength, 0));
+  let offset = 0;
+  for (const part of arrays) { output.set(part, offset); offset += part.byteLength; }
+  return output;
+}
+
 const url = 'https://phase8-test.supabase.co';
 const secret = 'sb_secret_test_server_only';
+const legacyServiceRole = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature';
+const legacyAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.signature';
 const config = createPersistenceConfig({ SUPABASE_URL: `${url}/`, SUPABASE_SECRET_KEY: secret });
 assert(config.configured === true, 'Supabase config should require URL + server secret');
 assert(config.url === url, 'Supabase URL should be normalized');
 assert(config.storageBucket === 'candidate-documents', 'candidate bucket should have a safe default');
 assert(createPersistenceConfig({ SUPABASE_URL: url }).configured === false, 'URL without secret must remain unconfigured');
-assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: 'legacy-test' }).configured === true, 'legacy service-role key should remain migration-compatible');
+assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SECRET_KEY: 'sb_publishable_browser_key' }).configured === false, 'publishable key must never configure server persistence');
+assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: legacyServiceRole }).configured === true, 'legacy service-role JWT should remain migration-compatible');
+assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: legacyAnon }).configured === false, 'legacy anon JWT must not configure server persistence');
 
 const calls = [];
 async function fakeFetch(requestUrl, options = {}) {
@@ -68,7 +80,8 @@ assert(databaseCall.options.headers.prefer === 'return=representation', 'databas
 const persistedContact = JSON.parse(databaseCall.options.body);
 assert(persistedContact.id === result.body.data.id, 'API result ID must equal persisted database ID');
 assert(persistedContact.email === validContact.email && persistedContact.source_type === 'contact', 'normalized enquiry fields must be persisted');
-assert(!('privacyConsent' in persistedContact), 'consent UX field should not be duplicated into general enquiry storage');
+assert(persistedContact.privacy_consent_at === persistedContact.received_at, 'accepted contact privacy consent must retain timestamp evidence');
+assert(!('privacyConsent' in persistedContact), 'raw UX consent field should not be duplicated into storage');
 
 const pdf = new TextEncoder().encode('%PDF-1.7\nphase8');
 let metadata = validateCandidateDocument({ fileName: 'resume.pdf', mimeType: 'application/pdf', bytes: pdf });
@@ -79,19 +92,24 @@ metadata = validateCandidateDocument({
   bytes: new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0x00])
 });
 assert(metadata.extension === 'doc', 'DOC OLE signature validation should succeed');
+const docx = concatBytes([0x50, 0x4b, 0x03, 0x04], '[Content_Types].xml', 'word/document.xml');
 metadata = validateCandidateDocument({
   fileName: 'cover.docx',
   mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  bytes: new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00])
+  bytes: docx
 });
-assert(metadata.extension === 'docx', 'DOCX ZIP signature validation should succeed');
+assert(metadata.extension === 'docx', 'DOCX ZIP package markers should succeed');
 
 let rejected = false;
 try {
+  validateCandidateDocument({ fileName: 'cover.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', bytes: concatBytes([0x50, 0x4b, 0x03, 0x04], 'random.zip') });
+} catch (error) { rejected = error?.status === 422; }
+assert(rejected, 'arbitrary ZIP content must not pass as DOCX');
+
+rejected = false;
+try {
   validateCandidateDocument({ fileName: 'resume.pdf', mimeType: 'application/msword', bytes: pdf });
-} catch (error) {
-  rejected = error?.status === 422;
-}
+} catch (error) { rejected = error?.status === 422; }
 assert(rejected, 'extension/MIME mismatch must be rejected');
 
 rejected = false;
@@ -111,6 +129,15 @@ assert(!objectPath.includes('resume'), 'user filenames must not become private o
 const storage = createSupabaseStorageProvider({ url, secretKey: secret, bucket: 'candidate-documents', fetchImpl: fakeFetch });
 const upload = await storage.uploadPrivateObject({ path: objectPath, bytes: pdf, contentType: 'application/pdf' });
 assert(upload.path === objectPath, 'private storage upload should return only the generated path');
+
+rejected = false;
+try { await storage.uploadPrivateObject({ path: objectPath, bytes: pdf, contentType: 'application/msword' }); } catch (error) { rejected = error?.status === 422; }
+assert(rejected, 'storage provider must enforce path/MIME consistency independently of its caller');
+
+rejected = false;
+try { await storage.uploadPrivateObject({ path: objectPath.replace(applicationId, 'not-a-uuid'), bytes: pdf, contentType: 'application/pdf' }); } catch (error) { rejected = error instanceof TypeError; }
+assert(rejected, 'storage provider must reject non-generated object paths');
+
 const signed = await storage.createSignedDownloadUrl({ path: objectPath, expiresIn: 300 });
 assert(signed.url.startsWith(`${url}/storage/v1/object/sign/`), 'private retrieval must use a signed storage URL');
 assert(signed.expiresIn === 300, 'signed URL expiry must be explicit');
@@ -129,4 +156,4 @@ result = await failingApp.handle({ method: 'POST', pathname: '/api/contact', hea
 assert(result.status === 502 && result.body.code === 'DATA_PROVIDER_REQUEST_FAILED', 'upstream database rejection must normalize to 502');
 assert(!JSON.stringify(result.body).includes('sensitive provider detail'), 'provider response details must not leak to clients');
 
-console.log('PASS: Phase 8 Supabase configuration, durable enquiry repository, server-only auth, private 20 MiB PDF/DOC/DOCX validation, generated object keys, signed retrieval and provider-failure isolation verified.');
+console.log('PASS: Phase 8 server-key validation, durable enquiry persistence/consent evidence, private 20 MiB PDF/DOC/DOCX enforcement, Word-package checks, generated object keys, signed retrieval and provider-failure isolation verified.');

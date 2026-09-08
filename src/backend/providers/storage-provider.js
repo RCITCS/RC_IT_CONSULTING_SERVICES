@@ -8,7 +8,9 @@ export const CANDIDATE_DOCUMENT_TYPES = Object.freeze({
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 });
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_SOURCE = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const uuid = new RegExp(`^${UUID_SOURCE}$`, 'i');
+const generatedObjectPath = new RegExp(`^applications/${UUID_SOURCE}/documents/${UUID_SOURCE}\\.(pdf|doc|docx)$`, 'i');
 
 function bytesOf(value) {
   if (value instanceof Uint8Array) return value;
@@ -20,11 +22,23 @@ function startsWith(bytes, signature) {
   return signature.every((value, index) => bytes[index] === value);
 }
 
+function includesAscii(bytes, text) {
+  const needle = new TextEncoder().encode(text);
+  outer: for (let start = 0; start <= bytes.length - needle.length; start += 1) {
+    for (let index = 0; index < needle.length; index += 1) {
+      if (bytes[start + index] !== needle[index]) continue outer;
+    }
+    return true;
+  }
+  return false;
+}
+
 function signatureMatches(extension, bytes) {
   if (extension === 'pdf') return startsWith(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d]);
   if (extension === 'doc') return startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
   if (extension === 'docx') {
-    return startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0x50, 0x4b, 0x05, 0x06]) || startsWith(bytes, [0x50, 0x4b, 0x07, 0x08]);
+    const zipSignature = startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0x50, 0x4b, 0x05, 0x06]) || startsWith(bytes, [0x50, 0x4b, 0x07, 0x08]);
+    return zipSignature && includesAscii(bytes, '[Content_Types].xml') && includesAscii(bytes, 'word/');
   }
   return false;
 }
@@ -37,7 +51,7 @@ function extensionOf(fileName) {
 
 function assertObjectPath(path) {
   const value = String(path || '');
-  if (!value || value.length > 512 || value.startsWith('/') || value.includes('..') || !/^[A-Za-z0-9/_-]+\.(pdf|doc|docx)$/i.test(value)) {
+  if (!value || value.length > 512 || !generatedObjectPath.test(value)) {
     throw new TypeError('Storage object path must be a generated candidate-document key.');
   }
   return value;
@@ -87,6 +101,7 @@ export function createSupabaseStorageProvider({ url, secretKey, bucket, fetchImp
     async uploadPrivateObject({ path, bytes, contentType } = {}) {
       const objectPath = assertObjectPath(path);
       const content = bytesOf(bytes);
+      validateCandidateDocument({ fileName: objectPath, mimeType: contentType, bytes: content });
       const result = await client.request(`/storage/v1/object/${bucketName}/${objectPath.split('/').map(encodeURIComponent).join('/')}`, {
         method: 'POST',
         headers: { 'content-type': contentType, 'x-upsert': 'false', 'cache-control': 'no-store' },

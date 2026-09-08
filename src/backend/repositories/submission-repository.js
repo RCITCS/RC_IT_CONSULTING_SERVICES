@@ -32,6 +32,7 @@ function rowFor(record) {
     phone: payload.phone,
     topic: payload.consultationTopic,
     message: payload.message,
+    privacy_consent_at: record.receivedAt,
     details: { intent: payload.intent }
   };
   if (record.type === 'demo') return {

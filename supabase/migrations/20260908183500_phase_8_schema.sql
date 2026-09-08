@@ -127,6 +127,7 @@ create table if not exists public.contact_enquiries (
   topic text,
   message text,
   details jsonb not null default '{}'::jsonb,
+  privacy_consent_at timestamptz,
   status text not null default 'new' check (status in ('new','read','in_progress','resolved','spam')),
   assigned_admin_id uuid references public.admins(id) on delete set null,
   request_id text,

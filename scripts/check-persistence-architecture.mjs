@@ -31,6 +31,7 @@ if (!migration.includes('from anon, authenticated') || !migration.includes('to s
   throw new Error('Phase 8 migration must revoke browser roles and explicitly grant the server role.');
 }
 if (!migration.includes('size_bytes <= 20971520')) throw new Error('Application document metadata must enforce the 20 MiB limit.');
+if (!migration.includes('privacy_consent_at timestamptz')) throw new Error('Contact enquiry schema must retain privacy-consent timestamp evidence.');
 if (/\b(insert\s+into|update|delete\s+from)\s+storage\./i.test(migration)) {
   throw new Error('Storage service metadata must not be mutated directly from the application migration.');
 }
@@ -40,8 +41,13 @@ for (const contract of ['public = false', 'file_size_limit = "20MiB"', 'applicat
   if (!storageConfig.includes(contract)) throw new Error(`Private storage config missing contract: ${contract}`);
 }
 
+const persistenceConfig = await readFile(path.join(root, 'src/backend/config/persistence.js'), 'utf8');
+for (const contract of ["key.startsWith('sb_secret_')", "key.startsWith('sb_publishable_')", "jwtRole(key) === 'service_role'"]) {
+  if (!persistenceConfig.includes(contract)) throw new Error(`Server key validation missing Phase 8 contract: ${contract}`);
+}
+
 const storageProvider = await readFile(path.join(root, 'src/backend/providers/storage-provider.js'), 'utf8');
-for (const contract of ['MAX_CANDIDATE_DOCUMENT_BYTES = 20 * 1024 * 1024', 'createSignedDownloadUrl', 'buildCandidateDocumentPath', 'signatureMatches']) {
+for (const contract of ['MAX_CANDIDATE_DOCUMENT_BYTES = 20 * 1024 * 1024', 'createSignedDownloadUrl', 'buildCandidateDocumentPath', 'signatureMatches', "includesAscii(bytes, '[Content_Types].xml')", "includesAscii(bytes, 'word/')", 'validateCandidateDocument({ fileName: objectPath']) {
   if (!storageProvider.includes(contract)) throw new Error(`Storage provider missing Phase 8 contract: ${contract}`);
 }
 if (storageProvider.includes('/object/public/')) throw new Error('Phase 8 candidate storage must never expose public-object URLs.');
@@ -53,6 +59,14 @@ if (!databaseProvider.includes("prefer: 'return=representation'")) throw new Err
 const application = await readFile(path.join(root, 'src/backend/application.js'), 'utf8');
 if (!application.includes('createDatabaseSubmissionRepository(providerRegistry.database)')) {
   throw new Error('Phase 8 durable repository must be wired through the Phase 7 composition root.');
+}
+
+const submissionRepository = await readFile(path.join(root, 'src/backend/repositories/submission-repository.js'), 'utf8');
+if (!submissionRepository.includes('privacy_consent_at: record.receivedAt')) throw new Error('Contact persistence must retain consent evidence.');
+
+const provisioning = await readFile(path.join(root, 'scripts/provision-supabase-storage.mjs'), 'utf8');
+if (!provisioning.includes("method: 'GET'") || !provisioning.includes("method: 'PUT'") || !provisioning.includes("method: 'POST'")) {
+  throw new Error('Storage provisioning must inspect, update and create the bucket through supported HTTP methods.');
 }
 
 async function scanDirectory(directory) {
@@ -80,4 +94,4 @@ if (!packageJson.scripts?.['check:persistence-architecture'] || !packageJson.scr
   throw new Error('Phase 8 persistence architecture checks must be part of the architecture gate.');
 }
 
-console.log(`PASS: Phase 8 database/storage architecture, ${tables.length} private data domains, RLS/grants, 20 MiB private-document constraints, server-only Supabase credentials and durable repository wiring verified.`);
+console.log(`PASS: Phase 8 database/storage architecture, ${tables.length} private data domains, RLS/grants, server-key validation, consent evidence, 20 MiB private-document enforcement, Word-package checks and durable repository wiring verified.`);
