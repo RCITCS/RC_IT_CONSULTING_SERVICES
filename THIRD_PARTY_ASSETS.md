@@ -21,10 +21,15 @@ Current imagery categories include:
 - risk / business analytics
 - strategy collaboration
 - renewable energy / sustainability
-- university / education
+- real education / classroom / student technology environments
 - automotive
 - finance
 - media production
 - careers and corporate office environments
+
+## Education photography currently selected
+
+- Education industry / homepage: Haseeb Modi, students working in a school computer lab in Chennai, India. Unsplash photo id `1719159381981-1327b22aff9b`. Free under the Unsplash License.
+- Education consultancy: Ashutosh Gupta, student studying with a laptop in a library. Unsplash photo id `1778735940467-1335c201966d`. Free under the Unsplash License.
 
 No random Google Image assets are used.
