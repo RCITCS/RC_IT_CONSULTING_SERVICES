@@ -5,6 +5,13 @@ function safeJson(text) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+function authHeaders(secretKey) {
+  return {
+    apikey: secretKey,
+    ...(String(secretKey).startsWith('sb_secret_') ? {} : { authorization: `Bearer ${secretKey}` })
+  };
+}
+
 export function createSupabaseHttpClient({ url, secretKey, fetchImpl = globalThis.fetch } = {}) {
   if (!url || !secretKey) throw new TypeError('Supabase URL and server secret key are required.');
   if (typeof fetchImpl !== 'function') throw new TypeError('A fetch implementation is required.');
@@ -16,8 +23,7 @@ export function createSupabaseHttpClient({ url, secretKey, fetchImpl = globalThi
       response = await fetchImpl(`${baseUrl}${path}`, {
         method,
         headers: {
-          apikey: secretKey,
-          authorization: `Bearer ${secretKey}`,
+          ...authHeaders(secretKey),
           ...headers,
           ...(json !== undefined ? { 'content-type': 'application/json' } : {})
         },

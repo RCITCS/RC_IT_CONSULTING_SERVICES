@@ -6,7 +6,7 @@ if (!config.configured) throw new Error('SUPABASE_URL and a server-only Supabase
 
 const headers = {
   apikey: config.secretKey,
-  authorization: `Bearer ${config.secretKey}`,
+  ...(config.secretKey.startsWith('sb_secret_') ? {} : { authorization: `Bearer ${config.secretKey}` }),
   'content-type': 'application/json'
 };
 const bucketUrl = `${config.url}/storage/v1/bucket/${encodeURIComponent(config.storageBucket)}`;
