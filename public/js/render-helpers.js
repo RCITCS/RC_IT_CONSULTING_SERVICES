@@ -4,6 +4,12 @@ export function pageTitle(title) {
   document.title = title === 'Home' ? 'RC IT Services | Technology & Consulting' : `${title} | RC IT Services`;
 }
 
+function imageSizes(className = '') {
+  if (className.includes('mini-photo')) return '(max-width: 640px) calc(100vw - 2rem), (max-width: 900px) 50vw, 33vw';
+  if (className.includes('hero-photo')) return '(max-width: 900px) calc(100vw - 2rem), 46vw';
+  return '(max-width: 640px) calc(100vw - 2rem), (max-width: 980px) calc(100vw - 3rem), 50vw';
+}
+
 export function imageTag(src, alt, extra = '') {
   const className = extra.match(/class="([^"]+)"/)?.[1] || '';
   const loading = extra.match(/loading="([^"]+)"/)?.[1] || 'lazy';
@@ -18,6 +24,7 @@ export function imageTag(src, alt, extra = '') {
     className,
     loading,
     fetchPriority,
+    sizes: imageSizes(className),
     extra: cleanExtra
   });
 }
