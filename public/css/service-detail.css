@@ -1,0 +1,150 @@
+/* Dedicated service capability pages */
+.detail-intro {
+  display: grid;
+  grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
+  gap: clamp(2.25rem,5vw,5rem);
+  align-items: center;
+}
+.detail-intro__media img {
+  height: 480px;
+  object-fit: cover;
+  border-radius: .55rem;
+}
+.detail-intro__copy h2 {
+  margin-bottom: 1.15rem;
+  font-size: var(--h2);
+  color: var(--color-ink-950);
+}
+.detail-lead {
+  font-size: var(--body-lg);
+  color: var(--color-ink-700);
+}
+.detail-back-link {
+  display: inline-flex;
+  margin-top: 1.1rem;
+  color: var(--color-primary-700);
+  font-weight: 750;
+}
+.detail-back-link:hover { color: var(--color-ink-950); }
+
+.detail-two-column {
+  display: grid;
+  grid-template-columns: minmax(0,.8fr) minmax(0,1.2fr);
+  gap: clamp(2rem,5vw,5rem);
+  align-items: start;
+}
+.detail-two-column h2 {
+  margin-bottom: 1rem;
+  font-size: var(--h2);
+  color: var(--color-ink-950);
+}
+.detail-scope-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--color-line-strong);
+}
+.detail-scope-list li {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 1.1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.detail-scope-list > li > span {
+  color: var(--color-primary-600);
+  font-size: .76rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+.detail-scope-list strong {
+  display: block;
+  margin-bottom: .35rem;
+  color: var(--color-ink-950);
+}
+.detail-scope-list p { margin: 0; font-size: .9rem; }
+
+.delivery-steps {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  border-top: 1px solid var(--color-line-strong);
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.delivery-steps article {
+  min-height: 245px;
+  padding: 1.5rem;
+}
+.delivery-steps article + article { border-left: 1px solid var(--color-line); }
+.delivery-steps span {
+  display: block;
+  margin-bottom: 2.2rem;
+  color: var(--color-primary-600);
+  font-size: .75rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+.delivery-steps h3 { margin-bottom: .7rem; font-size: 1.2rem; }
+.delivery-steps p { margin: 0; font-size: .9rem; }
+
+.detail-outcome {
+  display: grid;
+  grid-template-columns: minmax(0,.85fr) minmax(0,1.15fr);
+  gap: clamp(2rem,5vw,5rem);
+  align-items: start;
+}
+.detail-outcome h2 {
+  margin-bottom: 0;
+  font-size: var(--h2);
+  color: var(--color-ink-950);
+}
+.detail-outcome > p {
+  margin: 2.1rem 0 0;
+  font-size: var(--body-lg);
+}
+
+.related-capabilities {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  border-top: 1px solid var(--color-line-strong);
+}
+.related-capabilities a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 76px;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink-800);
+  font-weight: 700;
+}
+.related-capabilities a:nth-child(odd) { padding-right: 1.5rem; }
+.related-capabilities a:nth-child(even) {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--color-line);
+}
+.related-capabilities a:hover { color: var(--color-primary-700); }
+.related-capabilities svg { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+  .detail-intro,
+  .detail-two-column,
+  .detail-outcome { grid-template-columns: 1fr; }
+  .detail-intro__media img { height: min(62vw,440px); }
+  .delivery-steps { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .delivery-steps article:nth-child(3) { border-left: 0; border-top: 1px solid var(--color-line); }
+  .delivery-steps article:nth-child(4) { border-top: 1px solid var(--color-line); }
+  .detail-outcome > p { margin-top: 0; }
+}
+
+@media (max-width: 640px) {
+  .detail-intro__media img { height: 340px; }
+  .delivery-steps { grid-template-columns: 1fr; }
+  .delivery-steps article { min-height: auto; padding: 1.25rem 0; }
+  .delivery-steps article + article { border-left: 0; border-top: 1px solid var(--color-line); }
+  .delivery-steps span { margin-bottom: .8rem; }
+  .related-capabilities { grid-template-columns: 1fr; }
+  .related-capabilities a:nth-child(odd),
+  .related-capabilities a:nth-child(even) { padding-left: 0; padding-right: 0; border-left: 0; }
+  .detail-scope-list li { grid-template-columns: 42px 1fr; }
+}
