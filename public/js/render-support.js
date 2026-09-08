@@ -7,7 +7,7 @@ import { pageTitle } from './render-helpers.js';
 
 export function renderResume() {
   pageTitle('Upload your Resume');
-  return `<main id="main-content">${pageHero({category:'Careers',title:'Upload your Resume',lead:'Share your professional profile for consideration across technology, consulting and delivery opportunities.',image:IMAGES.careers,imageAlt:'Professional technology team working together in a modern office',crumbs:[{label:'Home',href:'/'},{label:'Careers',href:'/careers/job-opportunities'},{label:'Upload your Resume'}]})}
+  return `<main id="main-content">${pageHero({category:'Careers',title:'Upload your Resume',lead:'Share your professional profile for consideration across technology, consulting and delivery opportunities.',image:IMAGES.careersResume,imageAlt:'Recruiter reviewing a candidate resume and documents during a real professional interview',crumbs:[{label:'Home',href:'/'},{label:'Careers',href:'/careers/job-opportunities'},{label:'Upload your Resume'}]})}
     <section class="section"><div class="container form-shell">${sectionHeading('Candidate profile','Tell us about your experience','Provide the information needed to understand your background, core skills and work-authorisation context.')}
       <form data-api-form="/api/resume" novalidate><div class="form-grid">${field('name','Name','text',true)}${field('email','Email','email',true)}${field('phone','Phone Number','tel',false,'phone')}${field('location','Current Location')} ${field('primarySkill','Primary Skill','text',true)}${field('yearsExperience','Years of Experience')} ${field('rightToWork','Right to Work / Visa Status')} ${field('linkedin','LinkedIn URL','url')}<div class="form-field form-field--full"><label for="resume-file">CV / Resume *</label><input id="resume-file" name="resumeFile" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required><span class="field-error"></span></div><div class="form-field form-field--full"><label style="display:flex;gap:.7rem;align-items:flex-start;font-weight:600"><input type="checkbox" name="consent" required style="width:18px;min-height:18px;margin-top:.2rem"> I consent to RC processing this information for recruitment purposes.</label><span class="field-error"></span></div></div><div class="form-actions"><button class="btn btn--primary" type="submit">Submit Profile</button><p class="form-status" data-form-status></p></div></form>
     </div></section></main>`;
@@ -15,7 +15,7 @@ export function renderResume() {
 
 export function renderJobs() {
   pageTitle('Job Opportunities');
-  return `<main id="main-content">${pageHero({category:'Careers',title:'Job Opportunities',lead:'Explore opportunities to work across consulting, engineering, data, cloud, cyber security and technology delivery.',image:IMAGES.careers,imageAlt:'Technology professionals collaborating in a real office environment',crumbs:[{label:'Home',href:'/'},{label:'Careers'},{label:'Job Opportunities'}]})}
+  return `<main id="main-content">${pageHero({category:'Careers',title:'Job Opportunities',lead:'Explore opportunities to work across consulting, engineering, data, cloud, cyber security and technology delivery.',image:IMAGES.careersJob,imageAlt:'Candidate and interviewer in a real professional job interview setting',crumbs:[{label:'Home',href:'/'},{label:'Careers'},{label:'Job Opportunities'}]})}
     <section class="section"><div class="container"><div class="empty-state"><span class="eyebrow">Current opportunities</span><h2>There are no published vacancies at this time.</h2><p>We still welcome profiles from experienced technology and consulting professionals. Submit your CV and core skills so the team can consider your profile when a relevant requirement becomes available.</p><a class="btn btn--primary" href="/careers/upload-your-resume">Upload your Resume ${arrow()}</a></div></div></section>
     <section class="section section--soft"><div class="container">${sectionHeading('Working with RC','The capabilities we typically recruit around','Role availability changes with client demand and project scope. Relevant profiles may include engineering, cloud, data, security, quality and consulting disciplines.')}<div class="topic-grid"><article class="topic-card"><h3>Engineering & Architecture</h3><p>Application development, APIs, integration, solution architecture, DevOps and platform engineering.</p></article><article class="topic-card"><h3>Cloud, Data & Security</h3><p>Cloud engineering, data engineering, analytics, cyber security and operational resilience.</p></article><article class="topic-card"><h3>Consulting & Delivery</h3><p>Business analysis, project delivery, transformation, risk, quality engineering and service management.</p></article></div></div></section></main>`;
 }
@@ -78,8 +78,8 @@ export function renderLegal(kind) {
       category:policy.category,
       title:policy.title,
       lead:policy.lead,
-      image:IMAGES.about,
-      imageAlt:'Professional corporate technology team in a real office environment',
+      image:IMAGES.legal,
+      imageAlt:'Real professional desk with a contract, laptop and business documents',
       crumbs:[{label:'Home',href:'/'},{label:policy.title}]
     })}
 
