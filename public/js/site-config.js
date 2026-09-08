@@ -73,7 +73,7 @@ export const IMAGES = {
   careersResume: 'https://images.pexels.com/photos/5673502/pexels-photo-5673502.jpeg?auto=compress&cs=tinysrgb&w=1800',
 
   contact: 'https://images.pexels.com/photos/7504886/pexels-photo-7504886.jpeg?auto=compress&cs=tinysrgb&w=1800',
-  contactDetail: 'https://images.pexels.com/photos/8867267/pexels-photo-8867267.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  contactDetail: 'https://images.pexels.com/photos/7709227/pexels-photo-7709227.jpeg?auto=compress&cs=tinysrgb&w=1800',
 
   legal: 'https://images.pexels.com/photos/5313170/pexels-photo-5313170.jpeg?auto=compress&cs=tinysrgb&w=1800',
   products: 'https://images.pexels.com/photos/6476266/pexels-photo-6476266.jpeg?auto=compress&cs=tinysrgb&w=1800',
