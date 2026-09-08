@@ -47,12 +47,13 @@ export default async function handler(req, res) {
   const payload = typeof req.body === 'object' && req.body ? req.body : {};
 
   if (action === 'contact') {
-    const required = ['firstName', 'lastName', 'company', 'phone', 'businessEmail', 'jobTitle'];
-    const missing = required.filter((key) => !clean(payload[key], 254));
+    const required = ['firstName', 'lastName', 'company', 'phone', 'businessEmail', 'jobTitle', 'consultationTopic', 'message'];
+    const missing = required.filter((key) => !clean(payload[key], key === 'message' ? 4000 : 254));
     if (missing.length) return respond(res, 422, { ok: false, message: `Missing required fields: ${missing.join(', ')}` });
+    if (payload.privacyConsent !== true) return respond(res, 422, { ok: false, message: 'Privacy confirmation is required.' });
     if (!email(payload.businessEmail)) return respond(res, 422, { ok: false, message: 'Enter a valid business email.' });
     if (!phone(payload.phone)) return respond(res, 422, { ok: false, message: 'Enter a valid phone number.' });
-    return respond(res, 202, { ok: true, id: recordId(), message: 'Preview enquiry validated successfully. Production CRM/email delivery will be connected before launch.' });
+    return respond(res, 202, { ok: true, id: recordId(), message: 'Enquiry validated. Production email or CRM delivery will be connected before public launch.' });
   }
 
   if (action === 'demo') {
