@@ -1,0 +1,597 @@
+# RC IT Services — Phase-Gated Execution Plan
+
+**Purpose:** This document is the controlled working plan for restructuring and extending RC IT Services without breaking the approved public website.
+
+**Rule:** A phase is marked complete only after implementation, code review, automated checks and regression verification pass. Work does not advance merely because files were created.
+
+---
+
+## Working roles applied to every phase
+
+Each phase is reviewed from all of these perspectives:
+
+- Product Owner — business requirement and user value
+- Product/Solution Architect — long-term structure and boundaries
+- Senior Frontend Engineer — maintainability, accessibility and UX
+- Backend Engineer — data integrity, APIs and operations
+- Security Reviewer — abuse cases and trust boundaries
+- QA Engineer — functional and regression risk
+- End User — clarity and task completion
+- Mobile User — responsive usability
+- Admin User — operational efficiency
+- SEO Reviewer — crawlability and search semantics
+- Performance Reviewer — loading cost and Core Web Vitals
+
+---
+
+# Master execution checklist
+
+- [ ] Phase 1 — Full architecture and regression baseline
+- [ ] Phase 2 — Structured project foundation
+- [ ] Phase 3 — Frontend page-by-page migration
+- [ ] Phase 4 — Shared components and design-system cleanup
+- [ ] Phase 5 — Performance optimization
+- [ ] Phase 6 — SEO architecture
+- [ ] Phase 7 — Backend foundation
+- [ ] Phase 8 — Database and storage architecture
+- [ ] Phase 9 — Admin authentication and security
+- [ ] Phase 10 — Admin dashboard
+- [ ] Phase 11 — Job-management CMS
+- [ ] Phase 12 — Candidate application workflow
+- [ ] Phase 13 — Email/notification architecture
+- [ ] Phase 14 — Contact-enquiry administration
+- [ ] Phase 15 — Admin candidate communication
+- [ ] Phase 16 — Audit logging/security hardening
+- [ ] Phase 17 — Domain/subdomain configuration
+- [ ] Phase 18 — Full responsive/mobile QA
+- [ ] Phase 19 — SEO/performance/accessibility QA
+- [ ] Phase 20 — Production release verification
+
+---
+
+## Phase 1 — Full architecture and regression baseline
+
+### Objective
+Create a verified baseline of everything that currently works before structural migration begins.
+
+### Tasks
+- inventory repository tree
+- inventory runtime/build/deployment architecture
+- enumerate public routes
+- enumerate redirects and API routes
+- map navigation and mega menus
+- map services, industries, careers, legal and utility pages
+- inventory CSS/JS ownership
+- inventory public imagery and source documentation
+- verify existing smoke tests
+- verify Cloudflare deep-route behaviour
+- verify Vercel fallback behaviour where available
+- capture known technical debt and risks
+- create regression contract
+
+### Acceptance criteria
+- current route matrix documented
+- build command documented
+- deployment model documented
+- existing automated tests run successfully
+- known issues explicitly recorded
+- no public behaviour changed during the phase
+
+### Closure format
+When verified:
+
+`~~Phase 1 — Full architecture and regression baseline~~ — COMPLETED & VERIFIED`
+
+---
+
+## Phase 2 — Structured project foundation
+
+### Objective
+Introduce professional source directories and module boundaries without changing public output.
+
+### Tasks
+- create `src/frontend` and `src/backend` boundaries
+- create page/component/layout/router/style/config/util directories
+- create controlled export/index conventions
+- move/copy shared configuration into source ownership
+- update build pipeline to consume structured source
+- preserve current public bundle and routes
+- add architecture lint/check scripts where useful
+
+### Acceptance criteria
+- source tree exists and has documented ownership
+- build succeeds from new structure
+- existing smoke tests pass
+- protected public DOM/interaction behaviour remains intact
+- no duplicate source-of-truth ambiguity for migrated modules
+
+---
+
+## Phase 3 — Frontend page-by-page migration
+
+### Objective
+Replace monolithic page-rendering ownership with explicit named page modules.
+
+### Migration order
+1. Home
+2. About
+3. Contact
+4. Products
+5. White Papers
+6. Careers shell
+7. Job detail/application surfaces
+8. Services — IT
+9. Services — Management
+10. Services — Education
+11. Industries
+12. Legal/supporting pages
+
+### Acceptance criteria per page
+- explicit named page module exists
+- route remains unchanged
+- page content remains correct
+- navigation state remains correct
+- desktop and mobile rendering remain correct
+- page-specific JS/CSS only loaded where justified
+- existing interaction tests pass
+
+---
+
+## Phase 4 — Shared components and design-system cleanup
+
+### Objective
+Create reusable, deliberate UI primitives without changing the approved visual language.
+
+### Scope
+- header
+- mega menus
+- mobile navigation
+- footer
+- buttons
+- cards
+- section headings
+- breadcrumbs
+- forms
+- field controls
+- alerts/status messages
+- modals/dialogs
+- responsive containers
+- spacing/type/design tokens
+
+### Acceptance criteria
+- duplicate markup/behaviour reduced
+- shared component APIs are small and meaningful
+- existing public appearance remains stable
+- accessibility semantics improve or remain correct
+
+---
+
+## Phase 5 — Performance optimization
+
+### Objective
+Reduce page weight and work performed on routes that do not need it.
+
+### Scope
+- route/page code splitting
+- dynamic imports
+- dead-code removal
+- CSS splitting/minification
+- image sizing/compression/modern formats
+- lazy loading
+- font optimization
+- immutable asset caching
+- Cloudflare cache behaviour
+- avoid loading job/admin data on unrelated routes
+
+### Targets
+- LCP < 2.5 s target
+- INP < 200 ms target
+- CLS < 0.1 target
+- Lighthouse Performance 90+ target where reproducible
+
+---
+
+## Phase 6 — SEO architecture
+
+### Objective
+Make public content consistently crawlable, indexable and semantically clear.
+
+### Scope
+- centralized SEO metadata model
+- unique titles/descriptions
+- canonical URLs
+- Open Graph/social metadata
+- Organization/WebSite/WebPage schema
+- Service schema
+- BreadcrumbList
+- JobPosting schema
+- sitemap generation
+- robots rules
+- redirect and 404 hygiene
+- internal-link checks
+
+### Acceptance criteria
+- every public indexable route has explicit metadata
+- private/admin routes are noindex
+- published jobs have canonical URLs and JobPosting schema
+- sitemap contains only intended public routes
+
+---
+
+## Phase 7 — Backend foundation
+
+### Objective
+Create backend layers independent of UI rendering.
+
+### Scope
+- API router/handlers
+- validation layer
+- service layer
+- repositories/storage interfaces
+- standardized API responses
+- error model
+- request IDs/logging hooks
+- environment configuration
+- provider interfaces for email/storage/database
+
+### Acceptance criteria
+- backend business logic no longer lives in public UI modules
+- APIs have validation and predictable status codes
+- no fake success responses for unconfigured persistence
+
+---
+
+## Phase 8 — Database and storage architecture
+
+### Objective
+Prepare persistent data and private document storage.
+
+### Data domains
+- admins
+- sessions
+- password reset tokens
+- jobs/categories
+- applications/documents
+- application history
+- contact enquiries
+- candidate messages
+- notifications
+- email logs
+- audit logs
+
+### Storage
+- private candidate documents
+- signed/authorized admin retrieval
+- max 20 MB resume
+- max 20 MB cover letter document
+- file type/MIME validation
+
+### External dependency
+Live completion requires approved production database/object-storage resources.
+
+---
+
+## Phase 9 — Admin authentication and security
+
+### Objective
+Protect the private administration application.
+
+### Scope
+- login/logout
+- secure sessions
+- change password
+- forgot password
+- reset password
+- expiry/single-use reset tokens
+- throttling
+- security headers
+- authorization middleware
+- noindex/private caching rules
+- session invalidation
+
+### External dependency
+Live password recovery requires outbound email configuration.
+
+---
+
+## Phase 10 — Admin dashboard
+
+### Objective
+Give administrators a concise operational overview.
+
+### Dashboard modules
+- open jobs
+- drafts
+- closed jobs
+- new applications
+- applications by status
+- contact enquiries
+- unread notifications
+- recent activity
+
+---
+
+## Phase 11 — Job-management CMS
+
+### Objective
+Remove code edits from normal vacancy publishing.
+
+### Capabilities
+- create/edit
+- draft/preview
+- publish/unpublish
+- close/archive/delete according to policy
+- duplicate
+- job category
+- location
+- work model
+- employment type
+- experience
+- technologies
+- description
+- responsibilities
+- qualifications
+- benefits
+- opening/closing dates
+
+### Acceptance criteria
+Published jobs automatically appear on public Careers and their canonical job route.
+
+---
+
+## Phase 12 — Candidate application workflow
+
+### Objective
+Implement a real job-specific application journey.
+
+### Flow
+`Job → Apply → Candidate form → documents → validation → persistence → notification → acknowledgement`
+
+### Requirements
+- job context cannot be lost
+- 20 MB per supported document
+- consent captured
+- private document storage
+- duplicate/invalid submission handling
+- candidate confirmation
+- admin notification
+
+---
+
+## Phase 13 — Email/notification architecture
+
+### Objective
+Centralize and professionalize transactional communication.
+
+### Planned identities
+- `info@rcitcs.com`
+- `contact@rcitcs.com`
+- `support@rcitcs.com`
+- `career@rcitcs.com`
+- `legal@rcitcs.com`
+- `noreply@rcitcs.com`
+
+### Provider model
+- inbound may use Cloudflare Email Routing → Gmail
+- outbound provider adapter supports Gmail API / Resend / approved alternative
+
+### Templates
+- contact acknowledgement
+- internal contact alert
+- application acknowledgement
+- internal application alert
+- status update
+- interview invitation
+- admin reply
+- password reset
+- password changed
+
+### External dependency
+Live completion requires the domain and approved sending provider credentials.
+
+---
+
+## Phase 14 — Contact-enquiry administration
+
+### Objective
+Persist and manage public enquiries.
+
+### Capabilities
+- enquiry list
+- unread/read state
+- topic/category
+- contact details
+- enquiry body
+- assignment/status
+- reply history where enabled
+- internal notes
+
+---
+
+## Phase 15 — Admin candidate communication
+
+### Objective
+Allow authorized administrators to communicate with applicants from the application record.
+
+### Capabilities
+- reply composition
+- professional RC email template
+- status-based templates
+- communication history
+- delivery log
+- sender identity `career@rcitcs.com`
+
+### External dependency
+Live delivery requires email provider configuration.
+
+---
+
+## Phase 16 — Audit logging/security hardening
+
+### Objective
+Make privileged operations accountable and reduce abuse risk.
+
+### Scope
+- audit admin login/logout
+- job create/edit/publish/close actions
+- candidate status changes
+- document access
+- outbound candidate messages
+- password changes
+- rate limits
+- validation review
+- security-header review
+- dependency review
+- secrets/configuration review
+
+---
+
+## Phase 17 — Domain/subdomain configuration
+
+### Objective
+Move from temporary provider URLs to the RC production domain.
+
+### Planned DNS
+- `www.rcitcs.com`
+- `rcitcs.com`
+- `admin.rcitcs.com`
+- optional `api.rcitcs.com`
+- staging hosts if approved
+
+### Email DNS
+- MX / forwarding as selected
+- SPF
+- DKIM
+- DMARC
+
+### External dependency
+**Blocked until the domain is purchased and available.**
+
+---
+
+## Phase 18 — Full responsive/mobile QA
+
+### Objective
+Verify the complete public and admin product across supported viewport classes.
+
+### Viewports
+- 320–374 px
+- 375–767 px
+- 768–1023 px
+- 1024–1279 px
+- 1280+ px
+
+### Scope
+- navigation
+- mega menus/mobile menu
+- footer
+- forms
+- careers split view
+- job application
+- admin tables/forms
+- dialogs
+- legal pages
+- touch targets
+- horizontal overflow
+
+---
+
+## Phase 19 — SEO/performance/accessibility QA
+
+### Objective
+Run final non-functional quality gates.
+
+### SEO
+- metadata completeness
+- schema validation
+- sitemap
+- robots
+- canonicals
+- crawlable links
+- 404/redirects
+
+### Performance
+- production asset size
+- Core Web Vitals-oriented review
+- critical route Lighthouse runs where available
+- caching/compression verification
+
+### Accessibility
+- semantics
+- keyboard navigation
+- visible focus
+- form labels/errors
+- contrast
+- dialog/menu behaviour
+- image alt text
+
+---
+
+## Phase 20 — Production release verification
+
+### Objective
+Verify the finished product in production before declaring release readiness.
+
+### Production checks
+- public root
+- every navigation route
+- every service route
+- every industry route
+- careers/search/grouping
+- canonical job routes
+- application submission
+- contact submission
+- admin login/reset/change password
+- job publishing
+- application visibility
+- admin reply
+- transactional email
+- legal pages
+- sitemap/robots
+- Cloudflare health/API
+- error behaviour
+- mobile smoke suite
+
+### Completion condition
+Phase 20 can only close when all external production dependencies are configured and tested.
+
+---
+
+# Phase status protocol
+
+The checklist in this file is the source of truth for project execution status.
+
+A phase in progress remains unchecked:
+
+`- [ ] Phase X — Name`
+
+A phase that is genuinely implemented and verified is changed to:
+
+`- [x] ~~Phase X — Name~~ — COMPLETED & VERIFIED`
+
+If external infrastructure blocks live verification, record:
+
+`- [ ] Phase X — Name — BLOCKED: <specific dependency>`
+
+Never mark a blocked or partially implemented phase as complete.
+
+---
+
+# Regression protection rule
+
+Before closing every phase:
+
+1. review the diff/code again
+2. run automated tests
+3. run/build production output
+4. verify impacted routes
+5. inspect error and edge states
+6. inspect desktop/mobile behaviour where affected
+7. check that unrelated pages did not regress
+8. update this plan only after verification
+
+---
+
+# Current status
+
+Project execution begins with Phase 1. No later phase is authorized to be marked complete until its predecessor has passed the defined gate.
