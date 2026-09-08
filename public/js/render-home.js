@@ -13,7 +13,7 @@ export function renderHome() {
             <span class="eyebrow">Technology Consulting · Engineering · Managed Delivery</span>
             <h1>Technology that moves <em>business forward.</em></h1>
             <p class="hero-lead">RC IT Services helps organisations design, modernise and operate digital capabilities across software, cloud, data, cyber security and management transformation.</p>
-            <div class="hero-actions"><a class="btn btn--primary" href="/consult-expert">Consult our Expert ${arrow()}</a><a class="btn btn--secondary" href="/services/it/consultancy-services">Explore Services</a></div>
+            <div class="hero-actions"><a class="btn btn--primary" href="/contact?intent=consultation#contact-form">Consult our Expert ${arrow()}</a><a class="btn btn--secondary" href="/services/it/consultancy-services">Explore Services</a></div>
           </div>
           <div class="hero-visual">
             ${imageTag(IMAGES.hero, 'Professional software and technology team collaborating around laptops in a real office', 'class="hero-photo" loading="eager"')}
@@ -23,12 +23,12 @@ export function renderHome() {
       </section>
 
       <section class="section home-entry-section"><div class="container">
-        ${sectionHeading('Explore RC IT Services','Three ways to move from interest to a useful next step','Evaluate our product areas, read decision-oriented technology perspectives or bring an active business and technology problem directly into a consultation.')}
+        ${sectionHeading('Explore RC IT Services','Three ways to move from interest to a useful next step','Evaluate our product areas, read decision-oriented technology perspectives or bring an active business and technology problem directly into the unified contact and consultation route.')}
         <div class="action-grid">
           ${[
             ['01','Our Products','Explore workflow-focused cloud product areas for education and recruitment, then evaluate fit through a targeted demonstration.','/products'],
             ['02','White Papers','Read practical perspectives on cloud modernisation, data engineering and responsible AI with architecture and operating context.','/white-papers'],
-            ['03','Consult our Expert','Bring an active technology decision, modernisation challenge, delivery constraint or specialist capability requirement into a focused discussion.','/consult-expert']
+            ['03','Consult our Expert','Bring an active technology decision, modernisation challenge, delivery constraint or specialist capability requirement into a focused discussion.','/contact?intent=consultation#contact-form']
           ].map(([n,title,text,href]) => `<a class="action-card" href="${href}"><span class="action-card__number">${n}</span><span class="action-card__arrow">${arrow()}</span><h3>${title}</h3><p>${text}</p></a>`).join('')}
         </div>
       </div></section>
