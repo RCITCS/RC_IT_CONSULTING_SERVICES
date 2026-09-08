@@ -3,14 +3,22 @@ import { pageHero, sectionHeading, ctaPanel, arrow, esc } from './components.js'
 import { field } from './forms.js';
 import { pageTitle, imageTag } from './render-helpers.js';
 
+function editorialImage(page) {
+  return {
+    image: page.secondaryImage || page.image,
+    alt: page.secondaryImageAlt || page.imageAlt
+  };
+}
+
 export function renderServicePage(page, servicePath) {
   pageTitle(page.title);
+  const secondary = editorialImage(page);
   const dimensions = page.dimensions ? `<section class="section section--blue"><div class="container">${sectionHeading('Big Data dimensions', 'The operating characteristics that shape the data architecture')}<div class="topic-grid">${page.dimensions.map((d) => `<article class="topic-card"><h3>${esc(d)}</h3><p>Considered explicitly in data design, quality and operating decisions.</p></article>`).join('')}</div></div></section>` : '';
   return `<main id="main-content">
     ${pageHero({ ...page, crumbs: [{label:'Home',href:'/'},{label:'Services',href:'/services/it/consultancy-services'},{label:page.title}] })}
-    <section class="section"><div class="container split"><div>${imageTag(page.image, page.imageAlt)}</div><div><span class="eyebrow">Service overview</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
+    <section class="section"><div class="container split"><div>${imageTag(secondary.image, secondary.alt)}</div><div><span class="eyebrow">Service overview</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
     ${dimensions}
-    <section class="section section--soft"><div class="container">${sectionHeading('HOW WE HELP', `How RC approaches ${page.title}`, 'Each capability now opens as a complete page with its own context, delivery approach, outcomes and related service paths.')}
+    <section class="section section--soft"><div class="container">${sectionHeading('HOW WE HELP', `How RC approaches ${page.title}`, 'Explore the specialist capabilities within this service area. Each one covers the business context, delivery approach, controls and expected outcomes relevant to the work.')}
       <div class="help-grid">${page.howWeHelp.map((item) => `<article class="help-card"><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p><a class="btn btn--text" href="${esc(servicePath)}/${esc(item.slug)}">Read More ${arrow()}</a></article>`).join('')}</div>
     </div></section>
     ${ctaPanel(`Talk to us about ${page.title}`)}
@@ -24,6 +32,7 @@ function capabilityOutcome(item, page) {
 export function renderServiceDetail({ page, item, servicePath }) {
   pageTitle(`${item.title} | ${page.title}`);
   const siblings = page.howWeHelp.filter((candidate) => candidate.slug !== item.slug);
+  const secondary = editorialImage(page);
   return `<main id="main-content" class="service-detail-page">
     ${pageHero({
       category:`${page.title} · How We Help`,
@@ -35,7 +44,7 @@ export function renderServiceDetail({ page, item, servicePath }) {
     })}
 
     <section class="section"><div class="container detail-intro">
-      <div class="detail-intro__media">${imageTag(page.image, page.imageAlt)}</div>
+      <div class="detail-intro__media">${imageTag(secondary.image, secondary.alt)}</div>
       <div class="detail-intro__copy"><span class="eyebrow">Capability overview</span><h2>${esc(item.title)} in practice</h2><p class="detail-lead">${esc(item.detail)}</p><p>${esc(capabilityOutcome(item, page))}</p><a class="detail-back-link" href="${esc(servicePath)}">← Back to ${esc(page.title)}</a></div>
     </div></section>
 
@@ -44,7 +53,7 @@ export function renderServiceDetail({ page, item, servicePath }) {
       <ol class="detail-scope-list">${page.bullets.map((bullet, index) => `<li><span>${String(index + 1).padStart(2,'0')}</span><div><strong>${esc(bullet)}</strong><p>Considered as part of the scope, architecture, implementation and operating model for ${esc(item.title)}.</p></div></li>`).join('')}</ol>
     </div></section>
 
-    <section class="section"><div class="container">${sectionHeading('Delivery approach', `How we structure ${item.title}`, 'The exact engagement changes by client context, but the work should move through explicit discovery, design, implementation and verification rather than an isolated recommendation.')}
+    <section class="section"><div class="container">${sectionHeading('Delivery approach', `How we structure ${item.title}`, 'The exact engagement changes by client context, but the work moves through explicit discovery, design, implementation and verification rather than ending with an isolated recommendation.')}
       <div class="delivery-steps">
         <article><span>01</span><h3>Discover</h3><p>Clarify the business problem, users, current systems, constraints, risks, data and desired outcome.</p></article>
         <article><span>02</span><h3>Design</h3><p>Define responsibilities, architecture boundaries, controls, interfaces, measures and acceptance criteria.</p></article>
@@ -68,9 +77,10 @@ export function renderServiceDetail({ page, item, servicePath }) {
 
 export function renderIndustryPage(page) {
   pageTitle(page.title);
+  const secondary = editorialImage(page);
   return `<main id="main-content">
     ${pageHero({ ...page, crumbs:[{label:'Home',href:'/'},{label:'Industry',href:'/industry/automotive-industry-it-services'},{label:page.title}] })}
-    <section class="section"><div class="container split"><div>${imageTag(page.image,page.imageAlt)}</div><div><span class="eyebrow">Industry context</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b)=>`<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
+    <section class="section"><div class="container split"><div>${imageTag(secondary.image,secondary.alt)}</div><div><span class="eyebrow">Industry context</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b)=>`<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
     <section class="section section--soft"><div class="container">${sectionHeading('How we work', 'Industry context informs architecture and delivery', 'Security, data, integration, availability, compliance and operating requirements change by context. Our delivery approach is shaped around those realities.')}
       <div class="trust-strip"><div class="trust-item"><strong>Discover</strong><span>Clarify users, systems, constraints and required outcomes.</span></div><div class="trust-item"><strong>Design</strong><span>Define solution boundaries, risks, interfaces and quality attributes.</span></div><div class="trust-item"><strong>Deliver</strong><span>Implement, verify, release and support against explicit acceptance criteria.</span></div></div>
     </div></section>${ctaPanel(`Discuss ${page.title} requirements`)}</main>`;
@@ -89,7 +99,7 @@ export function renderAbout() {
     })}
 
     <section class="section"><div class="container split">
-      <div>${imageTag(IMAGES.consulting,'Consultants collaborating during a business and technology meeting')}</div>
+      <div>${imageTag(IMAGES.aboutDetail,'Engineers and technology professionals collaborating around project screens in a real office')}</div>
       <div><span class="eyebrow">Who we are</span><h2>Business understanding first. Technology applied with purpose.</h2>
         <p>We work with organisations that need to improve performance, modernise digital capabilities and turn strategy into practical delivery. Our approach is based on clear communication, transparent working relationships and teams that listen carefully to client priorities before recommending a solution.</p>
         <p>Technology programmes are most valuable when they improve the way a business operates. We therefore connect consulting, architecture, engineering and implementation so that digital change is tied to measurable business needs rather than isolated technology activity.</p>
@@ -98,11 +108,11 @@ export function renderAbout() {
     </div></section>
 
     <section class="section section--soft"><div class="container">
-      ${sectionHeading('Digital transformation','From existing landscape to a stronger operating model','We help organisations evaluate where they are today, identify opportunities for improvement and build a practical path toward modern platforms, processes and digital services.')}
+      ${sectionHeading('How we work','Clarity in strategy. Discipline in engineering. Accountability in delivery.','These principles shape how we translate business priorities into technology decisions and how we carry those decisions through implementation and operation.')}
       <div class="topic-grid">
-        <article class="topic-card"><h3>Modernise</h3><p>Improve existing applications, infrastructure, data and operating processes without losing sight of business continuity.</p></article>
-        <article class="topic-card"><h3>Innovate</h3><p>Use advances in cloud, automation, AI and connected technologies where they can create meaningful operational or customer value.</p></article>
-        <article class="topic-card"><h3>Implement</h3><p>Translate strategy into delivery plans, accountable workstreams and technology outcomes that can be operated and improved over time.</p></article>
+        <article class="topic-card"><h3>Clarity</h3><p>Make objectives, constraints, responsibilities and trade-offs explicit before complexity is introduced.</p></article>
+        <article class="topic-card"><h3>Discipline</h3><p>Apply architecture, engineering, quality and security practices proportionate to the business risk and delivery context.</p></article>
+        <article class="topic-card"><h3>Accountability</h3><p>Connect recommendations to ownership, measurable outcomes and an operating model that can sustain the delivered capability.</p></article>
       </div>
     </div></section>
 
@@ -119,7 +129,7 @@ export function renderAbout() {
 
     <section class="section section--soft"><div class="container">
       ${sectionHeading('Corporate identity','R C OVERSEAS LTD')}
-      <div class="trust-strip"><div class="trust-item"><strong>${esc(COMPANY.legalName)}</strong><span>Registered legal entity operating the RC IT Services presentation.</span></div><div class="trust-item"><strong>Company No. ${esc(COMPANY.companyNumber)}</strong><span>Registered in England and Wales.</span></div><div class="trust-item"><strong>London</strong><span>${esc(COMPANY.registeredOffice)}</span></div></div>
+      <div class="trust-strip"><div class="trust-item"><strong>${esc(COMPANY.legalName)}</strong><span>Registered legal entity operating RC IT Services.</span></div><div class="trust-item"><strong>Company No. ${esc(COMPANY.companyNumber)}</strong><span>Registered in England and Wales.</span></div><div class="trust-item"><strong>London</strong><span>${esc(COMPANY.registeredOffice)}</span></div></div>
     </div></section>
     ${ctaPanel('Talk to RC IT Services','Tell us where your organisation is today, what needs to change and the outcome you need to achieve.')}
   </main>`;
@@ -151,9 +161,9 @@ export function renderConsultExpert() {
 
 export function renderContact() {
   pageTitle('Contact');
-  return `<main id="main-content">${pageHero({category:'Contact',title:'Contact Us',lead:'Choose the contact path that matches what you need. The enquiry form validates the same core business fields used by the reference site.',image:IMAGES.contact,imageAlt:'Modern professional office workspace',crumbs:[{label:'Home',href:'/'},{label:'Contact'}]})}
+  return `<main id="main-content">${pageHero({category:'Contact',title:'Contact Us',lead:'Tell us whether you need project delivery, specialist capability, managed support, a consultation or a partnership discussion. We will use the information you provide to route the enquiry to the appropriate service area.',image:IMAGES.contact,imageAlt:'Customer support professionals using headsets and computers in a real office',crumbs:[{label:'Home',href:'/'},{label:'Contact'}]})}
     <section class="section"><div class="container contact-grid"><div><span class="eyebrow">Contact options</span><h2>One destination, clear intent.</h2><div class="contact-options"><div class="contact-option"><h3>Write to Us</h3><p>Send a structured business enquiry through the form.</p><button class="btn btn--text" type="button" data-contact-intent="Write to Us">Start enquiry ${arrow()}</button></div><div class="contact-option"><h3>Talk to Us</h3><p>Request a phone conversation by including your number and preferred context.</p><button class="btn btn--text" type="button" data-contact-intent="Talk to Us">Request contact ${arrow()}</button></div><div class="contact-option"><h3>Email Us</h3><p>Use the business email field so the request can be routed correctly.</p><button class="btn btn--text" type="button" data-contact-intent="Email Us">Start enquiry ${arrow()}</button></div><div class="contact-option"><h3>Chat With Us</h3><p>Send a focused message to the technology team without leaving the page.</p><button class="btn btn--text" type="button" data-chat-now>Chat Now &gt;&gt;&gt;</button></div></div></div>
-      <div id="contact-form">${sectionHeading('Enquiry form','Tell us how to route your request')}<form data-api-form="/api/contact" novalidate><input type="hidden" name="intent" id="contact-intent" value="General enquiry"><div class="form-grid">${field('firstName','First Name','text',true)}${field('lastName','Last Name','text',true)}${field('company','Company','text',true)}${field('phone','Phone Number','tel',true,'phone')}${field('businessEmail','Business Email','email',true)}${field('jobTitle','Job Title','text',true)}<div class="form-field form-field--full"><label for="message">Message</label><textarea id="message" name="message"></textarea><span class="field-error"></span></div></div><div class="form-actions"><button class="btn btn--primary" type="submit">Submit</button><p class="form-status" data-form-status></p></div></form></div></div></section>
-    <section class="section section--soft"><div class="container">${sectionHeading('Registered office','Corporate details')}<div class="empty-state"><h2>${esc(COMPANY.legalName)}</h2><p>${esc(COMPANY.registeredOffice)}<br>Company No. ${esc(COMPANY.companyNumber)}</p></div></div></section>
+      <div id="contact-form">${sectionHeading('Enquiry form','Tell us how to route your request','Provide enough context for the team to understand the requirement, affected systems or service area, and the outcome you are trying to achieve.')}<form data-api-form="/api/contact" novalidate><input type="hidden" name="intent" id="contact-intent" value="General enquiry"><div class="form-grid">${field('firstName','First Name','text',true)}${field('lastName','Last Name','text',true)}${field('company','Company','text',true)}${field('phone','Phone Number','tel',true,'phone')}${field('businessEmail','Business Email','email',true)}${field('jobTitle','Job Title','text',true)}<div class="form-field form-field--full"><label for="message">Message</label><textarea id="message" name="message" placeholder="Describe your requirement, target outcome, known constraints and preferred timeline."></textarea><span class="field-error"></span></div></div><div class="form-actions"><button class="btn btn--primary" type="submit">Submit</button><p class="form-status" data-form-status></p></div></form></div></div></section>
+    <section class="section section--soft"><div class="container split"><div>${imageTag(IMAGES.contactDetail,'Customer support team with headsets standing together in a real office')}</div><div>${sectionHeading('Registered office','Corporate details')}<div class="empty-state"><h2>${esc(COMPANY.legalName)}</h2><p>${esc(COMPANY.registeredOffice)}<br>Company No. ${esc(COMPANY.companyNumber)}</p></div></div></div></section>
     <section class="section"><div class="container">${sectionHeading('Map','Find the registered office')}<div style="overflow:hidden;border:1px solid var(--color-line);border-radius:.55rem;background:var(--color-surface-soft)"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="420" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div></section></main>`;
 }
