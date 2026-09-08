@@ -78,6 +78,9 @@ const payloadSource = await readFile(path.join(root, 'src/backend/core/payload.j
 if (!payloadSource.includes('UNSUPPORTED_MEDIA_TYPE') && !payloadSource.includes('unsupportedMediaType')) {
   throw new Error('Phase 7 payload handling must enforce a shared JSON media-type contract.');
 }
+if (!payloadSource.includes("if (!raw.trim()) throw badRequest();") || payloadSource.includes("if (!raw.trim()) return {}")) {
+  throw new Error('Empty JSON bodies must fail consistently with BAD_REQUEST across runtime adapters.');
+}
 
 const environmentSource = await readFile(path.join(root, 'src/backend/config/environment.js'), 'utf8');
 if (!environmentSource.includes("runtime === 'node-local' ? 'development' : 'unconfigured'")) {
@@ -107,4 +110,4 @@ if (!packageJson.scripts?.['check:backend-architecture'] || !packageJson.scripts
   throw new Error('Phase 7 backend architecture check must be part of the architecture gate.');
 }
 
-console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, JSON media-type enforcement, bounded Cloudflare input, truthful environment labeling, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);
+console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, JSON media-type enforcement, bounded Cloudflare input, consistent empty JSON rejection, truthful environment labeling, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);

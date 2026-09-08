@@ -64,7 +64,7 @@ export async function readBoundedRequestText(request, maxBytes) {
 export function parseJsonText(text, maxBytes) {
   const raw = String(text ?? '');
   assertWithinLimit(byteLength(raw), maxBytes);
-  if (!raw.trim()) return {};
+  if (!raw.trim()) throw badRequest();
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not-object');

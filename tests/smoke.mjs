@@ -73,6 +73,12 @@ try {
   assert(response.status === 415 && body.code === 'UNSUPPORTED_MEDIA_TYPE', `non-JSON media type returned ${response.status}`);
 
   response = await fetch(`${base}/api/contact`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: ''
+  });
+  body = await json(response);
+  assert(response.status === 400 && body.code === 'BAD_REQUEST', `empty JSON body returned ${response.status}`);
+
+  response = await fetch(`${base}/api/contact`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ firstName: 'Test' })
   });
   body = await json(response);
@@ -102,7 +108,7 @@ try {
   response = await fetch(`${base}/api/does-not-exist`);
   assert(response.status === 404, 'unknown API route should return 404');
 
-  console.log(`PASS: ${ALL_ROUTES.length} routes + assets + Phase 7 API validation, JSON media type, explicit provider failure and boundary smoke tests.`);
+  console.log(`PASS: ${ALL_ROUTES.length} routes + assets + Phase 7 API validation, JSON media type, empty JSON rejection, explicit provider failure and boundary smoke tests.`);
 } finally {
   child.kill('SIGTERM');
 }

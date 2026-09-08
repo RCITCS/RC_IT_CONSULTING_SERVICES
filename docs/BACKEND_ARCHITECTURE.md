@@ -29,7 +29,7 @@ Environment names are never guessed for hosted runtimes. An explicit `RC_ENVIRON
 
 ### API routing and handlers
 
-`src/backend/api/router.js` defines the canonical API action/method contract. Unknown or suffix routes return 404; wrong methods return 405 with `Allow`; body parsing occurs only after the route/method contract is eligible; body-required routes require a JSON media type and reject missing/malformed JSON.
+`src/backend/api/router.js` defines the canonical API action/method contract. Unknown or suffix routes return 404; wrong methods return 405 with `Allow`; body parsing occurs only after the route/method contract is eligible; body-required routes require a JSON media type and reject missing, empty or malformed JSON with `400 BAD_REQUEST` consistently across runtime adapters.
 
 `src/backend/api/handlers.js` maps validated use cases to standardized HTTP outcomes. Authentication and recruitment upload remain explicit later-phase boundaries rather than simulated implementations.
 
@@ -59,7 +59,7 @@ Responses are `no-store`, API output is search-noindexed, and `X-Request-ID` mir
 
 - `200` health/read success
 - `201` confirmed persisted submission
-- `400` malformed or invalid JSON envelope
+- `400` missing, empty, malformed or invalid JSON envelope
 - `404` unknown API route
 - `405` unsupported method
 - `413` API JSON body exceeds configured limit

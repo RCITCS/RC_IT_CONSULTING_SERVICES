@@ -1,7 +1,7 @@
 import { routeNeedsJsonBody } from '../src/backend/api/router.js';
 import { createBackendApplication } from '../src/backend/application.js';
 import { noopLogger } from '../src/backend/core/logger.js';
-import { assertJsonContentType, readBoundedRequestText } from '../src/backend/core/payload.js';
+import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '../src/backend/core/payload.js';
 import { createProviderRegistry } from '../src/backend/providers/provider-registry.js';
 
 function assert(condition, message) {
@@ -32,6 +32,14 @@ try {
   mediaTypeRejected = error?.status === 415 && error?.code === 'UNSUPPORTED_MEDIA_TYPE';
 }
 assert(mediaTypeRejected, 'non-JSON request bodies must be rejected with 415');
+
+let emptyJsonRejected = false;
+try {
+  parseJsonText('', 1024);
+} catch (error) {
+  emptyJsonRejected = error?.status === 400 && error?.code === 'BAD_REQUEST';
+}
+assert(emptyJsonRejected, 'empty JSON bodies must be rejected consistently with 400');
 
 const unconfigured = createBackendApplication({ runtime: 'test', env: { NODE_ENV: 'test' }, logger: noopLogger });
 let result = await unconfigured.handle({ method: 'GET', pathname: '/api/health', headers: {} });
@@ -123,4 +131,4 @@ assert(providers.database.configured === false, 'database provider should defaul
 assert(providers.storage.configured === false, 'storage provider should default unconfigured');
 assert(providers.email.configured === false, 'email provider should default unconfigured');
 
-console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, JSON media-type enforcement, strict validation, truthful runtime environment labeling, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
+console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, JSON media-type enforcement, empty/malformed JSON rejection, strict validation, truthful runtime environment labeling, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
