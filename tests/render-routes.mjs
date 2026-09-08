@@ -1,7 +1,7 @@
 globalThis.document = { title: '' };
 
 const { routeContent } = await import('../src/frontend/router/router.js');
-const { ALL_ROUTES } = await import('../src/frontend/app/site-config.js');
+const { ALL_ROUTES, LEGACY_ROUTE_ALIASES } = await import('../src/frontend/app/site-config.js');
 const { SERVICE_PAGES } = await import('../src/frontend/app/pages.js');
 const { getPublishedJobs } = await import('../src/frontend/app/career-job-catalog.js');
 
@@ -16,8 +16,11 @@ function assertPage(route, html) {
   assert(!html.includes('[object Object]'), `${route} rendered an object accidentally`);
 }
 
-const staticRoutes = new Set([...ALL_ROUTES, '/careers']);
-for (const route of staticRoutes) {
+for (const route of ALL_ROUTES) {
+  assertPage(route, routeContent(route));
+}
+
+for (const route of LEGACY_ROUTE_ALIASES) {
   assertPage(route, routeContent(route));
 }
 
@@ -40,4 +43,4 @@ for (const job of jobs) {
 const notFound = routeContent('/route-that-does-not-exist');
 assert(notFound.includes('Page not found'), 'Unknown route did not render the not-found page');
 
-console.log(`PASS: ${staticRoutes.size} static/alias routes, ${serviceDetailCount} service detail routes and ${jobs.length * 2} career detail/application routes rendered successfully.`);
+console.log(`PASS: ${ALL_ROUTES.length} canonical routes, ${LEGACY_ROUTE_ALIASES.length} compatibility aliases, ${serviceDetailCount} service detail routes and ${jobs.length * 2} career detail/application routes rendered successfully.`);
