@@ -1,7 +1,8 @@
 import { CAREER_JOBS } from './career-jobs.js';
 import { ADDITIONAL_DATA_JOBS } from './career-jobs-data-expansion.js';
+import { SERVICE_AND_INDUSTRY_JOBS } from './career-jobs-services-expansion.js';
 
-const ALL_CAREER_JOBS = [...CAREER_JOBS, ...ADDITIONAL_DATA_JOBS];
+const ALL_CAREER_JOBS = [...CAREER_JOBS, ...ADDITIONAL_DATA_JOBS, ...SERVICE_AND_INDUSTRY_JOBS];
 
 export function getPublishedJobs() {
   return ALL_CAREER_JOBS.filter((job) => job.status === 'published');
