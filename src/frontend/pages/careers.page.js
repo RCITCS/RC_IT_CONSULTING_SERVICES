@@ -1,8 +1,8 @@
-import { IMAGES } from './site-config.js';
-import { getPublishedJob, getPublishedJobs } from './career-job-catalog.js';
-import { pageHero, sectionHeading, arrow, esc } from './components.js';
-import { field } from './forms.js';
-import { pageTitle } from './render-helpers.js';
+import { IMAGES } from '../app/site-config.js';
+import { getPublishedJob, getPublishedJobs } from '../app/career-job-catalog.js';
+import { pageHero, sectionHeading, arrow, esc } from '../app/components.js';
+import { field } from '../app/forms.js';
+import { pageTitle } from '../app/render-helpers.js';
 
 function jobMeta(job) {
   return [job.location, job.workStyle, job.employmentType, job.experience].filter(Boolean);
@@ -75,7 +75,7 @@ function openingsBrowser(selectedSlug = '') {
   </div>`;
 }
 
-export function renderCareers(pathName = '/careers') {
+export function renderCareersPage(pathName = '/careers') {
   const match = pathName.match(/^\/careers\/jobs\/([^/]+)$/);
   const selectedSlug = match?.[1] || '';
   const selected = selectedSlug ? getPublishedJob(selectedSlug) : null;
@@ -126,7 +126,7 @@ export function renderCareers(pathName = '/careers') {
   </main>`;
 }
 
-export function renderCareerApplication(slug = '') {
+export function renderCareerApplicationPage(slug = '') {
   const job = getPublishedJob(slug);
   if (!job) return renderCareerRoleNotFound();
   pageTitle(`Apply · ${job.title}`);

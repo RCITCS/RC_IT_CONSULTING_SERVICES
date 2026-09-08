@@ -1,9 +1,9 @@
-import { COMPANY, IMAGES } from './site-config.js';
-import { pageHero, sectionHeading, esc } from './components.js';
-import { field } from './forms.js';
-import { pageTitle } from './render-helpers.js';
+import { COMPANY, IMAGES } from '../app/site-config.js';
+import { pageHero, sectionHeading, esc } from '../app/components.js';
+import { field } from '../app/forms.js';
+import { pageTitle } from '../app/render-helpers.js';
 
-export function renderContact() {
+export function renderContactPage() {
   pageTitle('Contact');
   return `<main id="main-content" class="contact-page">
     ${pageHero({

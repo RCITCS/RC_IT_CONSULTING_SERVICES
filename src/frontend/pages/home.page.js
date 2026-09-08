@@ -1,9 +1,9 @@
-import { IMAGES } from './site-config.js';
-import { HOME_CAPABILITIES, HOME_INDUSTRIES } from './pages.js';
-import { sectionHeading, ctaPanel, arrow, esc } from './components.js';
-import { pageTitle, imageTag } from './render-helpers.js';
+import { IMAGES } from '../app/site-config.js';
+import { HOME_CAPABILITIES, HOME_INDUSTRIES } from '../app/pages.js';
+import { sectionHeading, ctaPanel, arrow, esc } from '../app/components.js';
+import { pageTitle, imageTag } from '../app/render-helpers.js';
 
-export function renderHome() {
+export function renderHomePage() {
   pageTitle('Home');
   return `
     <main id="main-content">

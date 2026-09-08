@@ -25,56 +25,39 @@ export const IMAGES = {
 
   consulting: 'https://images.pexels.com/photos/36733315/pexels-photo-36733315.jpeg?auto=compress&cs=tinysrgb&w=1800',
   consultingDetail: 'https://images.pexels.com/photos/7433872/pexels-photo-7433872.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   cyber: 'https://images.pexels.com/photos/5380603/pexels-photo-5380603.jpeg?auto=compress&cs=tinysrgb&w=1800',
   cyberDetail: 'https://images.pexels.com/photos/5473298/pexels-photo-5473298.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   ai: 'https://images.pexels.com/photos/19809475/pexels-photo-19809475.jpeg?auto=compress&cs=tinysrgb&w=1800',
   aiDetail: 'https://images.pexels.com/photos/37828832/pexels-photo-37828832.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   cloud: 'https://images.pexels.com/photos/1181354/pexels-photo-1181354.jpeg?auto=compress&cs=tinysrgb&w=1800',
   cloudDetail: 'https://images.pexels.com/photos/6804586/pexels-photo-6804586.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   bigData: 'https://images.pexels.com/photos/39219944/pexels-photo-39219944.jpeg?auto=compress&cs=tinysrgb&w=1800',
   bigDataDetail: 'https://images.pexels.com/photos/6248987/pexels-photo-6248987.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   support: 'https://images.pexels.com/photos/8867267/pexels-photo-8867267.jpeg?auto=compress&cs=tinysrgb&w=1800',
   supportDetail: 'https://images.pexels.com/photos/5467587/pexels-photo-5467587.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   risk: 'https://images.pexels.com/photos/7693733/pexels-photo-7693733.jpeg?auto=compress&cs=tinysrgb&w=1800',
   riskDetail: 'https://images.pexels.com/photos/7698799/pexels-photo-7698799.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   strategy: 'https://images.pexels.com/photos/5324940/pexels-photo-5324940.jpeg?auto=compress&cs=tinysrgb&w=1800',
   strategyDetail: 'https://images.pexels.com/photos/7433902/pexels-photo-7433902.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   sustainability: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=1800&q=84',
   sustainabilityDetail: 'https://images.pexels.com/photos/5439167/pexels-photo-5439167.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   educationConsulting: 'https://images.pexels.com/photos/4339798/pexels-photo-4339798.jpeg?auto=compress&cs=tinysrgb&w=1800',
   educationConsultingDetail: 'https://images.pexels.com/photos/7742816/pexels-photo-7742816.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   automotive: 'https://images.pexels.com/photos/3862627/pexels-photo-3862627.jpeg?auto=compress&cs=tinysrgb&w=1800',
   automotiveDetail: 'https://images.pexels.com/photos/10490631/pexels-photo-10490631.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   finance: 'https://images.pexels.com/photos/7108819/pexels-photo-7108819.jpeg?auto=compress&cs=tinysrgb&w=1800',
   financeDetail: 'https://images.pexels.com/photos/7693683/pexels-photo-7693683.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   media: 'https://images.pexels.com/photos/8088373/pexels-photo-8088373.jpeg?auto=compress&cs=tinysrgb&w=1800',
   mediaDetail: 'https://images.pexels.com/photos/8102700/pexels-photo-8102700.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   education: 'https://images.pexels.com/photos/35571660/pexels-photo-35571660.jpeg?auto=compress&cs=tinysrgb&w=1800',
   educationDetail: 'https://images.pexels.com/photos/5940833/pexels-photo-5940833.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   about: 'https://images.pexels.com/photos/7988215/pexels-photo-7988215.jpeg?auto=compress&cs=tinysrgb&w=1800',
   aboutDetail: 'https://images.pexels.com/photos/7889173/pexels-photo-7889173.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   careers: 'https://images.pexels.com/photos/5439143/pexels-photo-5439143.jpeg?auto=compress&cs=tinysrgb&w=1800',
   careersJob: 'https://images.pexels.com/photos/5439138/pexels-photo-5439138.jpeg?auto=compress&cs=tinysrgb&w=1800',
   careersResume: 'https://images.pexels.com/photos/5673502/pexels-photo-5673502.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   contact: 'https://images.pexels.com/photos/7504886/pexels-photo-7504886.jpeg?auto=compress&cs=tinysrgb&w=1800',
   contactDetail: 'https://images.pexels.com/photos/7709227/pexels-photo-7709227.jpeg?auto=compress&cs=tinysrgb&w=1800',
-
   legal: 'https://images.pexels.com/photos/5313170/pexels-photo-5313170.jpeg?auto=compress&cs=tinysrgb&w=1800',
   products: 'https://images.pexels.com/photos/6476266/pexels-photo-6476266.jpeg?auto=compress&cs=tinysrgb&w=1800',
   productsDetail: 'https://images.pexels.com/photos/8837486/pexels-photo-8837486.jpeg?auto=compress&cs=tinysrgb&w=1800',
@@ -137,18 +120,7 @@ export const PRIMARY_NAV = [
       }
     ]
   },
-  {
-    label: 'Careers',
-    groups: [
-      {
-        label: 'Careers',
-        items: [
-          { label: 'Job Opportunities', href: '/careers/job-opportunities' },
-          { label: 'Upload your Resume', href: '/careers/upload-your-resume' }
-        ]
-      }
-    ]
-  },
+  { label: 'Careers', href: '/careers' },
   { label: 'Contact', href: '/contact' }
 ];
 
@@ -167,12 +139,14 @@ export const FOOTER_GROUPS = [
     label: 'Others',
     items: [
       { label: 'Our Products', href: '/products' },
-      { label: 'Careers', href: '/careers/job-opportunities' },
+      { label: 'Careers', href: '/careers' },
       { label: 'Contact Us', href: '/contact' }
     ]
   }
 ];
 
+// Canonical public routes. Legacy URLs are kept separately so SEO and sitemap work
+// can distinguish indexable pages from compatibility aliases.
 export const ALL_ROUTES = [
   '/', '/blog', '/faqs', '/login', '/about-us',
   '/services/it/consultancy-services', '/services/it/cyber-security', '/services/it/artificial-intelligence',
@@ -180,6 +154,11 @@ export const ALL_ROUTES = [
   '/services/management/risk', '/services/management/strategy-and-implementation', '/services/management/sustainability',
   '/services/education/consultancy',
   '/industry/automotive-industry-it-services', '/industry/banking-and-finance', '/industry/media-and-communication', '/industry/education',
-  '/careers/job-opportunities', '/careers/upload-your-resume', '/contact',
-  '/products', '/white-papers', '/consult-expert', '/privacy', '/cookies', '/terms'
+  '/careers', '/contact', '/products', '/white-papers', '/privacy', '/cookies', '/terms'
+];
+
+export const LEGACY_ROUTE_ALIASES = [
+  '/careers/job-opportunities',
+  '/careers/upload-your-resume',
+  '/consult-expert'
 ];
