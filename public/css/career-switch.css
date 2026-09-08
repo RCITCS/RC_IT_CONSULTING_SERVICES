@@ -1,0 +1,34 @@
+/* Career role switching: keep the page stationary while the selected JD changes in place. */
+.career-role-detail {
+  animation: career-detail-in 160ms ease-out;
+}
+
+@keyframes career-detail-in {
+  from { opacity:.45; transform:translateY(2px); }
+  to { opacity:1; transform:translateY(0); }
+}
+
+.career-role-list__items {
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 900px) {
+  .career-browser { gap:1rem; }
+  .career-role-list__items {
+    grid-template-columns:1fr !important;
+    max-height:min(48vh,420px) !important;
+    overflow-y:auto !important;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .career-role-card { border-right:0 !important; }
+}
+
+@media (max-width: 640px) {
+  .career-role-list__items { max-height:min(44vh,360px) !important; }
+  .career-role-list__head { position:sticky; top:0; z-index:1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .career-role-detail { animation:none; }
+}
