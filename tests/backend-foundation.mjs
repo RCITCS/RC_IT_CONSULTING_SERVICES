@@ -37,8 +37,17 @@ const unconfigured = createBackendApplication({ runtime: 'test', env: { NODE_ENV
 let result = await unconfigured.handle({ method: 'GET', pathname: '/api/health', headers: {} });
 assert(result.status === 200 && result.body.ok === true, 'health should return 200');
 assert(result.body.data.runtime === 'test', 'health should identify runtime');
+assert(result.body.data.environment === 'test', 'explicit NODE_ENV should be reflected truthfully');
 assert(Boolean(result.body.requestId), 'health should include request id');
-assert(result.headers['x-request-id'] === result.body.requestId, 'health request id header/body must match');
+assert(result.headers['x-request-id'] === result.body.requestId, 'request id header/body must match');
+
+const cloudflareWithoutEnvironment = createBackendApplication({ runtime: 'cloudflare-workers', env: {}, logger: noopLogger });
+result = await cloudflareWithoutEnvironment.handle({ method: 'GET', pathname: '/api/health', headers: {} });
+assert(result.body.data.environment === 'unconfigured', 'Cloudflare without explicit environment binding must not pretend to be development or production');
+
+const localWithoutEnvironment = createBackendApplication({ runtime: 'node-local', env: {}, logger: noopLogger });
+result = await localWithoutEnvironment.handle({ method: 'GET', pathname: '/api/health', headers: {} });
+assert(result.body.data.environment === 'development', 'local Node runtime may default truthfully to development');
 
 result = await unconfigured.handle({ method: 'POST', pathname: '/api/contact', headers: {}, body: validContact });
 assert(result.status === 503, `unconfigured contact should return 503, got ${result.status}`);
@@ -114,4 +123,4 @@ assert(providers.database.configured === false, 'database provider should defaul
 assert(providers.storage.configured === false, 'storage provider should default unconfigured');
 assert(providers.email.configured === false, 'email provider should default unconfigured');
 
-console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, JSON media-type enforcement, strict validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
+console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, JSON media-type enforcement, strict validation, truthful runtime environment labeling, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');

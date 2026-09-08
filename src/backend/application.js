@@ -10,7 +10,7 @@ import { createUnavailableSubmissionRepository } from './repositories/submission
 import { createSubmissionService } from './services/submission-service.js';
 
 export function createBackendApplication({ runtime = 'unknown', env = {}, providers, submissionRepository, logger } = {}) {
-  const config = createBackendConfig(env);
+  const config = createBackendConfig(env, { runtime });
   const providerRegistry = createProviderRegistry(providers);
   const applicationLogger = logger || createLogger();
   const repository = submissionRepository || createUnavailableSubmissionRepository();

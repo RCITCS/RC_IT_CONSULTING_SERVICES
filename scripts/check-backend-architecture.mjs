@@ -79,6 +79,11 @@ if (!payloadSource.includes('UNSUPPORTED_MEDIA_TYPE') && !payloadSource.includes
   throw new Error('Phase 7 payload handling must enforce a shared JSON media-type contract.');
 }
 
+const environmentSource = await readFile(path.join(root, 'src/backend/config/environment.js'), 'utf8');
+if (!environmentSource.includes("runtime === 'node-local' ? 'development' : 'unconfigured'")) {
+  throw new Error('Hosted runtime environment labels must not default to development or production without explicit configuration.');
+}
+
 const submissionService = await readFile(path.join(root, 'src/backend/services/submission-service.js'), 'utf8');
 if (!submissionService.includes('await submissions.create(record)') || !submissionService.includes('persisted.id !== record.id')) {
   throw new Error('Submission service must require repository confirmation before reporting success.');
@@ -102,4 +107,4 @@ if (!packageJson.scripts?.['check:backend-architecture'] || !packageJson.scripts
   throw new Error('Phase 7 backend architecture check must be part of the architecture gate.');
 }
 
-console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, JSON media-type enforcement, bounded Cloudflare input, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);
+console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, JSON media-type enforcement, bounded Cloudflare input, truthful environment labeling, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);

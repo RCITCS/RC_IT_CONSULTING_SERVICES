@@ -25,6 +25,8 @@ Adapters may translate transport objects, enforce JSON media type, parse bounded
 
 `src/backend/application.js` creates the backend application and wires environment configuration, provider registry, submission repository, submission service, API handlers, API router, request IDs and logging hooks.
 
+Environment names are never guessed for hosted runtimes. An explicit `RC_ENVIRONMENT` or `NODE_ENV` value is reported when configured. The local Node adapter may truthfully default to `development`; Cloudflare/Vercel/other runtimes without an explicit environment value report `unconfigured` rather than pretending to be production or development.
+
 ### API routing and handlers
 
 `src/backend/api/router.js` defines the canonical API action/method contract. Unknown or suffix routes return 404; wrong methods return 405 with `Allow`; body parsing occurs only after the route/method contract is eligible; body-required routes require a JSON media type and reject missing/malformed JSON.
