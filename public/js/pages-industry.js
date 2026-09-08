@@ -3,7 +3,7 @@ import { IMAGES } from './site-config.js';
 export const INDUSTRY_PAGES = {
   '/industry/automotive-industry-it-services': {
     category: 'Industry', title: 'Automotive Industry IT Services', image: IMAGES.automotive,
-    imageAlt: 'Modern vehicle representing automotive technology and digital mobility services',
+    imageAlt: 'Automotive engineers collaborating on a vehicle technology project in a real workshop',
     lead: 'Technology services for automotive and mobility organisations managing connected products, operations and data.',
     introTitle: 'Technology across the automotive value chain',
     intro: 'Automotive technology programmes must coordinate product systems, enterprise platforms, operational data and partner ecosystems. We approach delivery through clear integration boundaries, quality requirements and operational ownership.',
@@ -11,7 +11,7 @@ export const INDUSTRY_PAGES = {
   },
   '/industry/banking-and-finance': {
     category: 'Industry', title: 'Banking and Finance', image: IMAGES.finance,
-    imageAlt: 'Financial technology workspace representing banking and finance services',
+    imageAlt: 'Business professionals collaborating on financial data analysis in a real office',
     lead: 'Engineering and consulting for financial services environments where security, integrity and operational resilience matter.',
     introTitle: 'Modernise financial technology without losing control',
     intro: 'Financial services delivery requires disciplined security, data governance, change control and recoverability. We help teams modernise applications, data and cloud platforms while keeping those constraints explicit.',
@@ -19,7 +19,7 @@ export const INDUSTRY_PAGES = {
   },
   '/industry/media-and-communication': {
     category: 'Industry', title: 'Media and Communication', image: IMAGES.media,
-    imageAlt: 'Professional media production and communication technology studio',
+    imageAlt: 'Media professionals collaborating on video post-production in a real studio environment',
     lead: 'Digital platforms and technology services for media, communication and content-driven organisations.',
     introTitle: 'Support fast-moving digital content and customer experiences',
     intro: 'Media and communication platforms often combine high-volume content, customer-facing experiences, integrations and analytics. We design for performance, availability, release speed and observable operations.',
@@ -27,7 +27,7 @@ export const INDUSTRY_PAGES = {
   },
   '/industry/education': {
     category: 'Industry', title: 'Education', image: IMAGES.education,
-    imageAlt: 'University campus and students representing education technology services',
+    imageAlt: 'Students working at desktop computers in a real school computer lab in Chennai',
     lead: 'Technology and digital services for education organisations, learners, staff and administrative operations.',
     introTitle: 'Build education technology around real user journeys',
     intro: 'Education systems serve multiple user groups and often connect fragmented processes. We focus on accessible user experiences, secure information flows, reliable integrations and maintainable platforms.',
@@ -52,9 +52,9 @@ export const HOME_INDUSTRIES = [
 ];
 
 export const FAQS = [
-  ['What services does RC IT Services provide?', 'The website covers IT consultancy, cyber security, artificial intelligence, cloud computing, big data, IT support, management services and education consultancy, with dedicated industry pages.'],
-  ['How can an organisation engage RC IT Services?', 'The site supports project and consultation enquiries through the Contact and Consult our Expert flows. Engagement scope, delivery model and commercial terms should be agreed during discovery.'],
-  ['Can I request a product demonstration?', 'Yes. Use Our Products and select Request a Demo for the relevant product. The form validates required business information before submission.'],
-  ['How do I apply for a role?', 'Open Careers and choose Upload your Resume. The form accepts PDF, DOC and DOCX files up to 5 MB and requires explicit consent before upload.'],
-  ['Is the Login page active?', 'The user interface is present, but authentication is deliberately not enabled until an approved identity provider and portal backend are selected. The build never pretends that an unauthenticated login succeeded.']
+  ['What services does RC IT Services provide?', 'RC IT Services covers technology consultancy, cyber security, artificial intelligence, cloud computing, data engineering and analytics, IT support, management services and education consultancy, supported by dedicated industry capability.'],
+  ['How can an organisation engage RC IT Services?', 'Start through Contact or Consult our Expert and describe the business outcome, systems involved, timeline and known constraints. The appropriate engagement model and scope can then be defined around the requirement.'],
+  ['Can I request a product demonstration?', 'Yes. Open Our Products, choose the relevant product and select Request a Demo to provide your organisation and evaluation requirements.'],
+  ['How do I apply for a role?', 'Open Careers and choose Upload your Resume. You can provide your experience, primary skills, work-authorisation information and CV for consideration against relevant opportunities.'],
+  ['Who can use the Login area?', 'Client and staff access is reserved for authorised users. Workspace access is provisioned directly for the relevant engagement, project or internal role rather than through public self-registration.']
 ];
