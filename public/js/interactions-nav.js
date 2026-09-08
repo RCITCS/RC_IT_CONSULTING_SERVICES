@@ -1,26 +1,68 @@
 export function bindDesktopNav() {
   const items = [...document.querySelectorAll('[data-nav-item]')];
+  const header = document.getElementById('site-header');
+
+  const positionMenu = (item) => {
+    const trigger = item.querySelector('.nav-trigger');
+    const menu = item.querySelector('.mega-menu');
+    if (!trigger || !menu) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuWidth = menu.getBoundingClientRect().width || menu.offsetWidth;
+    const gutter = 16;
+    const preferredLeft = triggerRect.left + (triggerRect.width / 2) - (menuWidth / 2);
+    const maxLeft = Math.max(gutter, window.innerWidth - menuWidth - gutter);
+    const left = Math.min(Math.max(preferredLeft, gutter), maxLeft);
+    const top = (header?.getBoundingClientRect().bottom || triggerRect.bottom) + 8;
+
+    menu.style.setProperty('--menu-left', `${Math.round(left)}px`);
+    menu.style.setProperty('--menu-top', `${Math.round(top)}px`);
+  };
+
   const closeAll = (except = null) => items.forEach((item) => {
     if (item === except) return;
     item.classList.remove('is-open');
     item.querySelector('.nav-trigger')?.setAttribute('aria-expanded','false');
   });
+
+  const openItem = (item) => {
+    closeAll(item);
+    positionMenu(item);
+    item.classList.add('is-open');
+    item.querySelector('.nav-trigger')?.setAttribute('aria-expanded','true');
+  };
+
   for (const item of items) {
     const trigger = item.querySelector('.nav-trigger');
     trigger?.addEventListener('click', (event) => {
       event.stopPropagation();
-      const open = !item.classList.contains('is-open');
-      closeAll(item);
-      item.classList.toggle('is-open', open);
-      trigger.setAttribute('aria-expanded', String(open));
+      const shouldOpen = !item.classList.contains('is-open');
+      if (shouldOpen) openItem(item);
+      else {
+        item.classList.remove('is-open');
+        trigger.setAttribute('aria-expanded','false');
+      }
     });
+
     if (matchMedia('(hover:hover) and (pointer:fine)').matches) {
-      item.addEventListener('mouseenter', () => { closeAll(item); item.classList.add('is-open'); trigger?.setAttribute('aria-expanded','true'); });
-      item.addEventListener('mouseleave', () => { item.classList.remove('is-open'); trigger?.setAttribute('aria-expanded','false'); });
+      item.addEventListener('mouseenter', () => openItem(item));
+      item.addEventListener('mouseleave', () => {
+        item.classList.remove('is-open');
+        trigger?.setAttribute('aria-expanded','false');
+      });
     }
   }
+
   document.addEventListener('click', () => closeAll());
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeAll(); document.querySelector('.nav-trigger:focus')?.blur(); } });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeAll();
+      document.querySelector('.nav-trigger:focus')?.blur();
+    }
+  });
+
+  addEventListener('resize', () => items.filter((item) => item.classList.contains('is-open')).forEach(positionMenu));
+  addEventListener('scroll', () => items.filter((item) => item.classList.contains('is-open')).forEach(positionMenu), { passive: true });
 }
 
 export function bindMobileNav() {
