@@ -6,10 +6,21 @@ export const COMPANY = {
 };
 
 // Visual policy: real-world photography only. No generated AI artwork or synthetic people.
-// Hero and editorial images are intentionally separated so pages do not repeat the same photograph.
+// Hero, body and homepage editorial images are intentionally separated to avoid repetitive stock imagery.
 // Current production sources are Pexels/Unsplash and are documented in THIRD_PARTY_ASSETS.md.
 export const IMAGES = {
   hero: 'https://images.pexels.com/photos/5466236/pexels-photo-5466236.jpeg?auto=compress&cs=tinysrgb&w=1800',
+
+  homeConsulting: 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeTransformation: 'https://images.pexels.com/photos/6804068/pexels-photo-6804068.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeAI: 'https://images.pexels.com/photos/36706460/pexels-photo-36706460.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeInnovation: 'https://images.pexels.com/photos/12899167/pexels-photo-12899167.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeData: 'https://images.pexels.com/photos/8145328/pexels-photo-8145328.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeEducation: 'https://images.pexels.com/photos/32394664/pexels-photo-32394664.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeAutomotive: 'https://images.pexels.com/photos/3862610/pexels-photo-3862610.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeFinance: 'https://images.pexels.com/photos/7693745/pexels-photo-7693745.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeMedia: 'https://images.pexels.com/photos/8102691/pexels-photo-8102691.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeEducationIndustry: 'https://images.pexels.com/photos/8199133/pexels-photo-8199133.jpeg?auto=compress&cs=tinysrgb&w=1500',
 
   consulting: 'https://images.pexels.com/photos/36733315/pexels-photo-36733315.jpeg?auto=compress&cs=tinysrgb&w=1800',
   consultingDetail: 'https://images.pexels.com/photos/7433872/pexels-photo-7433872.jpeg?auto=compress&cs=tinysrgb&w=1800',
