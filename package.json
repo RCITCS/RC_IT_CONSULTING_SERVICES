@@ -11,7 +11,7 @@
     "check:architecture": "node scripts/check-architecture.mjs && npm run check:backend-architecture && npm run check:persistence-architecture",
     "test:smoke": "node tests/smoke.mjs",
     "test:backend": "node tests/backend-foundation.mjs",
-    "test:persistence": "node tests/persistence-storage.mjs",
+    "test:persistence": "node tests/persistence-storage.mjs && node tests/persistence-storage-hardening.mjs",
     "test:render": "node tests/render-routes.mjs",
     "test:design-system": "node tests/design-system.mjs",
     "test:performance-routing": "node tests/performance-routing.mjs",
