@@ -1,0 +1,44 @@
+/* Final enterprise UX refinements from the page-by-page audit. */
+
+/* Message fields grow with content. The browser drag handle is intentionally removed. */
+.form-field textarea {
+  resize: none;
+  overflow-y: hidden;
+  line-height: 1.55;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), height 120ms ease-out;
+}
+
+/* Preserve a deliberate editorial treatment for real photography rather than template-like cards. */
+.page-hero img,
+.split img,
+.detail-intro__media img {
+  object-position: center;
+}
+
+/* Careers photography benefits from a little more visible subject area on compact screens. */
+@media (max-width: 640px) {
+  .page-hero img {
+    object-position: center center;
+  }
+}
+
+/* Contact form should feel like an enterprise enquiry surface, not a generic widget. */
+#contact-form .section-heading {
+  margin-bottom: 1.6rem;
+}
+
+#contact-form form {
+  padding-top: .2rem;
+}
+
+#contact-form textarea {
+  min-height: 145px;
+}
+
+/* Keep primary content reading width controlled on very large displays. */
+.service-proposition,
+.service-deliverables-intro,
+.detail-intro__copy,
+.legal-document__intro {
+  text-wrap: pretty;
+}
