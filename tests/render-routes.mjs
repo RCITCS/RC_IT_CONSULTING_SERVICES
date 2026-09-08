@@ -9,6 +9,15 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function assertPage(route, html) {
   assert(typeof html === 'string', `${route} did not return HTML`);
   assert(html.includes('id="main-content"'), `${route} is missing the main content landmark`);
@@ -28,13 +37,13 @@ let serviceDetailCount = 0;
 for (const [serviceRoute, page] of Object.entries(SERVICE_PAGES)) {
   const serviceHtml = routeContent(serviceRoute);
   assertPage(serviceRoute, serviceHtml);
-  assert(serviceHtml.includes(page.title), `${serviceRoute} does not render its configured service title`);
+  assert(serviceHtml.includes(escapeHtml(page.title)), `${serviceRoute} does not render its configured service title`);
 
   for (const capability of page.howWeHelp || []) {
     const route = `${serviceRoute}/${capability.slug}`;
     const html = routeContent(route);
     assertPage(route, html);
-    assert(html.includes(capability.title), `${route} does not render its configured capability title`);
+    assert(html.includes(escapeHtml(capability.title)), `${route} does not render its configured capability title`);
     serviceDetailCount += 1;
   }
 }
@@ -48,8 +57,8 @@ for (const job of jobs) {
 
   assertPage(detailRoute, detailHtml);
   assertPage(applicationRoute, applicationHtml);
-  assert(detailHtml.includes(job.title), `${detailRoute} does not render the selected job title`);
-  assert(applicationHtml.includes(`Apply for ${job.title}`), `${applicationRoute} lost job-specific application context`);
+  assert(detailHtml.includes(escapeHtml(job.title)), `${detailRoute} does not render the selected job title`);
+  assert(applicationHtml.includes(`Apply for ${escapeHtml(job.title)}`), `${applicationRoute} lost job-specific application context`);
 }
 
 const careersHtml = routeContent('/careers');
