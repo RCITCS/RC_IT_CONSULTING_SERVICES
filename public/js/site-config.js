@@ -21,6 +21,7 @@ export const IMAGES = {
   homeFinance: 'https://images.pexels.com/photos/7693745/pexels-photo-7693745.jpeg?auto=compress&cs=tinysrgb&w=1500',
   homeMedia: 'https://images.pexels.com/photos/8102691/pexels-photo-8102691.jpeg?auto=compress&cs=tinysrgb&w=1500',
   homeEducationIndustry: 'https://images.pexels.com/photos/8199133/pexels-photo-8199133.jpeg?auto=compress&cs=tinysrgb&w=1500',
+  homeClients: 'https://images.pexels.com/photos/3183185/pexels-photo-3183185.jpeg?auto=compress&cs=tinysrgb&w=1600',
 
   consulting: 'https://images.pexels.com/photos/36733315/pexels-photo-36733315.jpeg?auto=compress&cs=tinysrgb&w=1800',
   consultingDetail: 'https://images.pexels.com/photos/7433872/pexels-photo-7433872.jpeg?auto=compress&cs=tinysrgb&w=1800',
