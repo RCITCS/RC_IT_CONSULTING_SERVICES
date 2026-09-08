@@ -16,7 +16,8 @@ function json(status, payload) {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'no-store',
-      'x-content-type-options': 'nosniff'
+      'x-content-type-options': 'nosniff',
+      'x-robots-tag': 'noindex, nofollow'
     }
   });
 }
@@ -107,12 +108,7 @@ async function handleApi(request) {
 }
 
 async function serveApplication(request, env) {
-  const assetResponse = await env.ASSETS.fetch(request);
-  if (assetResponse.status !== 404) return assetResponse;
-
-  const indexUrl = new URL('/index.html', request.url);
-  const fallbackRequest = new Request(indexUrl, request);
-  return env.ASSETS.fetch(fallbackRequest);
+  return env.ASSETS.fetch(request);
 }
 
 export default {

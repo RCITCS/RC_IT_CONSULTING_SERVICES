@@ -9,6 +9,8 @@ const required = [
   'src/frontend/app/route-enhancements.js',
   'src/frontend/app/route-styles.js',
   'src/frontend/router/router.js',
+  'src/frontend/seo/seo-config.js',
+  'src/frontend/seo/seo-model.js',
   'src/frontend/styles/app.css',
   'src/frontend/styles/global-overrides.css',
   'src/frontend/styles/route-careers.css',
@@ -62,7 +64,11 @@ const required = [
   'src/frontend/pages/support/not-found.page.js',
   'tests/design-system.mjs',
   'tests/performance-routing.mjs',
+  'tests/seo.mjs',
+  'tests/seo-preview.mjs',
+  'tests/seo-build.mjs',
   'scripts/check-performance.mjs',
+  'docs/SEO_ARCHITECTURE.md',
   'src/backend/runtime/worker.js',
   'src/backend/admin/README.md',
   'src/backend/api/README.md',
@@ -131,6 +137,66 @@ if (!appSource.includes("../layouts/site-shell.js") || !appSource.includes('site
 if (!appSource.includes('ensureRouteStyles(pathName)') || !appSource.includes('bindRouteEnhancements(pathName)')) {
   throw new Error('Phase 5 route-specific style/interaction loading is not wired into the app shell.');
 }
+if (!appSource.includes('root.dataset.prerenderedPath === pathName')) {
+  throw new Error('Phase 6 prerender hydration guard is missing.');
+}
+
+const seoConfigSource = await readFile(path.join(root, 'src/frontend/seo/seo-config.js'), 'utf8');
+for (const contract of ['WORKERS_CI_BRANCH', 'DEPLOYMENT_SEARCH_INDEXING_ENABLED', 'JOB_SEARCH_INDEXING_ENABLED']) {
+  if (!seoConfigSource.includes(contract)) {
+    throw new Error(`Phase 6 SEO configuration contract is missing: ${contract}`);
+  }
+}
+
+const seoSource = await readFile(path.join(root, 'src/frontend/seo/seo-model.js'), 'utf8');
+for (const contract of [
+  'renderSeoHead',
+  'renderSitemapXml',
+  'renderRobotsTxt',
+  'DEPLOYMENT_SEARCH_INDEXING_ENABLED',
+  'JOB_SEARCH_INDEXING_ENABLED',
+  'createJobPostingSchema',
+  'JobPosting',
+  'BreadcrumbList',
+  "'Service'",
+  "'Organization'",
+  "'WebSite'",
+  "'WebPage'"
+]) {
+  if (!seoSource.includes(contract)) {
+    throw new Error(`Phase 6 SEO contract is missing: ${contract}`);
+  }
+}
+
+const buildSource = await readFile(path.join(root, 'scripts/build.mjs'), 'utf8');
+for (const contract of [
+  'getPrerenderRoutes',
+  'renderSeoHead',
+  'renderSitemapXml',
+  'renderRobotsTxt',
+  'renderRedirectsFile',
+  '404.html',
+  'data-prerendered-path'
+]) {
+  if (!buildSource.includes(contract)) {
+    throw new Error(`Phase 6 prerender build contract is missing: ${contract}`);
+  }
+}
+
+const wranglerSource = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
+if (!wranglerSource.includes('"404-page"') || !wranglerSource.includes('"drop-trailing-slash"')) {
+  throw new Error('Cloudflare must use SSG 404 handling and a single trailing-slash canonical policy.');
+}
+if (wranglerSource.includes('single-page-application')) {
+  throw new Error('SPA 200 fallback must not be reintroduced after Phase 6.');
+}
+
+const vercelConfig = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'));
+const fallbackHeaders = vercelConfig.headers?.find((entry) => entry.source === '/(.*)')?.headers || [];
+const fallbackRobots = fallbackHeaders.find((header) => header.key.toLowerCase() === 'x-robots-tag')?.value;
+if (fallbackRobots !== 'noindex, nofollow') {
+  throw new Error('Secondary Vercel fallback must remain globally noindex.');
+}
 
 const appCss = await readFile(path.join(root, 'src/frontend/styles/app.css'), 'utf8');
 for (const routeOnly of ['service-detail.css', 'careers.css', 'career-switch.css', 'career-filters.css', 'legal.css']) {
@@ -147,4 +213,4 @@ if (publicEntries.includes('js') || publicEntries.includes('css')) {
   throw new Error('Frontend source must not live under public/js or public/css after the structured-source migration.');
 }
 
-console.log(`PASS: structured page architecture + shared design system + Phase 5 route/style performance boundaries verified (${required.length} required paths).`);
+console.log(`PASS: structured page architecture + shared design system + Phase 5 performance boundaries + Phase 6 prerender/SEO ownership verified (${required.length} required paths).`);

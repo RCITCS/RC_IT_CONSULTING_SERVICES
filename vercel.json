@@ -5,15 +5,16 @@
   },
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
     { "source": "/consult-expert", "destination": "/contact?intent=consultation", "permanent": true },
     { "source": "/careers/job-opportunities", "destination": "/careers", "permanent": true },
-    { "source": "/careers/upload-your-resume", "destination": "/careers", "permanent": true }
+    { "source": "/careers/upload-your-resume", "destination": "/careers", "permanent": true },
+    { "source": "/index.php", "destination": "/", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/api/:action", "destination": "/api/[action]?action=:action" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/:action", "destination": "/api/[action]?action=:action" }
   ],
   "headers": [
     {
@@ -25,6 +26,7 @@
     {
       "source": "/(.*)",
       "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
