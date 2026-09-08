@@ -1,0 +1,68 @@
+name: Cloudflare Workers CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-it-services-cloudflare-production
+  cancel-in-progress: true
+
+jobs:
+  quality-and-deploy:
+    name: Test, build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run smoke tests
+        run: npm test
+
+      - name: Build optimized production assets
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/index.html
+          test -d dist/assets
+          grep -q 'site-root' dist/index.html
+
+      - name: Deploy to Cloudflare Workers
+        id: cloudflare
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4'
+          command: deploy
+
+      - name: Verify production deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.cloudflare.outputs.deployment-url }}
+        run: |
+          BASE_URL="${DEPLOYMENT_URL:-https://rcitcservices.frsmkgit.workers.dev}"
+          echo "Verifying ${BASE_URL}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "${BASE_URL}/" > /tmp/home.html
+          grep -q 'site-root' /tmp/home.html
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "${BASE_URL}/careers" > /tmp/careers.html
+          grep -q 'site-root' /tmp/careers.html
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "${BASE_URL}/services/it/cyber-security" > /tmp/service.html
+          grep -q 'site-root' /tmp/service.html
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 "${BASE_URL}/api/health" > /tmp/health.json
+          grep -q '"ok":true' /tmp/health.json
