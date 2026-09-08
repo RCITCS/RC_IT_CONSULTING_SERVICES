@@ -1,13 +1,15 @@
 {
   "name": "rc-it-services",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
     "start": "NODE_ENV=production node server.mjs",
-    "check:architecture": "node scripts/check-architecture.mjs",
+    "check:backend-architecture": "node scripts/check-backend-architecture.mjs",
+    "check:architecture": "node scripts/check-architecture.mjs && npm run check:backend-architecture",
     "test:smoke": "node tests/smoke.mjs",
+    "test:backend": "node tests/backend-foundation.mjs",
     "test:render": "node tests/render-routes.mjs",
     "test:design-system": "node tests/design-system.mjs",
     "test:performance-routing": "node tests/performance-routing.mjs",
@@ -15,7 +17,7 @@
     "test:seo-preview": "node tests/seo-preview.mjs",
     "test:performance": "node scripts/check-performance.mjs",
     "test:seo-build": "node tests/seo-build.mjs",
-    "test": "npm run test:smoke && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
+    "test": "npm run test:smoke && npm run test:backend && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
     "build": "node scripts/build.mjs",
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:performance && npm run test:seo-build"
   },
