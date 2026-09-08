@@ -38,8 +38,8 @@ export const IMAGES = {
   sustainability: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=1600&q=82',
   sustainabilityDetail: 'https://images.pexels.com/photos/8117405/pexels-photo-8117405.jpeg?auto=compress&cs=tinysrgb&w=1800',
 
-  educationConsulting: 'https://images.pexels.com/photos/32394664/pexels-photo-32394664.jpeg?auto=compress&cs=tinysrgb&w=1800',
-  educationConsultingDetail: 'https://images.pexels.com/photos/7742816/pexels-photo-7742816.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  educationConsulting: 'https://images.pexels.com/photos/4339798/pexels-photo-4339798.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  educationConsultingDetail: 'https://images.pexels.com/photos/9159088/pexels-photo-9159088.jpeg?auto=compress&cs=tinysrgb&w=1800',
 
   automotive: 'https://images.pexels.com/photos/3862627/pexels-photo-3862627.jpeg?auto=compress&cs=tinysrgb&w=1800',
   automotiveDetail: 'https://images.pexels.com/photos/3862610/pexels-photo-3862610.jpeg?auto=compress&cs=tinysrgb&w=1800',
