@@ -1,19 +1,21 @@
-# Route and Interaction Matrix
+# RC IT Services — Route and Interaction Matrix
+
+This matrix describes the approved public route and interaction contract used during the structured refactor.
 
 ## Utility navigation
 
 | UI | Destination | Behaviour |
-|---|---|---|
-| Blog | `/blog` | Dedicated editorial route |
+| --- | --- | --- |
+| Blog | `/blog` | Editorial route |
 | FAQs | `/faqs` | Accessible accordion page |
-| Login | `/login` | Login UI; backend intentionally blocks authentication until identity integration |
+| Login | `/login` | Public information/login boundary; production authentication is not enabled in the baseline build |
 
 ## Main navigation
 
 | Menu | Submenu | Route |
-|---|---|---|
-| Home | - | `/` |
-| About Us | - | `/about-us` |
+| --- | --- | --- |
+| Home | — | `/` |
+| About Us | — | `/about-us` |
 | SERVICES > IT | Consultancy Services | `/services/it/consultancy-services` |
 | SERVICES > IT | Cyber Security | `/services/it/cyber-security` |
 | SERVICES > IT | Artificial Intelligence | `/services/it/artificial-intelligence` |
@@ -28,57 +30,130 @@
 | Industry | Banking and Finance | `/industry/banking-and-finance` |
 | Industry | Media and Communication | `/industry/media-and-communication` |
 | Industry | Education | `/industry/education` |
-| Careers | Job Opportunities | `/careers/job-opportunities` |
-| Careers | Upload your Resume | `/careers/upload-your-resume` |
-| Contact | - | `/contact` |
+| Careers | — | `/careers` |
+| Contact | — | `/contact` |
+| Consult our Expert | — | `/contact?intent=consultation#contact-form` |
 
 ## Homepage actions
 
 | Button / card | Destination / action |
-|---|---|
+| --- | --- |
 | Our Products | `/products` |
 | White Papers | `/white-papers` |
-| Consult our Expert | `/consult-expert` |
+| Consult our Expert | `/contact?intent=consultation#contact-form` |
+| Explore Services | `/services/it/consultancy-services` |
 | Industry cards | Dedicated industry routes |
-| Primary consultation CTA | `/consult-expert` |
-| Contact CTA | `/contact` |
+| Final consultation CTA | Unified Contact consultation flow |
 
 ## Service interactions
 
-Every `HOW WE HELP` item has a `Read More` button. Clicking it opens an accessible modal dialog containing the detailed explanation. The dialog supports:
+Every service `HOW WE HELP` card has a dedicated child route.
 
-- `Close` button
-- top-right close control
-- Escape key
-- click-outside close
-- focus trapping
-- focus restoration
+Pattern:
+
+`<service-route>/<capability-slug>`
+
+Examples:
+
+- `/services/it/consultancy-services/agile`
+- `/services/it/consultancy-services/advanced-analytics`
+- `/services/it/consultancy-services/digital-marketing`
+- `/services/it/consultancy-services/digital-delivery`
+- `/services/it/consultancy-services/ai-and-automation`
+
+Capability pages include service context, delivery approach, expected result, related capabilities and consultation CTA.
 
 ## Products
 
-`Request a Demo` opens a validated modal form. Successful submissions are POSTed to `/api/demo`.
+`Request a Demo` opens a validated modal form and submits to `/api/demo` when the runtime endpoint is configured to accept the request.
 
 ## Contact
 
-The Contact page preserves:
+The Contact page is the single public enquiry/consultation route.
 
-- Write to Us
-- Talk to Us
-- Email Us
-- Chat With Us
-- `Chat Now >>>`
-- Map
-- Submit
+Current fields:
 
-Write/Talk/Email actions focus the structured enquiry form with an intent value. Chat opens an on-page message dialog and submits to `/api/chat`. The map uses the registered-office address.
+- First Name — required
+- Last Name — required
+- Company / Organisation — optional
+- Job Title — optional
+- Email — required
+- Phone Number — required
+- Consultation topic — required
+- How can we help? — required
+- Privacy confirmation — required
+
+The message textarea auto-grows and manual browser resize is disabled by the public CSS/interaction layer.
+
+Informational contact blocks explain consultation, business enquiry, phone follow-up and digital message expectations. They do not create competing forms.
+
+The map uses the registered-office address.
 
 ## Careers
 
-`Upload your Resume` accepts PDF, DOC and DOCX up to 5 MB. Client and server both validate the file. Explicit recruitment consent is required before upload.
+`/careers` is the single careers landing and job-discovery experience.
+
+### Opening browser
+
+- jobs are grouped by professional discipline
+- search supports title, skill, technology, location, industry and related metadata
+- category filtering is available
+- selecting another role updates the detail panel without scrolling the whole document
+- the selected role remains visually identifiable
+
+### Job detail
+
+Canonical pattern:
+
+`/careers/jobs/:slug`
+
+The detail includes:
+
+- role summary
+- location
+- working style
+- employment type
+- experience
+- technology environment
+- industry context
+- job description
+- responsibilities
+- qualifications
+- preferred qualifications
+- benefits/employment terms
+- Apply CTA
+
+### Application
+
+Pattern:
+
+`/careers/jobs/:slug/apply`
+
+The current UI requests role-specific candidate details plus separate resume and cover-letter files, with a product requirement of up to 20 MB each.
+
+Production submission is intentionally not enabled until approved private recruitment document storage is connected. The application must never claim success before persistence succeeds.
+
+## Legal routes
+
+- `/privacy`
+- `/cookies`
+- `/terms`
+
+Footer legal links must remain functional on desktop and mobile.
+
+## Legacy/deprecated routes
+
+The following paths appeared in earlier builds and must be handled deliberately during the refactor rather than silently returning an unrelated page:
+
+- `/careers/job-opportunities` → target `/careers`
+- `/careers/upload-your-resume` → target `/careers`
+- `/consult-expert` → target `/contact?intent=consultation#contact-form`
+
+Vercel already contains redirect rules for these legacy paths. Cloudflare redirect parity is a recorded migration item.
 
 ## Responsive navigation contract
 
-Desktop:
+### Desktop
 
 - mouse hover may reveal a dropdown, but hover is never the only control
 - click toggles dropdowns
@@ -86,9 +161,9 @@ Desktop:
 - outside click closes open menus
 - Escape closes open menus
 
-Mobile/tablet:
+### Mobile/tablet
 
-- 46px navigation control
+- approximately 46 px navigation control/touch target
 - off-canvas sheet
 - nested accordions for grouped menu content
 - keyboard focus containment
@@ -99,4 +174,6 @@ Mobile/tablet:
 
 ## No-dead-control rule
 
-The project must not contain `href="#"` navigation placeholders. Controls that depend on an external production system must expose the real integration boundary rather than simulate success.
+The project must not contain `href="#"` navigation placeholders.
+
+Controls that depend on an external production system must expose a truthful unavailable/pending boundary rather than simulate successful persistence, authentication, upload or message delivery.
