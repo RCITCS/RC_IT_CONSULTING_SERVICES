@@ -1,6 +1,7 @@
 import { routeNeedsJsonBody } from '../api/router.js';
 import { createBackendApplication } from '../application.js';
 import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '../core/payload.js';
+import { canonicalHostRedirect, isolateSecondaryOrigin } from './domain-routing.js';
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -31,7 +32,13 @@ async function serveApplication(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith('/api/')) return handleApiRequest(request, env);
-    return serveApplication(request, env);
+    const redirect = canonicalHostRedirect(url);
+    if (redirect) return redirect;
+
+    const response = url.pathname.startsWith('/api/')
+      ? await handleApiRequest(request, env)
+      : await serveApplication(request, env);
+
+    return isolateSecondaryOrigin(response, url.hostname);
   }
 };
