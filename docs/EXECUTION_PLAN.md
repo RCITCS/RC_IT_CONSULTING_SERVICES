@@ -26,8 +26,8 @@ Each phase is reviewed from all of these perspectives:
 
 # Master execution checklist
 
-- [ ] Phase 1 — Full architecture and regression baseline
-- [ ] Phase 2 — Structured project foundation
+- [x] ~~Phase 1 — Full architecture and regression baseline~~ — COMPLETED & VERIFIED
+- [x] ~~Phase 2 — Structured project foundation~~ — COMPLETED & VERIFIED
 - [ ] Phase 3 — Frontend page-by-page migration
 - [ ] Phase 4 — Shared components and design-system cleanup
 - [ ] Phase 5 — Performance optimization
@@ -77,9 +77,14 @@ Create a verified baseline of everything that currently works before structural 
 - known issues explicitly recorded
 - no public behaviour changed during the phase
 
-### Closure format
-When verified:
+### Verification record
+- repository and route inventories captured in project documentation
+- regression baseline created before structural migration
+- build/deployment model recorded
+- existing smoke/build checks passed before Phase 2 closure
+- no intentional public design or navigation changes introduced by Phase 1
 
+### Status
 `~~Phase 1 — Full architecture and regression baseline~~ — COMPLETED & VERIFIED`
 
 ---
@@ -104,6 +109,16 @@ Introduce professional source directories and module boundaries without changing
 - existing smoke tests pass
 - protected public DOM/interaction behaviour remains intact
 - no duplicate source-of-truth ambiguity for migrated modules
+
+### Verification record
+- `src/frontend` and `src/backend` ownership boundaries created
+- production build consumes structured source
+- architecture verification check added to CI
+- smoke tests, source architecture check and production build completed successfully in GitHub Actions
+- route behaviour remained under the regression contract
+
+### Status
+`~~Phase 2 — Structured project foundation~~ — COMPLETED & VERIFIED`
 
 ---
 
@@ -594,4 +609,4 @@ Before closing every phase:
 
 # Current status
 
-Project execution begins with Phase 1. No later phase is authorized to be marked complete until its predecessor has passed the defined gate.
+Phase 1 and Phase 2 are completed and verified. Phase 3 — Frontend page-by-page migration — is now the only active phase.
