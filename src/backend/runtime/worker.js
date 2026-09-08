@@ -1,6 +1,6 @@
 import { routeNeedsJsonBody } from '../api/router.js';
 import { createBackendApplication } from '../application.js';
-import { parseJsonText } from '../core/payload.js';
+import { parseJsonText, readBoundedRequestText } from '../core/payload.js';
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -12,7 +12,7 @@ async function handleApiRequest(request, env) {
   let body;
   try {
     if (routeNeedsJsonBody(url.pathname)) {
-      const text = await request.text();
+      const text = await readBoundedRequestText(request, app.config.maxJsonBodyBytes);
       body = parseJsonText(text, app.config.maxJsonBodyBytes);
     }
   } catch (error) {

@@ -12,9 +12,13 @@ const routes = Object.freeze({
   'career-application': { methods: ['POST'], handler: 'recruitment' }
 });
 
+function actionForPath(pathname) {
+  const match = /^\/api\/([A-Za-z0-9-]+)$/.exec(String(pathname || ''));
+  return match ? match[1].toLowerCase() : '';
+}
+
 export function routeNeedsJsonBody(pathname) {
-  const action = String(pathname || '').replace(/^\/api\//, '').split('/')[0].toLowerCase();
-  return Boolean(routes[action]?.body);
+  return Boolean(routes[actionForPath(pathname)]?.body);
 }
 
 export function createApiRouter({ handlers, logger, now = () => Date.now() } = {}) {
@@ -22,7 +26,7 @@ export function createApiRouter({ handlers, logger, now = () => Date.now() } = {
     const started = now();
     let response;
     try {
-      const action = String(pathname || '').replace(/^\/api\//, '').split('/')[0].toLowerCase();
+      const action = actionForPath(pathname);
       const route = routes[action];
       if (!route) throw notFound();
       if (!route.methods.includes(context.method)) throw methodNotAllowed(route.methods);

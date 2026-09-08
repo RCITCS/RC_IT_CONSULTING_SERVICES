@@ -1,17 +1,17 @@
-import { cleanText, isEmail, isPhone, requireFields } from './common.js';
+import { boundedText, isEmail, isPhone, requireFields } from './common.js';
 import { validationError } from '../core/errors.js';
 
 function contact(payload = {}) {
   const value = {
-    firstName: cleanText(payload.firstName, 80),
-    lastName: cleanText(payload.lastName, 80),
-    company: cleanText(payload.company, 140),
-    jobTitle: cleanText(payload.jobTitle, 140),
-    email: cleanText(payload.email, 254),
-    phone: cleanText(payload.phone, 30),
-    consultationTopic: cleanText(payload.consultationTopic, 140),
-    message: cleanText(payload.message, 4000),
-    intent: cleanText(payload.intent, 80) || 'General enquiry',
+    firstName: boundedText(payload.firstName, 'firstName', 80),
+    lastName: boundedText(payload.lastName, 'lastName', 80),
+    company: boundedText(payload.company, 'company', 140),
+    jobTitle: boundedText(payload.jobTitle, 'jobTitle', 140),
+    email: boundedText(payload.email, 'email', 254),
+    phone: boundedText(payload.phone, 'phone', 30),
+    consultationTopic: boundedText(payload.consultationTopic, 'consultationTopic', 140),
+    message: boundedText(payload.message, 'message', 4000),
+    intent: boundedText(payload.intent, 'intent', 80) || 'General enquiry',
     privacyConsent: payload.privacyConsent === true
   };
   requireFields(value, ['firstName', 'lastName', 'email', 'phone', 'consultationTopic', 'message']);
@@ -23,12 +23,12 @@ function contact(payload = {}) {
 
 function demo(payload = {}) {
   const value = {
-    name: cleanText(payload.name, 120),
-    company: cleanText(payload.company, 140),
-    businessEmail: cleanText(payload.businessEmail, 254),
-    phone: cleanText(payload.phone, 30),
-    product: cleanText(payload.product, 120),
-    notes: cleanText(payload.notes, 3000)
+    name: boundedText(payload.name, 'name', 120),
+    company: boundedText(payload.company, 'company', 140),
+    businessEmail: boundedText(payload.businessEmail, 'businessEmail', 254),
+    phone: boundedText(payload.phone, 'phone', 30),
+    product: boundedText(payload.product, 'product', 120),
+    notes: boundedText(payload.notes, 'notes', 3000)
   };
   requireFields(value, ['name', 'company', 'businessEmail', 'product']);
   if (!isEmail(value.businessEmail)) throw validationError('Enter a valid business email.', { fields: ['businessEmail'] });
@@ -38,12 +38,12 @@ function demo(payload = {}) {
 
 function consultation(payload = {}) {
   const value = {
-    name: cleanText(payload.name, 120),
-    company: cleanText(payload.company, 140),
-    businessEmail: cleanText(payload.businessEmail, 254),
-    phone: cleanText(payload.phone, 30),
-    topic: cleanText(payload.topic, 140),
-    brief: cleanText(payload.brief, 4000)
+    name: boundedText(payload.name, 'name', 120),
+    company: boundedText(payload.company, 'company', 140),
+    businessEmail: boundedText(payload.businessEmail, 'businessEmail', 254),
+    phone: boundedText(payload.phone, 'phone', 30),
+    topic: boundedText(payload.topic, 'topic', 140),
+    brief: boundedText(payload.brief, 'brief', 4000)
   };
   requireFields(value, ['name', 'company', 'businessEmail', 'topic']);
   if (!isEmail(value.businessEmail)) throw validationError('Enter a valid business email.', { fields: ['businessEmail'] });
@@ -53,10 +53,10 @@ function consultation(payload = {}) {
 
 function chat(payload = {}) {
   const value = {
-    name: cleanText(payload.name, 120),
-    company: cleanText(payload.company, 140),
-    businessEmail: cleanText(payload.businessEmail, 254),
-    message: cleanText(payload.message, 3000)
+    name: boundedText(payload.name, 'name', 120),
+    company: boundedText(payload.company, 'company', 140),
+    businessEmail: boundedText(payload.businessEmail, 'businessEmail', 254),
+    message: boundedText(payload.message, 'message', 3000)
   };
   requireFields(value, ['name', 'businessEmail', 'message']);
   if (!isEmail(value.businessEmail)) throw validationError('Enter a valid business email.', { fields: ['businessEmail'] });

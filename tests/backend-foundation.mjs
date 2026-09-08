@@ -1,5 +1,6 @@
 import { createBackendApplication } from '../src/backend/application.js';
 import { noopLogger } from '../src/backend/core/logger.js';
+import { readBoundedRequestText } from '../src/backend/core/payload.js';
 import { createProviderRegistry } from '../src/backend/providers/provider-registry.js';
 
 function assert(condition, message) {
@@ -33,9 +34,16 @@ assert(result.body.ok === false, 'unconfigured persistence must never report suc
 result = await unconfigured.handle({ method: 'POST', pathname: '/api/contact', headers: {}, body: { firstName: 'Only' } });
 assert(result.status === 422 && result.body.code === 'VALIDATION_ERROR', 'invalid contact must be 422');
 
+result = await unconfigured.handle({ method: 'POST', pathname: '/api/contact', headers: {}, body: { ...validContact, firstName: 'x'.repeat(81) } });
+assert(result.status === 422 && result.body.code === 'VALIDATION_ERROR', 'over-length fields must be rejected rather than truncated');
+assert(result.body.details?.maxLength === 80, 'over-length validation should expose the enforced limit');
+
 result = await unconfigured.handle({ method: 'GET', pathname: '/api/contact', headers: {} });
 assert(result.status === 405, 'wrong method must be 405');
 assert(result.headers.allow === 'POST', '405 must advertise allowed method');
+
+result = await unconfigured.handle({ method: 'POST', pathname: '/api/contact/anything', headers: {}, body: validContact });
+assert(result.status === 404 && result.body.code === 'NOT_FOUND', 'API routes must reject unexpected extra path segments');
 
 result = await unconfigured.handle({ method: 'GET', pathname: '/api/unknown', headers: {} });
 assert(result.status === 404 && result.body.code === 'NOT_FOUND', 'unknown API route must be 404');
@@ -45,6 +53,19 @@ assert(result.status === 501 && result.body.code === 'AUTH_NOT_CONFIGURED', 'log
 
 result = await unconfigured.handle({ method: 'POST', pathname: '/api/resume', headers: {} });
 assert(result.status === 501 && result.body.code === 'RECRUITMENT_STORAGE_NOT_CONFIGURED', 'resume boundary must stay explicit');
+
+const oversizedRequest = new Request('https://example.test/api/contact', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ message: 'x'.repeat(128) })
+});
+let oversizedRejected = false;
+try {
+  await readBoundedRequestText(oversizedRequest, 32);
+} catch (error) {
+  oversizedRejected = error?.status === 413 && error?.code === 'PAYLOAD_TOO_LARGE';
+}
+assert(oversizedRejected, 'streaming request reader must stop oversized bodies with 413');
 
 const records = [];
 const repository = {
@@ -78,4 +99,4 @@ assert(providers.database.configured === false, 'database provider should defaul
 assert(providers.storage.configured === false, 'storage provider should default unconfigured');
 assert(providers.email.configured === false, 'email provider should default unconfigured');
 
-console.log('PASS: Phase 7 backend layering, validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
+console.log('PASS: Phase 7 backend layering, exact API routing, bounded streaming input, validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');

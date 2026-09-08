@@ -1,15 +1,55 @@
 import { BackendError, badRequest } from './errors.js';
 
+function payloadTooLarge() {
+  return new BackendError({
+    code: 'PAYLOAD_TOO_LARGE',
+    message: 'Request body is too large.',
+    status: 413
+  });
+}
+
+function byteLength(text) {
+  return new TextEncoder().encode(String(text ?? '')).byteLength;
+}
+
+function assertWithinLimit(size, maxBytes) {
+  if (size > maxBytes) throw payloadTooLarge();
+}
+
+export async function readBoundedRequestText(request, maxBytes) {
+  const declaredLength = Number(request.headers?.get?.('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > 0) assertWithinLimit(declaredLength, maxBytes);
+
+  if (!request.body) return '';
+  if (typeof request.body.getReader !== 'function') {
+    const text = await request.text();
+    assertWithinLimit(byteLength(text), maxBytes);
+    return text;
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value?.byteLength || 0;
+      assertWithinLimit(size, maxBytes);
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } catch (error) {
+    try { await reader.cancel(); } catch {}
+    throw error;
+  }
+}
+
 export function parseJsonText(text, maxBytes) {
   const raw = String(text ?? '');
-  const size = new TextEncoder().encode(raw).byteLength;
-  if (size > maxBytes) {
-    throw new BackendError({
-      code: 'PAYLOAD_TOO_LARGE',
-      message: 'Request body is too large.',
-      status: 413
-    });
-  }
+  assertWithinLimit(byteLength(raw), maxBytes);
   if (!raw.trim()) return {};
   try {
     const parsed = JSON.parse(raw);
@@ -23,8 +63,6 @@ export function parseJsonText(text, maxBytes) {
 export function validateParsedJsonBody(body, maxBytes) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest();
   const serialized = JSON.stringify(body);
-  if (new TextEncoder().encode(serialized).byteLength > maxBytes) {
-    throw new BackendError({ code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large.', status: 413 });
-  }
+  assertWithinLimit(byteLength(serialized), maxBytes);
   return body;
 }

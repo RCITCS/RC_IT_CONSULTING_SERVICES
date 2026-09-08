@@ -1,15 +1,26 @@
 import { validationError } from '../core/errors.js';
 
-export function cleanText(value, max = 4000) {
-  return String(value ?? '').replace(/\0/g, '').trim().slice(0, max);
+export function boundedText(value, field, max) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') {
+    throw validationError(`${field} must be text.`, { fields: [field] });
+  }
+  if (value.includes('\0')) {
+    throw validationError(`${field} contains unsupported characters.`, { fields: [field] });
+  }
+  const normalized = value.trim();
+  if (normalized.length > max) {
+    throw validationError(`${field} must be ${max} characters or fewer.`, { fields: [field], maxLength: max });
+  }
+  return normalized;
 }
 
 export function isEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(cleanText(value, 254));
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(value || ''));
 }
 
 export function isPhone(value) {
-  return /^[+()\d\s.-]{7,30}$/.test(cleanText(value, 30));
+  return /^[+()\d\s.-]{7,30}$/.test(String(value || ''));
 }
 
 export function requireFields(record, fields) {
