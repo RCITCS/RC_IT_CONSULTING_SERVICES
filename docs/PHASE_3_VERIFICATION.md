@@ -126,6 +126,8 @@ Successful gates:
 
 The live-production-route job is intentionally skipped on pull-request branches because production is deployed from `main`; this is not a Phase 3 failure.
 
+The subsequent commits only record the verified phase status and evidence in project documentation. CI is re-run on the final documentation head before the phase is reported externally as closed.
+
 ## Regression coverage
 
 The final page-render suite verifies:
