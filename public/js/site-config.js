@@ -5,25 +5,28 @@ export const COMPANY = {
   registeredOffice: '93 Metcalfe Court John Harrison Way, London, England, SE10 0BZ'
 };
 
+// Visual policy: real-world photography only. No generated AI artwork is used in this registry.
+// Pexels URLs below point to real photographs published as free-to-use stock photography.
+// Existing Unsplash URLs retained here are also real photographs, not generated artwork.
 export const IMAGES = {
   hero: 'https://images.unsplash.com/photo-1551434678-e076c223a692?auto=format&fit=crop&w=1800&q=84',
   consulting: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&fit=crop&w=1600&q=82',
-  cyber: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1600&q=82',
-  ai: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=82',
-  cloud: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1600&q=82',
-  bigData: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1600&q=82',
-  support: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1600&q=82',
+  cyber: 'https://images.pexels.com/photos/6963098/pexels-photo-6963098.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  ai: 'https://images.pexels.com/photos/19809475/pexels-photo-19809475.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  cloud: 'https://images.pexels.com/photos/19226354/pexels-photo-19226354.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  bigData: 'https://images.pexels.com/photos/3183185/pexels-photo-3183185.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  support: 'https://images.pexels.com/photos/7682087/pexels-photo-7682087.jpeg?auto=compress&cs=tinysrgb&w=1800',
   risk: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=82',
-  strategy: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1600&q=82',
+  strategy: 'https://images.pexels.com/photos/9301247/pexels-photo-9301247.jpeg?auto=compress&cs=tinysrgb&w=1800',
   sustainability: 'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=1600&q=82',
-  educationConsulting: 'https://images.unsplash.com/photo-1778735940467-1335c201966d?auto=format&fit=crop&w=1600&q=82',
-  automotive: 'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1600&q=82',
-  finance: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1600&q=82',
-  media: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=1600&q=82',
+  educationConsulting: 'https://images.pexels.com/photos/32394664/pexels-photo-32394664.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  automotive: 'https://images.pexels.com/photos/3862627/pexels-photo-3862627.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  finance: 'https://images.pexels.com/photos/7698812/pexels-photo-7698812.jpeg?auto=compress&cs=tinysrgb&w=1800',
+  media: 'https://images.pexels.com/photos/8102700/pexels-photo-8102700.jpeg?auto=compress&cs=tinysrgb&w=1800',
   education: 'https://images.unsplash.com/photo-1719159381981-1327b22aff9b?auto=format&fit=crop&w=1600&q=82',
   about: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1600&q=82',
   careers: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1600&q=82',
-  contact: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1600&q=82',
+  contact: 'https://images.pexels.com/photos/5453808/pexels-photo-5453808.jpeg?auto=compress&cs=tinysrgb&w=1800',
   products: 'https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1600&q=82',
   whitePapers: 'https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1600&q=82'
 };
