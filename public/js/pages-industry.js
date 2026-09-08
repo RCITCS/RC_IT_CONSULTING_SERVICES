@@ -72,19 +72,19 @@ export const INDUSTRY_PAGES = {
 };
 
 export const HOME_CAPABILITIES = [
-  { title: 'Next-generation technology and consulting', text: 'Architecture and delivery decisions grounded in business context.', image: IMAGES.consulting },
-  { title: 'Digital transformation', text: 'Modernise processes and platforms through staged, measurable change.', image: IMAGES.strategy },
-  { title: 'Artificial Intelligence', text: 'Apply AI where evidence, data and operating controls support it.', image: IMAGES.ai },
-  { title: 'Innovation', text: 'Test valuable ideas before scaling technology and delivery cost.', image: IMAGES.hero },
-  { title: 'Sensor/Data Integrity / Machine Learning', text: 'Connect data quality, engineering and machine learning responsibly.', image: IMAGES.bigData },
-  { title: 'Education solutions', text: 'Digital services and consulting for education operations and users.', image: IMAGES.education }
+  { title: 'Next-generation technology and consulting', text: 'Architecture and delivery decisions grounded in business context.', image: IMAGES.homeConsulting },
+  { title: 'Digital transformation', text: 'Modernise processes and platforms through staged, measurable change.', image: IMAGES.homeTransformation },
+  { title: 'Artificial Intelligence', text: 'Apply AI where evidence, data and operating controls support it.', image: IMAGES.homeAI },
+  { title: 'Innovation', text: 'Test valuable ideas before scaling technology and delivery cost.', image: IMAGES.homeInnovation },
+  { title: 'Sensor/Data Integrity / Machine Learning', text: 'Connect data quality, engineering and machine learning responsibly.', image: IMAGES.homeData },
+  { title: 'Education solutions', text: 'Digital services and consulting for education operations and users.', image: IMAGES.homeEducation }
 ];
 
 export const HOME_INDUSTRIES = [
-  { title: 'Automotive', text: 'Connected products, enterprise platforms and mobility data.', href: '/industry/automotive-industry-it-services', image: IMAGES.automotive },
-  { title: 'Banking & Finance', text: 'Secure, resilient digital and data modernisation.', href: '/industry/banking-and-finance', image: IMAGES.finance },
-  { title: 'Communication', text: 'Digital experiences, content platforms and analytics.', href: '/industry/media-and-communication', image: IMAGES.media },
-  { title: 'Education', text: 'Accessible platforms and connected education workflows.', href: '/industry/education', image: IMAGES.education }
+  { title: 'Automotive', text: 'Connected products, enterprise platforms and mobility data.', href: '/industry/automotive-industry-it-services', image: IMAGES.homeAutomotive },
+  { title: 'Banking & Finance', text: 'Secure, resilient digital and data modernisation.', href: '/industry/banking-and-finance', image: IMAGES.homeFinance },
+  { title: 'Communication', text: 'Digital experiences, content platforms and analytics.', href: '/industry/media-and-communication', image: IMAGES.homeMedia },
+  { title: 'Education', text: 'Accessible platforms and connected education workflows.', href: '/industry/education', image: IMAGES.homeEducationIndustry }
 ];
 
 export const FAQS = [
