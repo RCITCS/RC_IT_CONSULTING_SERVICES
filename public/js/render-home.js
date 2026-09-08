@@ -22,12 +22,13 @@ export function renderHome() {
         </div>
       </section>
 
-      <section class="section"><div class="container">
+      <section class="section home-entry-section"><div class="container">
+        ${sectionHeading('Explore RC IT Services','Three ways to move from interest to a useful next step','Evaluate our product areas, read decision-oriented technology perspectives or bring an active business and technology problem directly into a consultation.')}
         <div class="action-grid">
           ${[
-            ['01','Our Products','Explore the product portfolio and request a demonstration.','/products'],
-            ['02','White Papers','Read structured thinking across technology, data and delivery.','/white-papers'],
-            ['03','Consult our Expert','Start with the business problem, constraints and intended outcome.','/consult-expert']
+            ['01','Our Products','Explore workflow-focused cloud product areas for education and recruitment, then evaluate fit through a targeted demonstration.','/products'],
+            ['02','White Papers','Read practical perspectives on cloud modernisation, data engineering and responsible AI with architecture and operating context.','/white-papers'],
+            ['03','Consult our Expert','Bring an active technology decision, modernisation challenge, delivery constraint or specialist capability requirement into a focused discussion.','/consult-expert']
           ].map(([n,title,text,href]) => `<a class="action-card" href="${href}"><span class="action-card__number">${n}</span><span class="action-card__arrow">${arrow()}</span><h3>${title}</h3><p>${text}</p></a>`).join('')}
         </div>
       </div></section>
@@ -49,7 +50,7 @@ export function renderHome() {
 
       <section class="section"><div class="container">
         ${sectionHeading('Our Clients', 'Built for organisations that need dependable delivery capacity', 'Our service model supports organisations that need specialist technology capability, project delivery support and structured consulting engagement.')}
-        <div class="split"><div>${imageTag(IMAGES.consultingDetail, 'Engineers and technology professionals collaborating with project screens in a real office')}</div><div><h2>From first conversation to operation, every stage should move the outcome forward.</h2><p>We combine advisory context with implementation thinking so clients can move from requirements to a practical delivery path without losing ownership, quality or operational visibility.</p><ul class="list-check"><li>Project and consulting engagements</li><li>Dedicated engineering and technology delivery</li><li>Management and transformation support</li><li>Structured operational handover and support</li></ul></div></div>
+        <div class="split"><div>${imageTag(IMAGES.homeClients || IMAGES.consultingDetail, 'Professional client and technology team reviewing delivery work together in a real office')}</div><div><h2>From first conversation to operation, every stage should move the outcome forward.</h2><p>We combine advisory context with implementation thinking so clients can move from requirements to a practical delivery path without losing ownership, quality or operational visibility.</p><ul class="list-check"><li>Project and consulting engagements</li><li>Dedicated engineering and technology delivery</li><li>Management and transformation support</li><li>Structured operational handover and support</li></ul></div></div>
       </div></section>
       ${ctaPanel()}
     </main>`;
