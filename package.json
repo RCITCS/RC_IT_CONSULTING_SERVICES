@@ -1,13 +1,15 @@
 {
   "name": "rc-it-services",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node server.mjs",
     "start": "NODE_ENV=production node server.mjs",
     "check:architecture": "node scripts/check-architecture.mjs",
-    "test": "node tests/smoke.mjs",
+    "test:smoke": "node tests/smoke.mjs",
+    "test:render": "node tests/render-routes.mjs",
+    "test": "npm run test:smoke && npm run test:render",
     "build": "node scripts/build.mjs",
     "verify": "npm run check:architecture && npm test && npm run build"
   },
