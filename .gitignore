@@ -1,0 +1,13 @@
+.DS_Store
+node_modules/
+.env
+.env.*
+!.env.example
+uploads/resumes/*
+!uploads/resumes/.gitkeep
+data/*-submissions.json
+data/demo-requests.json
+data/contact-submissions.json
+data/consultations.json
+
+dist/

@@ -1,0 +1,53 @@
+@media (max-width: 1100px) {
+  .desktop-nav, .header-cta { display:none; }
+  .mobile-menu-button { display:inline-flex; }
+  .footer-top { grid-template-columns:1.5fr repeat(3,minmax(0,1fr)); }
+  .industry-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width: 900px) {
+  .hero-grid, .page-hero-grid, .split, .contact-grid { grid-template-columns:1fr; }
+  .hero-visual { min-height:auto; }
+  .hero-photo { height:min(62vw,480px); }
+  .hero-badge { left:1rem; }
+  .page-hero img { height:min(58vw,420px); }
+  .action-grid, .capability-grid, .help-grid, .topic-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .trust-strip { grid-template-columns:1fr; }
+  .trust-item + .trust-item { border-left:0; border-top:1px solid var(--color-line); }
+  .footer-top { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .footer-brand { grid-column:1/-1; }
+}
+
+@media (max-width: 640px) {
+  :root { --gutter: 1rem; --section-y: 4rem; }
+  .utility-inner { justify-content:center; min-height:32px; gap:1rem; }
+  .header-inner { min-height:68px; }
+  .brand-mark { width:38px; height:38px; }
+  .brand-copy span { display:none; }
+  .hero { padding-top:2.4rem; }
+  .hero h1 { max-width:15ch; }
+  .hero-photo { height:390px; }
+  .hero-badge { position:relative; left:auto; bottom:auto; max-width:none; margin:-1.5rem .8rem 0; }
+  .page-hero img { height:330px; }
+  .action-grid, .capability-grid, .help-grid, .industry-grid, .topic-grid, .product-grid, .form-grid { grid-template-columns:1fr; }
+  .industry-card { min-height:330px; }
+  .form-field--full { grid-column:auto; }
+  .split img { height:340px; }
+  .cta-panel { grid-template-columns:1fr; }
+  .cta-panel .btn { justify-self:start; }
+  .footer-top { grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.5rem; }
+  .footer-brand { grid-column:1/-1; }
+  .footer-bottom-inner { flex-direction:column; }
+  .dialog { padding:1.1rem; }
+}
+
+@media (max-width: 390px) {
+  .brand-copy strong { font-size:.92rem; }
+  .utility-inner { font-size:.75rem; }
+  .footer-top { grid-template-columns:1fr; }
+  .footer-brand { grid-column:auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; }
+}
