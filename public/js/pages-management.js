@@ -4,60 +4,60 @@ import { help } from './pages-util.js';
 export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   '/services/management/risk': {
     category: 'Management Services', title: 'Risk', image: IMAGES.risk,
-    imageAlt: 'Business team reviewing charts and risk information during a real professional meeting',
+    imageAlt: 'Business professionals reviewing financial and operational risk information in a real office meeting',
     secondaryImage: IMAGES.riskDetail,
-    secondaryImageAlt: 'Professionals reviewing financial and operational risk charts during a real business meeting',
-    lead: 'Technology-enabled risk management that connects controls, data, operations and decision-making.',
+    secondaryImageAlt: 'Professional team discussing charts and risk indicators during a real business meeting',
+    lead: 'Technology-enabled risk management that connects controls, evidence, data, operations and accountable decision-making.',
     introTitle: 'Make risk visible before it becomes disruption',
-    intro: 'We help organisations frame operational and technology risk in practical terms, identify control gaps and improve the information available to people responsible for decisions and oversight.',
+    intro: 'We help organisations frame operational and technology risk in practical terms, identify control gaps and improve the information available to people responsible for decisions and oversight. The focus is on risk processes that can operate continuously rather than periodic reporting that becomes disconnected from day-to-day work.',
     bullets: ['Risk assessment and control mapping', 'Operational risk analytics', 'Data and reporting improvement', 'Technology risk governance'],
     howWeHelp: [
-      help('Risk Advanced Analytics', 'Use analytical evidence to identify patterns, exposure and emerging risk.', 'We define relevant measures, source data, analytical methods and reporting so risk signals are interpretable and actionable.'),
-      help('Operational Risk, Compliance and Controls', 'Connect control requirements to real operating processes.', 'We map obligations, control owners, evidence, exceptions and escalation so governance is embedded in workflows rather than maintained only in documents.'),
-      help('Digitisation, Machine Learning and Data Management', 'Modernise risk workflows without weakening traceability.', 'We assess where workflow digitisation, data management and machine learning can improve risk processes while retaining human judgement and auditability.'),
-      help('Enterprise Risk Management', 'Create a coherent view of risk across business and technology domains.', 'We help establish taxonomy, ownership, reporting, thresholds and decision forums so risk information is comparable and governed.')
+      help('Risk Advanced Analytics', 'Use analytical evidence to identify patterns, concentration, exposure and emerging risk before issues become larger operational events.', 'We define the measures, source data, quality expectations, analytical methods and reporting needed to make risk signals interpretable and actionable. Indicators are connected to thresholds, owners and escalation paths so analysis leads to a decision rather than remaining a dashboard. Where multiple business units contribute data, we also address consistent definitions, lineage and exception handling.'),
+      help('Operational Risk, Compliance and Controls', 'Connect control requirements to real operating processes, accountable owners and reviewable evidence.', 'We map obligations and control objectives to the workflows where they are actually performed, identifying triggers, evidence, exceptions, escalation and remediation. The objective is to reduce the gap between documented policy and day-to-day execution. Technology controls, manual controls and management review are considered together so gaps and duplicated effort are visible.'),
+      help('Digitisation, Machine Learning and Data Management', 'Modernise risk workflows with better data and automation while retaining traceability, human judgement and governance.', 'We assess where workflow digitisation, structured data management, rules or machine learning can improve consistency and speed without creating opaque decision-making. The design includes data ownership, validation, human-review points, audit trails and change control. Automation is introduced only where the operating process can support and govern it.'),
+      help('Enterprise Risk Management', 'Create a coherent view of risk across business, technology, supplier and operational domains.', 'We help establish risk taxonomy, ownership, scoring, thresholds, reporting cadence and decision forums so information can be compared and escalated consistently. Enterprise risk is connected to strategic objectives and operational evidence rather than maintained as a separate reporting exercise. The result should help leadership understand concentration, change and priority across the organisation.')
     ]
   },
   '/services/management/strategy-and-implementation': {
     category: 'Management Services', title: 'Strategy and Implementation', image: IMAGES.strategy,
-    imageAlt: 'Business professional presenting strategy and performance information to colleagues in a real office',
+    imageAlt: 'Business leaders discussing strategy around a whiteboard in a real office meeting',
     secondaryImage: IMAGES.strategyDetail,
-    secondaryImageAlt: 'Professional team discussing business strategy with a presenter and whiteboard in a real office',
-    lead: 'Strategy that is designed with implementation constraints, ownership and measurable outcomes from the beginning.',
+    secondaryImageAlt: 'Executive presenter working through a business plan with colleagues in a real office',
+    lead: 'Strategy designed with implementation constraints, ownership, investment choices and measurable outcomes from the beginning.',
     introTitle: 'Close the gap between strategy and execution',
-    intro: 'We translate strategic priorities into sequenced initiatives, decision points, operating changes and technology capabilities. Plans include ownership, dependencies and evidence of progress so strategy does not stop at presentation material.',
+    intro: 'We translate strategic priorities into sequenced initiatives, decision points, operating changes and technology capabilities. Plans include ownership, dependencies, governance and evidence of progress so strategy does not stop at presentation material or become disconnected from the teams responsible for implementation.',
     bullets: ['Digital strategy and operating model', 'Transformation roadmap design', 'Portfolio prioritisation', 'Implementation governance'],
     howWeHelp: [
-      help('Digital Enterprise Strategy and Implementation', 'Create a practical digital roadmap connected to enterprise priorities.', 'We link customer, operational, data and technology opportunities to delivery capabilities, sequencing, governance and measurable outcomes.'),
-      help('Growth and Innovation', 'Evaluate growth ideas against customer value and delivery feasibility.', 'We structure discovery, evidence, experimentation and investment gates to avoid scaling unvalidated ideas.'),
-      help('Performance Management', 'Make strategic progress measurable through consistent performance information.', 'We define outcomes, leading indicators, ownership and review cadence so management can distinguish activity from actual progress.')
+      help('Digital Enterprise Strategy and Implementation', 'Create a practical digital roadmap connected to enterprise priorities, operating realities and delivery capacity.', 'We link customer, operational, data and technology opportunities to the capabilities required to deliver them, then sequence initiatives against dependency, value, risk and organisational readiness. Target architecture and operating-model implications are made visible alongside investment choices. Governance continues into implementation so strategic intent can be preserved as delivery decisions change.'),
+      help('Growth and Innovation', 'Evaluate growth and innovation ideas against customer evidence, business value, technology feasibility and scaling risk.', 'We structure discovery, assumptions, experiments, prototype or pilot criteria and investment gates so organisations can learn before scaling cost. Innovation work is connected to existing platforms, operating processes and commercial objectives rather than treated as a separate lab activity. Successful ideas are transitioned into an implementation roadmap with ownership and measurable outcomes.'),
+      help('Performance Management', 'Make strategic progress measurable through consistent outcomes, leading indicators, ownership and management review.', 'We distinguish activity metrics from evidence of business impact, define metric ownership and establish review cadence around decisions management needs to make. Measures can combine financial, customer, operational, delivery and technology perspectives where appropriate. The objective is a management system that highlights deviation and supports action, not a reporting pack that simply records what already happened.')
     ]
   },
   '/services/management/sustainability': {
     category: 'Management Services', title: 'Sustainability', image: IMAGES.sustainability,
-    imageAlt: 'Real renewable energy and infrastructure environment representing sustainable operations',
+    imageAlt: 'Real renewable energy infrastructure representing sustainable operations and resource use',
     secondaryImage: IMAGES.sustainabilityDetail,
-    secondaryImageAlt: 'Professional team planning operational change and sustainability initiatives in a real office',
-    lead: 'Sustainability planning supported by technology, data and operational change rather than isolated reporting.',
+    secondaryImageAlt: 'Professional team discussing operational plans and sustainability initiatives in a real office',
+    lead: 'Sustainability planning supported by reliable information, technology choices and operational change rather than isolated reporting.',
     introTitle: 'Connect sustainability goals to operating decisions',
-    intro: 'We help organisations structure sustainability initiatives around measurable objectives, reliable information and the business processes that must change to deliver them.',
+    intro: 'We help organisations structure sustainability initiatives around measurable objectives, reliable information and the business processes that must change to deliver them. Technology, data and operating-model considerations are treated as enablers of the programme rather than separate workstreams.',
     bullets: ['Sustainability strategy and roadmap', 'Data and reporting requirements', 'Technology-enabled operational improvement', 'Change and adoption planning'],
     howWeHelp: [
-      help('Develop a Sustainability Strategy', 'Define priorities, measures and a staged sustainability roadmap.', 'We connect objectives to operational areas, data requirements, accountability and investment sequencing so the strategy can be implemented and measured.'),
-      help('Change Management', 'Support the people and process changes required to make sustainability initiatives stick.', 'We identify affected groups, new behaviours, process ownership, communication, training and feedback mechanisms needed for sustained adoption.')
+      help('Develop a Sustainability Strategy', 'Define priorities, measures, ownership and a staged roadmap that can move sustainability objectives into execution.', 'We connect objectives to operational areas, data requirements, accountable owners, dependencies and investment sequencing so the strategy can be implemented and measured. Existing initiatives are assessed for overlap, evidence quality and feasibility. The result is a roadmap with explicit decisions and transition steps rather than a collection of disconnected targets.'),
+      help('Change Management', 'Support the people, process and governance changes required to make sustainability initiatives durable.', 'We identify affected groups, new responsibilities, process changes, communication needs, training, adoption risks and feedback mechanisms. Change activity is aligned to the implementation roadmap so stakeholders understand not only the objective but what will change in their day-to-day work. Measures are used to identify where adoption is weak and where reinforcement is required.')
     ]
   },
   '/services/education/consultancy': {
     category: 'Education Services', title: 'Consultancy', image: IMAGES.educationConsulting,
-    imageAlt: 'Education mentor advising a university student while reviewing work together on a laptop',
+    imageAlt: 'Education adviser discussing academic work and digital services with a student using a laptop',
     secondaryImage: IMAGES.educationConsultingDetail,
-    secondaryImageAlt: 'Teacher helping a student work on a laptop in a real library and classroom learning environment',
-    lead: 'Education consultancy supported by structured processes, digital services and clear stakeholder communication.',
+    secondaryImageAlt: 'Teacher supporting students who are using laptops in a real learning environment',
+    lead: 'Education consultancy supported by structured processes, digital services, accessible experiences and clear stakeholder communication.',
     introTitle: 'Connect education services with dependable digital operations',
-    intro: 'RC combines education-domain understanding with digital process and technology capability to help education organisations improve service delivery, information flows and stakeholder experience.',
-    bullets: ['Education service process design', 'Digital workflow support', 'Information and stakeholder coordination', 'Technology advisory for education operations'],
+    intro: 'RC combines education-domain understanding with digital process and technology capability to help education organisations improve learner and staff journeys, service delivery, information flows and operational visibility. The objective is to simplify processes without losing security, accessibility, accountability or the human support required by education services.',
+    bullets: ['Education service process design', 'Digital workflow and portal support', 'Information and stakeholder coordination', 'Technology advisory for education operations'],
     howWeHelp: [
-      help('Education Consultancy', 'Support education organisations and service operations with structured advisory and digital capability.', 'Engagement scope is defined around the specific education process, stakeholder needs, information requirements and technology support required.')
+      help('Education Consultancy', 'Support education organisations and service operations with structured advisory, workflow improvement and digital capability.', 'We begin with the education process and the people involved: learners, parents, staff, administrators or partners. Engagements can cover current-state journey mapping, service design, portal and workflow requirements, information architecture, integration, accessibility, reporting, security and implementation governance. Recommendations are shaped around the institution’s operating environment so digital change improves the service rather than adding another disconnected system.')
     ]
   }
 };
