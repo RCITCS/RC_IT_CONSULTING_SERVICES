@@ -49,9 +49,9 @@ export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   },
   '/services/education/consultancy': {
     category: 'Education Services', title: 'Consultancy', image: IMAGES.educationConsulting,
-    imageAlt: 'Teacher assisting a student using a computer in a real school technology lab',
+    imageAlt: 'Education mentor advising a university student while reviewing work together on a laptop',
     secondaryImage: IMAGES.educationConsultingDetail,
-    secondaryImageAlt: 'Students using laptops in a real classroom while a teacher supervises digital learning',
+    secondaryImageAlt: 'Teacher helping a student work on a laptop in a real library and classroom learning environment',
     lead: 'Education consultancy supported by structured processes, digital services and clear stakeholder communication.',
     introTitle: 'Connect education services with dependable digital operations',
     intro: 'RC combines education-domain understanding with digital process and technology capability to help education organisations improve service delivery, information flows and stakeholder experience.',
