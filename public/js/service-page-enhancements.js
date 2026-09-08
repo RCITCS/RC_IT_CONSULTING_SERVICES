@@ -29,19 +29,19 @@ function serviceOverviewMarkup(content) {
     </section>
     <section class="section section--soft service-challenges-section">
       <div class="container">
-        <div class="section-heading"><span class="eyebrow">Business challenges</span><h2>Where this service creates practical value</h2><p>Common conditions that typically require structured consulting, engineering or operational support.</p></div>
+        <div class="section-heading"><span class="eyebrow">Business challenges</span><h2>Where this service creates practical value</h2><p>Common conditions that benefit from structured consulting, engineering or operational support.</p></div>
         <div class="topic-grid service-depth-grid">${challengeCards(content.challenges)}</div>
       </div>
     </section>
     <section class="section service-deliverables-section">
       <div class="container service-deliverables-layout">
-        <div class="service-deliverables-intro"><span class="eyebrow">What we deliver</span><h2>Tangible outputs, not generic recommendations.</h2><p>Scope is agreed for each engagement, but these are representative outputs associated with this service area.</p></div>
+        <div class="service-deliverables-intro"><span class="eyebrow">What we deliver</span><h2>Outputs designed to support real decisions and delivery.</h2><p>Scope is agreed for each engagement. The examples below represent the types of outputs associated with this service area.</p></div>
         <div class="service-deliverables-list">${deliverableRows(content.deliverables)}</div>
       </div>
     </section>
     <section class="section section--soft service-capabilities-section">
       <div class="container">
-        <div class="section-heading"><span class="eyebrow">Capability coverage</span><h2>Technology and operating areas we can address</h2><p>Coverage is selected according to the client environment and engagement scope; no vendor partnership or certification is implied.</p></div>
+        <div class="section-heading"><span class="eyebrow">Capability coverage</span><h2>Technology and operating areas we can address</h2><p>Coverage is tailored to the client environment, architecture standards, governance requirements and agreed engagement scope.</p></div>
         <div class="service-capability-tags">${capabilityTags(content.capabilities)}</div>
       </div>
     </section>`;
