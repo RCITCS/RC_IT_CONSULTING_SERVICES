@@ -4,7 +4,9 @@ import { renderAboutPage } from '../pages/about.page.js';
 import { renderContactPage } from '../pages/contact.page.js';
 import { renderProductsPage } from '../pages/products.page.js';
 import { renderWhitePapersPage } from '../pages/white-papers.page.js';
-import { renderCareersPage, renderCareerApplicationPage } from '../pages/careers.page.js';
+import { renderCareersPage } from '../pages/careers.page.js';
+import { renderCareerJobDetailPage } from '../pages/careers/job-detail.page.js';
+import { renderJobApplicationPage } from '../pages/careers/application.page.js';
 import { renderServiceDetailPage } from '../pages/services/service.page.js';
 import { renderConsultancyServicesPage } from '../pages/services/it/consultancy-services.page.js';
 import { renderCyberSecurityPage } from '../pages/services/it/cyber-security.page.js';
@@ -23,7 +25,9 @@ import { renderEducationIndustryPage } from '../pages/industries/education.page.
 import { renderFaqsPage } from '../pages/support/faqs.page.js';
 import { renderBlogPage } from '../pages/support/blog.page.js';
 import { renderLoginPage } from '../pages/support/login.page.js';
-import { renderLegalPage } from '../pages/support/legal.page.js';
+import { renderPrivacyPage } from '../pages/support/privacy.page.js';
+import { renderCookiesPage } from '../pages/support/cookies.page.js';
+import { renderTermsPage } from '../pages/support/terms.page.js';
 import { renderNotFoundPage } from '../pages/support/not-found.page.js';
 
 const STATIC_ROUTES = new Map([
@@ -33,12 +37,12 @@ const STATIC_ROUTES = new Map([
   ['/products', renderProductsPage],
   ['/white-papers', renderWhitePapersPage],
   ['/careers', () => renderCareersPage('/careers')],
-  ['/careers/job-opportunities', () => renderCareersPage('/careers')],
-  ['/careers/upload-your-resume', () => renderCareersPage('/careers')],
-  ['/consult-expert', renderContactPage],
   ['/blog', renderBlogPage],
   ['/faqs', renderFaqsPage],
   ['/login', renderLoginPage],
+  ['/privacy', renderPrivacyPage],
+  ['/cookies', renderCookiesPage],
+  ['/terms', renderTermsPage],
   ['/services/it/consultancy-services', renderConsultancyServicesPage],
   ['/services/it/cyber-security', renderCyberSecurityPage],
   ['/services/it/artificial-intelligence', renderArtificialIntelligencePage],
@@ -55,19 +59,26 @@ const STATIC_ROUTES = new Map([
   ['/industry/education', renderEducationIndustryPage]
 ]);
 
+const LEGACY_ROUTES = new Map([
+  ['/careers/job-opportunities', () => renderCareersPage('/careers')],
+  ['/careers/upload-your-resume', () => renderCareersPage('/careers')],
+  ['/consult-expert', renderContactPage]
+]);
+
 export function routeContent(pathName) {
   const staticRenderer = STATIC_ROUTES.get(pathName);
   if (staticRenderer) return staticRenderer();
+
+  const legacyRenderer = LEGACY_ROUTES.get(pathName);
+  if (legacyRenderer) return legacyRenderer();
 
   const serviceDetail = findServiceDetail(pathName);
   if (serviceDetail) return renderServiceDetailPage(serviceDetail);
 
   const applicationMatch = pathName.match(/^\/careers\/jobs\/([^/]+)\/apply$/);
-  if (applicationMatch) return renderCareerApplicationPage(applicationMatch[1]);
+  if (applicationMatch) return renderJobApplicationPage(applicationMatch[1]);
 
-  if (/^\/careers\/jobs\/[^/]+$/.test(pathName)) return renderCareersPage(pathName);
-
-  if (['/privacy', '/cookies', '/terms'].includes(pathName)) return renderLegalPage(pathName);
+  if (/^\/careers\/jobs\/[^/]+$/.test(pathName)) return renderCareerJobDetailPage(pathName);
 
   return renderNotFoundPage();
 }
