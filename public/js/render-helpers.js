@@ -5,6 +5,6 @@ export function pageTitle(title) {
 }
 
 export function imageTag(src, alt, extra = '') {
-  return `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" ${extra}>`;
+  return `<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async" ${extra}>`;
 }
 
