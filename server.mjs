@@ -71,7 +71,7 @@ function sendApiResult(res, result) {
 async function handleApi(req, res, url) {
   let body;
   try {
-    if (routeNeedsJsonBody(url.pathname)) {
+    if (routeNeedsJsonBody(url.pathname, req.method)) {
       const text = await readRequestText(req, backend.config.maxJsonBodyBytes);
       body = parseJsonText(text, backend.config.maxJsonBodyBytes);
     }
@@ -101,10 +101,16 @@ async function serveFile(res, filePath, cache = false) {
 }
 
 function safePath(root, requestPath) {
-  const decoded = decodeURIComponent(requestPath);
-  const normalized = path.posix.normalize(decoded).replace(/^\.\.(\/|\\|$)/, '');
-  const candidate = path.resolve(root, '.' + normalized);
-  return candidate.startsWith(root) ? candidate : null;
+  let decoded;
+  try {
+    decoded = decodeURIComponent(requestPath).replaceAll('\\', '/');
+  } catch {
+    return null;
+  }
+  const normalized = path.posix.normalize(decoded);
+  const candidate = path.resolve(root, `.${normalized}`);
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative)) ? candidate : null;
 }
 
 async function serveDevelopmentSource(res, pathname) {

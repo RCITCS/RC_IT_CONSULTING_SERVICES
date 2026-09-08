@@ -15,11 +15,17 @@ export function createBackendApplication({ runtime = 'unknown', env = {}, provid
   const applicationLogger = logger || createLogger();
   const repository = submissionRepository || createUnavailableSubmissionRepository();
   const submissionService = createSubmissionService({ repository });
-  const handlers = createApiHandlers({ config, providers: providerRegistry, submissionService });
+  const handlers = createApiHandlers({ config, submissionService });
   const router = createApiRouter({ handlers, logger: applicationLogger });
 
   function contextFor({ method, pathname, headers }) {
     return createRequestContext({ method, pathname, headers, runtime });
+  }
+
+  function logFailure(context, normalized) {
+    const meta = { ...context, status: normalized.status, code: normalized.code };
+    if (normalized.status >= 500) applicationLogger.error('api.request.failed', meta);
+    else applicationLogger.warn('api.request.rejected', meta);
   }
 
   return Object.freeze({
@@ -32,7 +38,7 @@ export function createBackendApplication({ runtime = 'unknown', env = {}, provid
     failure({ method, pathname, headers, error }) {
       const context = contextFor({ method, pathname, headers });
       const normalized = normalizeBackendError(error);
-      applicationLogger.warn('api.request.rejected', { ...context, status: normalized.status, code: normalized.code });
+      logFailure(context, normalized);
       return errorResponse(normalized, context.requestId);
     }
   });

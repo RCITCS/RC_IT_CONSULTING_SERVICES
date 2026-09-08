@@ -1,3 +1,4 @@
+import { routeNeedsJsonBody } from '../src/backend/api/router.js';
 import { createBackendApplication } from '../src/backend/application.js';
 import { noopLogger } from '../src/backend/core/logger.js';
 import { readBoundedRequestText } from '../src/backend/core/payload.js';
@@ -18,6 +19,10 @@ const validContact = {
   message: 'Backend foundation test',
   privacyConsent: true
 };
+
+assert(routeNeedsJsonBody('/api/contact', 'POST') === true, 'POST contact should require JSON parsing');
+assert(routeNeedsJsonBody('/api/contact', 'GET') === false, 'disallowed GET contact must reach the 405 gate before body parsing');
+assert(routeNeedsJsonBody('/api/contact/anything', 'POST') === false, 'invalid suffix routes must not trigger body parsing');
 
 const unconfigured = createBackendApplication({ runtime: 'test', env: { NODE_ENV: 'test' }, logger: noopLogger });
 let result = await unconfigured.handle({ method: 'GET', pathname: '/api/health', headers: {} });
@@ -83,6 +88,7 @@ assert(records.length === 1, 'configured repository should receive exactly one r
 assert(records[0].type === 'contact', 'persisted record should retain submission type');
 assert(records[0].requestId === 'phase7-test-request', 'persisted record should retain request id');
 assert(records[0].payload.email === validContact.email, 'canonical contact validation should preserve email');
+assert(Object.isFrozen(records[0].payload), 'validated payload should be immutable when handed to persistence');
 assert(result.body.data.id === records[0].id, 'response id must be persisted record id');
 
 const failingRepository = {
@@ -99,4 +105,4 @@ assert(providers.database.configured === false, 'database provider should defaul
 assert(providers.storage.configured === false, 'storage provider should default unconfigured');
 assert(providers.email.configured === false, 'email provider should default unconfigured');
 
-console.log('PASS: Phase 7 backend layering, exact API routing, bounded streaming input, validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
+console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, strict validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');

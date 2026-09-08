@@ -32,6 +32,9 @@ const runtimeWorker = await readFile(path.join(root, 'src/backend/runtime/worker
 for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText', 'readBoundedRequestText']) {
   if (!runtimeWorker.includes(requiredImport)) throw new Error(`Cloudflare runtime is missing Phase 7 adapter dependency: ${requiredImport}`);
 }
+if (!runtimeWorker.includes('routeNeedsJsonBody(url.pathname, request.method)')) {
+  throw new Error('Cloudflare JSON parsing must be method-aware so 405 routing precedes body validation.');
+}
 for (const forbidden of ['function isEmail', 'function isPhone', 'request.text()', "return json(202", 'validated successfully']) {
   if (runtimeWorker.includes(forbidden)) throw new Error(`Cloudflare runtime regained backend business logic or unbounded body reads: ${forbidden}`);
 }
@@ -45,6 +48,9 @@ const nodeServer = await readFile(path.join(root, 'server.mjs'), 'utf8');
 for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText']) {
   if (!nodeServer.includes(requiredImport)) throw new Error(`Node adapter is missing Phase 7 backend dependency: ${requiredImport}`);
 }
+if (!nodeServer.includes('routeNeedsJsonBody(url.pathname, req.method)')) {
+  throw new Error('Node JSON parsing must be method-aware so 405 routing precedes body validation.');
+}
 for (const forbidden of ['appendRecord(', 'resume-submissions.json', 'contact-submissions.json', 'MAX_RESUME_BYTES']) {
   if (nodeServer.includes(forbidden)) throw new Error(`Node runtime still owns persistence/business logic: ${forbidden}`);
 }
@@ -53,6 +59,9 @@ const vercelAdapter = await readFile(path.join(root, 'api/[action].js'), 'utf8')
 if (!vercelAdapter.includes('createBackendApplication') || !vercelAdapter.includes('validateParsedJsonBody')) {
   throw new Error('Vercel fallback must delegate to the shared Phase 7 backend application.');
 }
+if (!vercelAdapter.includes('routeNeedsJsonBody(pathname, req.method)')) {
+  throw new Error('Vercel JSON parsing must be method-aware so 405 routing precedes body validation.');
+}
 for (const forbidden of ['function email(', 'function phone(', 'allowedResumeExt', 'return respond(res, 202']) {
   if (vercelAdapter.includes(forbidden)) throw new Error(`Vercel adapter still owns backend business logic: ${forbidden}`);
 }
@@ -60,6 +69,9 @@ for (const forbidden of ['function email(', 'function phone(', 'allowedResumeExt
 const apiRouter = await readFile(path.join(root, 'src/backend/api/router.js'), 'utf8');
 if (!apiRouter.includes("/^\\/api\\/([A-Za-z0-9-]+)$/")) {
   throw new Error('Phase 7 API routing must match one exact action segment and reject suffix paths.');
+}
+if (!apiRouter.includes('route.methods.includes(normalizedMethod)')) {
+  throw new Error('Phase 7 transport body parsing must respect the route method contract.');
 }
 
 const submissionService = await readFile(path.join(root, 'src/backend/services/submission-service.js'), 'utf8');
@@ -85,4 +97,4 @@ if (!packageJson.scripts?.['check:backend-architecture'] || !packageJson.scripts
   throw new Error('Phase 7 backend architecture check must be part of the architecture gate.');
 }
 
-console.log(`PASS: Phase 7 layered backend ownership, exact routing, bounded Cloudflare input, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);
+console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, bounded Cloudflare input, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);

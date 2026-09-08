@@ -11,7 +11,7 @@ async function handleApiRequest(request, env) {
   const app = createBackendApplication({ runtime: 'cloudflare-workers', env });
   let body;
   try {
-    if (routeNeedsJsonBody(url.pathname)) {
+    if (routeNeedsJsonBody(url.pathname, request.method)) {
       const text = await readBoundedRequestText(request, app.config.maxJsonBodyBytes);
       body = parseJsonText(text, app.config.maxJsonBodyBytes);
     }

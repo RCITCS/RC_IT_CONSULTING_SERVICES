@@ -17,8 +17,10 @@ function actionForPath(pathname) {
   return match ? match[1].toLowerCase() : '';
 }
 
-export function routeNeedsJsonBody(pathname) {
-  return Boolean(routes[actionForPath(pathname)]?.body);
+export function routeNeedsJsonBody(pathname, method) {
+  const route = routes[actionForPath(pathname)];
+  const normalizedMethod = String(method || '').toUpperCase();
+  return Boolean(route?.body && route.methods.includes(normalizedMethod));
 }
 
 export function createApiRouter({ handlers, logger, now = () => Date.now() } = {}) {

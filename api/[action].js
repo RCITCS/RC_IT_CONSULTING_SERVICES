@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const app = createBackendApplication({ runtime: 'vercel', env: process.env });
   let body;
   try {
-    if (routeNeedsJsonBody(pathname)) body = validateParsedJsonBody(req.body, app.config.maxJsonBodyBytes);
+    if (routeNeedsJsonBody(pathname, req.method)) body = validateParsedJsonBody(req.body, app.config.maxJsonBodyBytes);
   } catch (error) {
     return applyResult(res, app.failure({ method: req.method, pathname, headers: req.headers, error }));
   }

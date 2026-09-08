@@ -6,7 +6,7 @@ export function createSubmissionService({ repository, idFactory = () => globalTh
 
   return Object.freeze({
     async submit(type, payload, context) {
-      const validated = validateSubmission(type, payload);
+      const validated = Object.freeze({ ...validateSubmission(type, payload) });
       const record = Object.freeze({
         id: idFactory(),
         type,
