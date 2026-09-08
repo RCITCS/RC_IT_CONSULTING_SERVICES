@@ -9,6 +9,12 @@
     "test": "node tests/smoke.mjs",
     "build": "node scripts/build.mjs"
   },
+  "dependencies": {
+    "bootstrap": "^5.3.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.9"
+  },
   "engines": {
     "node": ">=20"
   }
