@@ -1,5 +1,5 @@
 import { IMAGES } from './site-config.js';
-import { getPublishedJob, getPublishedJobs } from './career-jobs.js';
+import { getPublishedJob, getPublishedJobs } from './career-job-catalog.js';
 import { pageHero, sectionHeading, arrow, esc } from './components.js';
 import { field } from './forms.js';
 import { pageTitle } from './render-helpers.js';
