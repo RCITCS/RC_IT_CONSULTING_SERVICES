@@ -40,15 +40,22 @@ function slugFromPath(pathname = location.pathname) {
   return pathname.match(/^\/careers\/jobs\/([^/]+)$/)?.[1] || '';
 }
 
+function revealSelectedGroup(link) {
+  const group = link?.closest('.career-role-group');
+  if (!group) return;
+  const toggle = group.querySelector('.career-role-group__toggle');
+  const body = group.querySelector('.career-role-group__items');
+  toggle?.setAttribute('aria-expanded', 'true');
+  if (body) body.hidden = false;
+}
+
 function keepActiveRoleVisible(link) {
   const list = link?.closest('.career-role-list__items');
   if (!list || list.scrollHeight <= list.clientHeight) return;
-  const itemTop = link.offsetTop;
-  const itemBottom = itemTop + link.offsetHeight;
-  const visibleTop = list.scrollTop;
-  const visibleBottom = visibleTop + list.clientHeight;
-  if (itemTop < visibleTop) list.scrollTop = Math.max(0, itemTop - 8);
-  else if (itemBottom > visibleBottom) list.scrollTop = itemBottom - list.clientHeight + 8;
+  const listRect = list.getBoundingClientRect();
+  const linkRect = link.getBoundingClientRect();
+  if (linkRect.top < listRect.top) list.scrollTop -= listRect.top - linkRect.top + 8;
+  else if (linkRect.bottom > listRect.bottom) list.scrollTop += linkRect.bottom - listRect.bottom + 8;
 }
 
 export function bindCareerRoleBrowser() {
@@ -75,6 +82,7 @@ export function bindCareerRoleBrowser() {
       else link.removeAttribute('aria-current');
     });
 
+    revealSelectedGroup(selectedLink);
     currentDetail.outerHTML = roleDetail(job);
     document.title = `${job.title} | Careers | RC IT Services`;
 
