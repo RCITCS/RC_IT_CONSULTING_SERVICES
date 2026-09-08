@@ -18,11 +18,25 @@ function escapeHtml(value = '') {
     .replaceAll("'", '&#039;');
 }
 
+function assertUnique(values, label) {
+  const seen = new Set();
+  for (const value of values) {
+    assert(!seen.has(value), `${label} contains duplicate value: ${value}`);
+    seen.add(value);
+  }
+}
+
 function assertPage(route, html) {
   assert(typeof html === 'string', `${route} did not return HTML`);
   assert(html.includes('id="main-content"'), `${route} is missing the main content landmark`);
   assert(!html.includes('undefined'), `${route} rendered an undefined value`);
   assert(!html.includes('[object Object]'), `${route} rendered an object accidentally`);
+}
+
+assertUnique(ALL_ROUTES, 'Canonical routes');
+assertUnique(LEGACY_ROUTE_ALIASES, 'Compatibility aliases');
+for (const alias of LEGACY_ROUTE_ALIASES) {
+  assert(!ALL_ROUTES.includes(alias), `Compatibility alias is also marked canonical: ${alias}`);
 }
 
 for (const route of ALL_ROUTES) {
@@ -39,6 +53,9 @@ for (const [serviceRoute, page] of Object.entries(SERVICE_PAGES)) {
   assertPage(serviceRoute, serviceHtml);
   assert(serviceHtml.includes(escapeHtml(page.title)), `${serviceRoute} does not render its configured service title`);
 
+  const capabilitySlugs = (page.howWeHelp || []).map((capability) => capability.slug);
+  assertUnique(capabilitySlugs, `${serviceRoute} capability slugs`);
+
   for (const capability of page.howWeHelp || []) {
     const route = `${serviceRoute}/${capability.slug}`;
     const html = routeContent(route);
@@ -49,6 +66,9 @@ for (const [serviceRoute, page] of Object.entries(SERVICE_PAGES)) {
 }
 
 const jobs = getPublishedJobs();
+assertUnique(jobs.map((job) => job.slug), 'Published job slugs');
+assertUnique(jobs.map((job) => job.jobCode).filter(Boolean), 'Published job codes');
+
 for (const job of jobs) {
   const detailRoute = `/careers/jobs/${job.slug}`;
   const applicationRoute = `/careers/jobs/${job.slug}/apply`;
@@ -84,4 +104,4 @@ assert(legacyConsultHtml.includes('Consultation topic *'), 'Legacy Consult our E
 const notFound = routeContent('/route-that-does-not-exist');
 assert(notFound.includes('Page not found'), 'Unknown route did not render the not-found page');
 
-console.log(`PASS: ${ALL_ROUTES.length} canonical routes, ${LEGACY_ROUTE_ALIASES.length} compatibility aliases, ${serviceDetailCount} service detail routes and ${jobs.length * 2} career detail/application routes rendered successfully with Phase 3 content invariants.`);
+console.log(`PASS: ${ALL_ROUTES.length} canonical routes, ${LEGACY_ROUTE_ALIASES.length} compatibility aliases, ${serviceDetailCount} service detail routes and ${jobs.length * 2} career detail/application routes rendered successfully with Phase 3 route/content invariants.`);
