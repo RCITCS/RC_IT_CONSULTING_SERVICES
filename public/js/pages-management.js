@@ -4,7 +4,7 @@ import { help } from './pages-util.js';
 export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   '/services/management/risk': {
     category: 'Management Services', title: 'Risk', image: IMAGES.risk,
-    imageAlt: 'Business team reviewing charts and risk information during a meeting',
+    imageAlt: 'Business team reviewing charts and risk information during a real professional meeting',
     lead: 'Technology-enabled risk management that connects controls, data, operations and decision-making.',
     introTitle: 'Make risk visible before it becomes disruption',
     intro: 'We help organisations frame operational and technology risk in practical terms, identify control gaps and improve the information available to people responsible for decisions and oversight.',
@@ -18,7 +18,7 @@ export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   },
   '/services/management/strategy-and-implementation': {
     category: 'Management Services', title: 'Strategy and Implementation', image: IMAGES.strategy,
-    imageAlt: 'Professional team collaborating around a table on business strategy',
+    imageAlt: 'Business professional presenting strategy and performance information to colleagues in a real office',
     lead: 'Strategy that is designed with implementation constraints, ownership and measurable outcomes from the beginning.',
     introTitle: 'Close the gap between strategy and execution',
     intro: 'We translate strategic priorities into sequenced initiatives, decision points, operating changes and technology capabilities. Plans include ownership, dependencies and evidence of progress so strategy does not stop at presentation material.',
@@ -31,7 +31,7 @@ export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   },
   '/services/management/sustainability': {
     category: 'Management Services', title: 'Sustainability', image: IMAGES.sustainability,
-    imageAlt: 'Real renewable energy infrastructure in a natural landscape',
+    imageAlt: 'Real energy and infrastructure environment representing sustainability and resource management',
     lead: 'Sustainability planning supported by technology, data and operational change rather than isolated reporting.',
     introTitle: 'Connect sustainability goals to operating decisions',
     intro: 'We help organisations structure sustainability initiatives around measurable objectives, reliable information and the business processes that must change to deliver them.',
@@ -43,7 +43,7 @@ export const MANAGEMENT_EDUCATION_SERVICE_PAGES = {
   },
   '/services/education/consultancy': {
     category: 'Education Services', title: 'Consultancy', image: IMAGES.educationConsulting,
-    imageAlt: 'Students and academic buildings representing education consulting',
+    imageAlt: 'Teacher assisting a student using a computer in a real school technology lab',
     lead: 'Education consultancy supported by structured processes, digital services and clear stakeholder communication.',
     introTitle: 'Connect education services with dependable digital operations',
     intro: 'This service area preserves the education consultancy capability within the existing RC business structure while the dedicated website presents the broader IT and management service portfolio.',
