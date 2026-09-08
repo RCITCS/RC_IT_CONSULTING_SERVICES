@@ -1,7 +1,7 @@
 import { routeNeedsJsonBody } from '../src/backend/api/router.js';
 import { createBackendApplication } from '../src/backend/application.js';
 import { noopLogger } from '../src/backend/core/logger.js';
-import { readBoundedRequestText } from '../src/backend/core/payload.js';
+import { assertJsonContentType, readBoundedRequestText } from '../src/backend/core/payload.js';
 import { createProviderRegistry } from '../src/backend/providers/provider-registry.js';
 
 function assert(condition, message) {
@@ -23,13 +23,22 @@ const validContact = {
 assert(routeNeedsJsonBody('/api/contact', 'POST') === true, 'POST contact should require JSON parsing');
 assert(routeNeedsJsonBody('/api/contact', 'GET') === false, 'disallowed GET contact must reach the 405 gate before body parsing');
 assert(routeNeedsJsonBody('/api/contact/anything', 'POST') === false, 'invalid suffix routes must not trigger body parsing');
+assertJsonContentType({ 'content-type': 'application/json; charset=utf-8' });
+assertJsonContentType({ 'content-type': 'application/vnd.rcitservices+json' });
+let mediaTypeRejected = false;
+try {
+  assertJsonContentType({ 'content-type': 'text/plain' });
+} catch (error) {
+  mediaTypeRejected = error?.status === 415 && error?.code === 'UNSUPPORTED_MEDIA_TYPE';
+}
+assert(mediaTypeRejected, 'non-JSON request bodies must be rejected with 415');
 
 const unconfigured = createBackendApplication({ runtime: 'test', env: { NODE_ENV: 'test' }, logger: noopLogger });
 let result = await unconfigured.handle({ method: 'GET', pathname: '/api/health', headers: {} });
 assert(result.status === 200 && result.body.ok === true, 'health should return 200');
 assert(result.body.data.runtime === 'test', 'health should identify runtime');
 assert(Boolean(result.body.requestId), 'health should include request id');
-assert(result.headers['x-request-id'] === result.body.requestId, 'request id header/body must match');
+assert(result.headers['x-request-id'] === result.body.requestId, 'health request id header/body must match');
 
 result = await unconfigured.handle({ method: 'POST', pathname: '/api/contact', headers: {}, body: validContact });
 assert(result.status === 503, `unconfigured contact should return 503, got ${result.status}`);
@@ -105,4 +114,4 @@ assert(providers.database.configured === false, 'database provider should defaul
 assert(providers.storage.configured === false, 'storage provider should default unconfigured');
 assert(providers.email.configured === false, 'email provider should default unconfigured');
 
-console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, strict validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');
+console.log('PASS: Phase 7 backend layering, exact API routing, method-aware parsing, bounded streaming input, JSON media-type enforcement, strict validation, status/error envelope, request IDs, provider boundaries and no-fake-success persistence contract verified.');

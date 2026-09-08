@@ -19,7 +19,7 @@ Request flow:
 - `server.mjs` — local Node/static-development adapter
 - `api/[action].js` — Vercel fallback adapter
 
-Adapters may translate transport objects, parse bounded JSON and serialize the shared result. They do not own business validation or persistence semantics.
+Adapters may translate transport objects, enforce JSON media type, parse bounded JSON and serialize the shared result. They do not own business validation or persistence semantics.
 
 ### Application composition
 
@@ -27,7 +27,7 @@ Adapters may translate transport objects, parse bounded JSON and serialize the s
 
 ### API routing and handlers
 
-`src/backend/api/router.js` defines the canonical API action/method contract. Unknown routes return 404; wrong methods return 405 with `Allow`; body-required routes reject missing/malformed JSON.
+`src/backend/api/router.js` defines the canonical API action/method contract. Unknown or suffix routes return 404; wrong methods return 405 with `Allow`; body parsing occurs only after the route/method contract is eligible; body-required routes require a JSON media type and reject missing/malformed JSON.
 
 `src/backend/api/handlers.js` maps validated use cases to standardized HTTP outcomes. Authentication and recruitment upload remain explicit later-phase boundaries rather than simulated implementations.
 
@@ -35,11 +35,11 @@ Adapters may translate transport objects, parse bounded JSON and serialize the s
 
 `src/backend/validation/` is the single server-side validation authority for public submission fields. Client validation remains UX-only and is never trusted as an authorization or data-integrity boundary.
 
-The Contact contract now matches the actual public form: first name, last name, email, phone, consultation topic, message and privacy confirmation are required; company and job title remain optional.
+The Contact contract now matches the actual public form: first name, last name, email, phone, consultation topic, message and privacy confirmation are required; company and job title remain optional. Over-length or invalid-type fields are rejected instead of being silently truncated/coerced.
 
 ### Services and repositories
 
-`src/backend/services/submission-service.js` creates canonical submission records and only reports success after the repository confirms the same record ID was persisted.
+`src/backend/services/submission-service.js` creates canonical immutable submission records and only reports success after the repository confirms the same record ID was persisted.
 
 `src/backend/repositories/submission-repository.js` defines the persistence contract. The default repository is intentionally unavailable and throws `503 PERSISTENCE_NOT_CONFIGURED`. This is the correct Phase 7 production behavior until Phase 8 provides durable storage.
 
@@ -61,6 +61,7 @@ Responses are `no-store`, API output is search-noindexed, and `X-Request-ID` mir
 - `404` unknown API route
 - `405` unsupported method
 - `413` API JSON body exceeds configured limit
+- `415` body-bearing API route called without a supported JSON media type
 - `422` semantic field validation failure
 - `501` approved feature boundary not implemented yet, including authentication/recruitment upload
 - `503` required persistence/provider is not configured

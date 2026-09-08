@@ -29,7 +29,7 @@ const required = [
 for (const relative of required) await access(path.join(root, relative));
 
 const runtimeWorker = await readFile(path.join(root, 'src/backend/runtime/worker.js'), 'utf8');
-for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText', 'readBoundedRequestText']) {
+for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText', 'readBoundedRequestText', 'assertJsonContentType']) {
   if (!runtimeWorker.includes(requiredImport)) throw new Error(`Cloudflare runtime is missing Phase 7 adapter dependency: ${requiredImport}`);
 }
 if (!runtimeWorker.includes('routeNeedsJsonBody(url.pathname, request.method)')) {
@@ -45,7 +45,7 @@ if (!workerFacade.includes("../src/backend/runtime/worker.js")) {
 }
 
 const nodeServer = await readFile(path.join(root, 'server.mjs'), 'utf8');
-for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText']) {
+for (const requiredImport of ['createBackendApplication', 'routeNeedsJsonBody', 'parseJsonText', 'assertJsonContentType']) {
   if (!nodeServer.includes(requiredImport)) throw new Error(`Node adapter is missing Phase 7 backend dependency: ${requiredImport}`);
 }
 if (!nodeServer.includes('routeNeedsJsonBody(url.pathname, req.method)')) {
@@ -56,8 +56,8 @@ for (const forbidden of ['appendRecord(', 'resume-submissions.json', 'contact-su
 }
 
 const vercelAdapter = await readFile(path.join(root, 'api/[action].js'), 'utf8');
-if (!vercelAdapter.includes('createBackendApplication') || !vercelAdapter.includes('validateParsedJsonBody')) {
-  throw new Error('Vercel fallback must delegate to the shared Phase 7 backend application.');
+for (const requiredImport of ['createBackendApplication', 'parseRuntimeJsonBody', 'assertJsonContentType']) {
+  if (!vercelAdapter.includes(requiredImport)) throw new Error(`Vercel fallback is missing Phase 7 adapter dependency: ${requiredImport}`);
 }
 if (!vercelAdapter.includes('routeNeedsJsonBody(pathname, req.method)')) {
   throw new Error('Vercel JSON parsing must be method-aware so 405 routing precedes body validation.');
@@ -72,6 +72,11 @@ if (!apiRouter.includes("/^\\/api\\/([A-Za-z0-9-]+)$/")) {
 }
 if (!apiRouter.includes('route.methods.includes(normalizedMethod)')) {
   throw new Error('Phase 7 transport body parsing must respect the route method contract.');
+}
+
+const payloadSource = await readFile(path.join(root, 'src/backend/core/payload.js'), 'utf8');
+if (!payloadSource.includes('UNSUPPORTED_MEDIA_TYPE') && !payloadSource.includes('unsupportedMediaType')) {
+  throw new Error('Phase 7 payload handling must enforce a shared JSON media-type contract.');
 }
 
 const submissionService = await readFile(path.join(root, 'src/backend/services/submission-service.js'), 'utf8');
@@ -97,4 +102,4 @@ if (!packageJson.scripts?.['check:backend-architecture'] || !packageJson.scripts
   throw new Error('Phase 7 backend architecture check must be part of the architecture gate.');
 }
 
-console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, bounded Cloudflare input, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);
+console.log(`PASS: Phase 7 layered backend ownership, exact routing, method-aware parsing, JSON media-type enforcement, bounded Cloudflare input, runtime adapters, provider/repository boundaries and no-fake-success contract verified (${required.length} required paths).`);

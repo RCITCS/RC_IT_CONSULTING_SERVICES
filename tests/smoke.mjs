@@ -31,6 +31,12 @@ async function json(response) {
   return response.json();
 }
 
+const validContact = {
+  firstName: 'Test', lastName: 'User', company: 'RC QA', jobTitle: 'Tester',
+  email: 'qa@example.com', phone: '+44 7700 900000', consultationTopic: 'IT Consultancy',
+  message: 'Smoke test', privacyConsent: true
+};
+
 try {
   await waitForHealth();
 
@@ -54,15 +60,17 @@ try {
   response = await fetch(`${base}/api/contact`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      firstName: 'Test', lastName: 'User', company: 'RC QA', jobTitle: 'Tester',
-      email: 'qa@example.com', phone: '+44 7700 900000', consultationTopic: 'IT Consultancy',
-      message: 'Smoke test', privacyConsent: true
-    })
+    body: JSON.stringify(validContact)
   });
   body = await json(response);
   assert(response.status === 503, `unconfigured contact persistence returned ${response.status}`);
   assert(body.code === 'PERSISTENCE_NOT_CONFIGURED' && body.ok === false, 'contact must fail explicitly when persistence is unavailable');
+
+  response = await fetch(`${base}/api/contact`, {
+    method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(validContact)
+  });
+  body = await json(response);
+  assert(response.status === 415 && body.code === 'UNSUPPORTED_MEDIA_TYPE', `non-JSON media type returned ${response.status}`);
 
   response = await fetch(`${base}/api/contact`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ firstName: 'Test' })
@@ -94,7 +102,7 @@ try {
   response = await fetch(`${base}/api/does-not-exist`);
   assert(response.status === 404, 'unknown API route should return 404');
 
-  console.log(`PASS: ${ALL_ROUTES.length} routes + assets + Phase 7 API validation, explicit provider failure and boundary smoke tests.`);
+  console.log(`PASS: ${ALL_ROUTES.length} routes + assets + Phase 7 API validation, JSON media type, explicit provider failure and boundary smoke tests.`);
 } finally {
   child.kill('SIGTERM');
 }

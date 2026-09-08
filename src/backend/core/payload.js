@@ -1,4 +1,4 @@
-import { BackendError, badRequest } from './errors.js';
+import { BackendError, badRequest, unsupportedMediaType } from './errors.js';
 
 function payloadTooLarge() {
   return new BackendError({
@@ -14,6 +14,20 @@ function byteLength(text) {
 
 function assertWithinLimit(size, maxBytes) {
   if (size > maxBytes) throw payloadTooLarge();
+}
+
+function headerValue(headers, name) {
+  if (!headers) return '';
+  if (typeof headers.get === 'function') return headers.get(name) || '';
+  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
+  const value = entry?.[1];
+  return Array.isArray(value) ? String(value[0] || '') : String(value || '');
+}
+
+export function assertJsonContentType(headers) {
+  const mediaType = headerValue(headers, 'content-type').split(';', 1)[0].trim().toLowerCase();
+  const isJson = mediaType === 'application/json' || (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
+  if (!isJson) throw unsupportedMediaType();
 }
 
 export async function readBoundedRequestText(request, maxBytes) {
@@ -65,4 +79,10 @@ export function validateParsedJsonBody(body, maxBytes) {
   const serialized = JSON.stringify(body);
   assertWithinLimit(byteLength(serialized), maxBytes);
   return body;
+}
+
+export function parseRuntimeJsonBody(body, maxBytes) {
+  if (typeof body === 'string') return parseJsonText(body, maxBytes);
+  if (body instanceof Uint8Array) return parseJsonText(new TextDecoder().decode(body), maxBytes);
+  return validateParsedJsonBody(body, maxBytes);
 }

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { routeNeedsJsonBody } from './src/backend/api/router.js';
 import { createBackendApplication } from './src/backend/application.js';
 import { BackendError } from './src/backend/core/errors.js';
-import { parseJsonText } from './src/backend/core/payload.js';
+import { assertJsonContentType, parseJsonText } from './src/backend/core/payload.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -72,6 +72,7 @@ async function handleApi(req, res, url) {
   let body;
   try {
     if (routeNeedsJsonBody(url.pathname, req.method)) {
+      assertJsonContentType(req.headers);
       const text = await readRequestText(req, backend.config.maxJsonBodyBytes);
       body = parseJsonText(text, backend.config.maxJsonBodyBytes);
     }

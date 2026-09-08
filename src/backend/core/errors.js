@@ -17,6 +17,10 @@ export function badRequest(message = 'A valid JSON request body is required.') {
   return new BackendError({ code: 'BAD_REQUEST', message, status: 400 });
 }
 
+export function unsupportedMediaType(message = 'Content-Type application/json is required.') {
+  return new BackendError({ code: 'UNSUPPORTED_MEDIA_TYPE', message, status: 415 });
+}
+
 export function methodNotAllowed(allowed = []) {
   return new BackendError({
     code: 'METHOD_NOT_ALLOWED',

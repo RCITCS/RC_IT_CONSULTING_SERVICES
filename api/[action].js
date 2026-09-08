@@ -1,6 +1,6 @@
 import { routeNeedsJsonBody } from '../src/backend/api/router.js';
 import { createBackendApplication } from '../src/backend/application.js';
-import { validateParsedJsonBody } from '../src/backend/core/payload.js';
+import { assertJsonContentType, parseRuntimeJsonBody } from '../src/backend/core/payload.js';
 
 function applyResult(res, result) {
   for (const [name, value] of Object.entries(result.headers)) res.setHeader(name, value);
@@ -13,7 +13,10 @@ export default async function handler(req, res) {
   const app = createBackendApplication({ runtime: 'vercel', env: process.env });
   let body;
   try {
-    if (routeNeedsJsonBody(pathname, req.method)) body = validateParsedJsonBody(req.body, app.config.maxJsonBodyBytes);
+    if (routeNeedsJsonBody(pathname, req.method)) {
+      assertJsonContentType(req.headers);
+      body = parseRuntimeJsonBody(req.body, app.config.maxJsonBodyBytes);
+    }
   } catch (error) {
     return applyResult(res, app.failure({ method: req.method, pathname, headers: req.headers, error }));
   }
