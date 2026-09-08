@@ -4,7 +4,9 @@
   "outputDirectory": "dist",
   "trailingSlash": false,
   "redirects": [
-    { "source": "/consult-expert", "destination": "/contact?intent=consultation", "permanent": true }
+    { "source": "/consult-expert", "destination": "/contact?intent=consultation", "permanent": true },
+    { "source": "/careers/job-opportunities", "destination": "/careers", "permanent": true },
+    { "source": "/careers/upload-your-resume", "destination": "/careers", "permanent": true }
   ],
   "rewrites": [
     { "source": "/api/:action", "destination": "/api/[action]?action=:action" },
