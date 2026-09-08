@@ -4,6 +4,8 @@ export const INDUSTRY_PAGES = {
   '/industry/automotive-industry-it-services': {
     category: 'Industry', title: 'Automotive Industry IT Services', image: IMAGES.automotive,
     imageAlt: 'Automotive engineers collaborating on a vehicle technology project in a real workshop',
+    secondaryImage: IMAGES.automotiveDetail,
+    secondaryImageAlt: 'Automotive engineer using a laptop to analyse vehicle data inside a real car',
     lead: 'Technology services for automotive and mobility organisations managing connected products, operations and data.',
     introTitle: 'Technology across the automotive value chain',
     intro: 'Automotive technology programmes must coordinate product systems, enterprise platforms, operational data and partner ecosystems. We approach delivery through clear integration boundaries, quality requirements and operational ownership.',
@@ -12,6 +14,8 @@ export const INDUSTRY_PAGES = {
   '/industry/banking-and-finance': {
     category: 'Industry', title: 'Banking and Finance', image: IMAGES.finance,
     imageAlt: 'Business professionals collaborating on financial data analysis in a real office',
+    secondaryImage: IMAGES.financeDetail,
+    secondaryImageAlt: 'Finance professionals discussing financial charts and graphs during a real office meeting',
     lead: 'Engineering and consulting for financial services environments where security, integrity and operational resilience matter.',
     introTitle: 'Modernise financial technology without losing control',
     intro: 'Financial services delivery requires disciplined security, data governance, change control and recoverability. We help teams modernise applications, data and cloud platforms while keeping those constraints explicit.',
@@ -20,6 +24,8 @@ export const INDUSTRY_PAGES = {
   '/industry/media-and-communication': {
     category: 'Industry', title: 'Media and Communication', image: IMAGES.media,
     imageAlt: 'Media professionals collaborating on video post-production in a real studio environment',
+    secondaryImage: IMAGES.mediaDetail,
+    secondaryImageAlt: 'Professional video editor working on dual monitors in a real post-production workspace',
     lead: 'Digital platforms and technology services for media, communication and content-driven organisations.',
     introTitle: 'Support fast-moving digital content and customer experiences',
     intro: 'Media and communication platforms often combine high-volume content, customer-facing experiences, integrations and analytics. We design for performance, availability, release speed and observable operations.',
@@ -27,7 +33,9 @@ export const INDUSTRY_PAGES = {
   },
   '/industry/education': {
     category: 'Industry', title: 'Education', image: IMAGES.education,
-    imageAlt: 'Students working at desktop computers in a real school computer lab in Chennai',
+    imageAlt: 'Students working at desktop computers in a real school computer lab',
+    secondaryImage: IMAGES.educationDetail,
+    secondaryImageAlt: 'Children learning with computers in a real modern classroom',
     lead: 'Technology and digital services for education organisations, learners, staff and administrative operations.',
     introTitle: 'Build education technology around real user journeys',
     intro: 'Education systems serve multiple user groups and often connect fragmented processes. We focus on accessible user experiences, secure information flows, reliable integrations and maintainable platforms.',
