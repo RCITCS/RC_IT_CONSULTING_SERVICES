@@ -1,0 +1,20 @@
+/* Bootstrap is used selectively for responsive grid behavior. Preserve the RC design-system container everywhere else. */
+.container {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.contact-enquiry-layout,
+.contact-location-layout {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media (max-width: 640px) {
+  .contact-enquiry-layout > *,
+  .contact-location-layout > * {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
