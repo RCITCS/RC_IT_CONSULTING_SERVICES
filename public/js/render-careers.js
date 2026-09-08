@@ -23,6 +23,11 @@ function detailList(title, items = []) {
   return `<section class="career-role-section"><h3>${esc(title)}</h3><ul>${items.map((item)=>`<li>${esc(item)}</li>`).join('')}</ul></section>`;
 }
 
+function tagGroup(title, items = []) {
+  if (!items.length) return '';
+  return `<section class="career-role-section career-role-section--tags"><h3>${esc(title)}</h3><div class="career-role-tags">${items.map((item)=>`<span>${esc(item)}</span>`).join('')}</div></section>`;
+}
+
 function roleDetail(job) {
   return `<article class="career-role-detail" id="role-detail">
     <div class="career-role-detail__head">
@@ -35,11 +40,13 @@ function roleDetail(job) {
       ${job.employmentType ? `<div><span>Employment type</span><strong>${esc(job.employmentType)}</strong></div>` : ''}
       ${job.experience ? `<div><span>Experience</span><strong>${esc(job.experience)}</strong></div>` : ''}
     </div>
+    ${tagGroup('Technology environment', job.technologies)}
+    ${tagGroup('Industry context', job.industries)}
     ${(job.description || []).length ? `<section class="career-role-section"><h3>Job description</h3>${job.description.map((paragraph)=>`<p>${esc(paragraph)}</p>`).join('')}</section>` : ''}
     ${detailList('Key responsibilities', job.responsibilities)}
     ${detailList('Qualifications', job.qualifications)}
     ${detailList('Preferred qualifications', job.preferredQualifications)}
-    ${detailList('Benefits', job.benefits)}
+    ${detailList('Benefits & employment terms', job.benefits)}
     ${detailList('Nature of working style', job.workingStyle)}
     ${job.locationDetails ? `<section class="career-role-section"><h3>Location</h3><p>${esc(job.locationDetails)}</p></section>` : ''}
     <div class="career-role-detail__footer"><a class="btn btn--primary" href="/careers/jobs/${esc(job.slug)}/apply">Apply now ${arrow()}</a><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
@@ -79,24 +86,24 @@ export function renderCareers(pathName = '/careers') {
     ${pageHero({
       category:'Careers',
       title:'Build meaningful technology with accountable teams',
-      lead:'Explore approved opportunities across consulting, engineering, cloud, data, cyber security and technology delivery. Every published role includes the context candidates need to make an informed decision before applying.',
+      lead:'Explore opportunities across consulting, application engineering, cloud, data, cyber security, quality engineering, support and industry technology. Every published role includes the context candidates need to assess fit before applying.',
       image:IMAGES.careersJob,
       imageAlt:'Candidate and interviewers discussing a professional role around a laptop in a real interview setting',
       crumbs:[{label:'Home',href:'/'},{label:'Careers'}]
     })}
 
     <section class="career-intro section"><div class="container career-intro__grid">
-      <div><span class="eyebrow">Careers at RC</span><h2>Professional roles should be clear before a candidate applies.</h2><p>Our careers experience is organised around active vacancies rather than a generic resume collection. Each published role explains the work, required capability, location, working style and selection context so candidates can assess fit before sharing personal information.</p></div>
+      <div><span class="eyebrow">Careers at RC</span><h2>Review the complete role before you apply.</h2><p>Current openings are organised around specific positions rather than a generic resume collection. Select a role to review its job description, technology environment, industry context, qualifications, experience level, working style and location.</p></div>
       <a class="btn btn--primary" href="#current-openings">View current openings ${arrow()}</a>
     </div></section>
 
     <section class="section section--soft" id="current-openings"><div class="container">
-      ${sectionHeading('Current openings','Find the role, then review the complete job context','Select a published opening to review the job description, responsibilities, qualifications, experience expectations, benefits where applicable, working style and location in one place.')}
+      ${sectionHeading('Current openings','Find a position that matches your experience','Select an opening from the role list. The full job description remains in the main panel so candidates can compare positions without navigating through disconnected career pages.')}
       ${openingsBrowser(selected?.slug || '')}
     </div></section>
 
     <section class="section"><div class="container">
-      ${sectionHeading('Working at RC','Delivery standards shape the employee experience','We do not publish unapproved benefit claims. The principles below describe how RC intends professional technology and consulting work to be organised.')}
+      ${sectionHeading('Working at RC','Delivery standards shape the employee experience','Technology roles are organised around accountable delivery, professional engineering practices and clear client or project outcomes.')}
       <div class="career-principles">
         <article><span>01</span><h3>Client-impact work</h3><p>Roles are connected to defined business or delivery outcomes rather than artificial internal assignments.</p></article>
         <article><span>02</span><h3>Professional craft</h3><p>Engineering, consulting and delivery decisions are expected to be explainable, maintainable and grounded in the operating context.</p></article>
@@ -106,7 +113,7 @@ export function renderCareers(pathName = '/careers') {
     </div></section>
 
     <section class="section section--soft"><div class="container">
-      ${sectionHeading('Hiring journey','A structured process from application to decision','The exact interview sequence may vary by role, but candidates should understand the purpose of each stage and the role they are being assessed for.')}
+      ${sectionHeading('Hiring journey','A structured process from application to decision','The exact interview sequence may vary by role, but candidates should understand the purpose of each stage and the position they are being assessed for.')}
       <div class="career-hiring-steps">
         <article><span>01</span><h3>Apply</h3><p>Submit your details against a specific published role together with the requested resume and cover letter.</p></article>
         <article><span>02</span><h3>Role review</h3><p>Relevant experience, capability and work context are reviewed against the actual vacancy requirements.</p></article>
@@ -137,7 +144,13 @@ export function renderCareerApplication(slug = '') {
     <section class="section"><div class="container career-application-layout">
       <aside class="career-application-summary">
         <span class="eyebrow">Role summary</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p>
-        <dl>${jobMeta(job).map((item,index)=>`<div><dt>${['Location','Working style','Employment type','Experience'][index] || 'Role detail'}</dt><dd>${esc(item)}</dd></div>`).join('')}</dl>
+        <dl>
+          ${job.location ? `<div><dt>Location</dt><dd>${esc(job.location)}</dd></div>` : ''}
+          ${job.workStyle ? `<div><dt>Working style</dt><dd>${esc(job.workStyle)}</dd></div>` : ''}
+          ${job.employmentType ? `<div><dt>Employment type</dt><dd>${esc(job.employmentType)}</dd></div>` : ''}
+          ${job.experience ? `<div><dt>Experience</dt><dd>${esc(job.experience)}</dd></div>` : ''}
+        </dl>
+        ${job.technologies?.length ? `<div class="career-application-tech"><strong>Core technologies</strong><div class="career-role-tags career-role-tags--compact">${job.technologies.slice(0,6).map((item)=>`<span>${esc(item)}</span>`).join('')}</div></div>` : ''}
         <a href="/careers/jobs/${esc(job.slug)}">Review full job description ${arrow()}</a>
       </aside>
 
