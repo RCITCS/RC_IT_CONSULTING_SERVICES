@@ -17,17 +17,90 @@ jobs:
   mirror:
     name: Mirror main to RCITCS
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # This workflow is copied into the RCITCS repository too.
+    # Never run the mirror job from the destination repository.
+    if: ${{ github.repository == 'SRIHARIKATTAFM/RC-IT-SERVICES' }}
+
+    env:
+      TARGET_REPOSITORY: RCITCS/RC_IT_CONSULTING_SERVICES
 
     steps:
       - name: Checkout complete repository history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Push main branch to RCITCS repository
+      - name: Validate mirror credentials
+        shell: bash
         env:
           RCITCS_MIRROR_TOKEN: ${{ secrets.RCITCS_MIRROR_TOKEN }}
         run: |
-          git remote add rcitcs "https://x-access-token:${RCITCS_MIRROR_TOKEN}@github.com/RCITCS/RC_IT_CONSULTING_SERVICES.git"
-          git push rcitcs HEAD:main --force
+          set -euo pipefail
+
+          if [ -z "${RCITCS_MIRROR_TOKEN:-}" ]; then
+            echo "::error::RCITCS_MIRROR_TOKEN repository secret is missing."
+            exit 1
+          fi
+
+          echo "RCITCS mirror credential is configured."
+
+      - name: Mirror main branch and tags to RCITCS
+        shell: bash
+        env:
+          RCITCS_MIRROR_TOKEN: ${{ secrets.RCITCS_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          TARGET_URL="https://x-access-token:${RCITCS_MIRROR_TOKEN}@github.com/${TARGET_REPOSITORY}.git"
+
+          # Defense in depth:
+          # remove any checkout/GITHUB_TOKEN authentication header
+          # so github-actions[bot] cannot override the RCITCS PAT.
+          git config --local --unset-all http.https://github.com/.extraheader || true
+
+          # Always recreate the destination remote.
+          git remote remove rcitcs 2>/dev/null || true
+          git remote add rcitcs "${TARGET_URL}"
+
+          cleanup() {
+            git remote set-url rcitcs "https://github.com/${TARGET_REPOSITORY}.git" 2>/dev/null || true
+          }
+
+          trap cleanup EXIT
+
+          echo "Checking access to ${TARGET_REPOSITORY}..."
+
+          if ! git ls-remote rcitcs HEAD >/dev/null 2>&1; then
+            echo "::error::Unable to authenticate to ${TARGET_REPOSITORY}. Check RCITCS_MIRROR_TOKEN repository scope and Contents/Workflows permissions."
+            exit 1
+          fi
+
+          echo "Destination authentication successful."
+
+          echo "Mirroring main..."
+          git push rcitcs HEAD:refs/heads/main --force
+
+          echo "Mirroring tags..."
           git push rcitcs --tags --force
+
+          REMOTE_SHA="$(git ls-remote rcitcs refs/heads/main | awk '{print $1}')"
+
+          if [ -z "${REMOTE_SHA}" ]; then
+            echo "::error::Destination main branch was not found after push."
+            exit 1
+          fi
+
+          if [ "${SOURCE_SHA}" != "${REMOTE_SHA}" ]; then
+            echo "::error::Mirror verification failed. Source and destination SHAs differ."
+            echo "Source SHA:      ${SOURCE_SHA}"
+            echo "Destination SHA: ${REMOTE_SHA}"
+            exit 1
+          fi
+
+          echo "Mirror completed and verified."
+          echo "Source SHA:      ${SOURCE_SHA}"
+          echo "Destination SHA: ${REMOTE_SHA}"
