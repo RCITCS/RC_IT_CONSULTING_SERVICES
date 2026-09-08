@@ -2,12 +2,23 @@ import { openDialog, showToast } from './ui.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 const PHONE = /^[+()\d\s.-]{7,30}$/;
+const TEXTAREA_MIN_HEIGHT = 145;
+const TEXTAREA_MAX_HEIGHT = 520;
 
 function setError(field, message = '') {
   const wrapper = field.closest('.form-field');
   const error = wrapper?.querySelector('.field-error');
   field.setAttribute('aria-invalid', message ? 'true' : 'false');
   if (error) error.textContent = message;
+}
+
+function resizeTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = 'auto';
+  const naturalHeight = textarea.scrollHeight;
+  const nextHeight = Math.min(Math.max(naturalHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT);
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = naturalHeight > TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
 }
 
 function validate(form) {
@@ -40,6 +51,10 @@ function formDataObject(form) {
   return data;
 }
 
+function resetTextareas(form) {
+  requestAnimationFrame(() => form.querySelectorAll('textarea').forEach(resizeTextarea));
+}
+
 async function submitJson(form, endpoint) {
   if (!validate(form)) return;
   const status = form.querySelector('[data-form-status]');
@@ -54,6 +69,7 @@ async function submitJson(form, endpoint) {
     const result = await response.json();
     if (!response.ok) throw new Error(result.message || 'Submission failed.');
     form.reset();
+    resetTextareas(form);
     showToast(result.message || 'Submitted successfully.');
     if (status) { status.textContent = result.message || 'Submitted successfully.'; status.style.color = 'var(--color-success)'; }
   } catch (error) {
@@ -109,24 +125,33 @@ export function bindForms() {
       if (endpoint === '/api/resume') submitResume(form);
       else submitJson(form, endpoint);
     });
-    form.querySelectorAll('input,textarea,select').forEach((field) => field.addEventListener('input', () => setError(field, '')));
+
+    form.querySelectorAll('textarea').forEach((textarea) => {
+      resizeTextarea(textarea);
+      textarea.addEventListener('input', () => {
+        setError(textarea, '');
+        resizeTextarea(textarea);
+      });
+    });
+
+    form.querySelectorAll('input,select').forEach((field) => field.addEventListener('input', () => setError(field, '')));
   });
 
   document.querySelectorAll('[data-request-demo]:not([data-demo-bound])').forEach((button) => {
     button.dataset.demoBound = 'true';
     button.addEventListener('click', () => {
-    const product = button.dataset.requestDemo || 'Product';
-    openDialog(`demo-${product.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`, `Request a Demo · ${product}`, `
-      <form data-api-form="/api/demo" novalidate>
-        <div class="form-grid">
-          ${field('name','Name','text',true)}${field('company','Company','text',true)}
-          ${field('businessEmail','Business Email','email',true)}${field('phone','Phone Number','tel',false,'phone')}
-          <input type="hidden" name="product" value="${product.replaceAll('"','&quot;')}">
-          <div class="form-field form-field--full"><label for="demo-notes">What would you like to evaluate?</label><textarea id="demo-notes" name="notes"></textarea><span class="field-error"></span></div>
-        </div>
-        <div class="form-actions"><button class="btn btn--primary" type="submit">Submit</button><p class="form-status" data-form-status></p></div>
-      </form>`);
-    bindForms();
+      const product = button.dataset.requestDemo || 'Product';
+      openDialog(`demo-${product.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`, `Request a Demo · ${product}`, `
+        <form data-api-form="/api/demo" novalidate>
+          <div class="form-grid">
+            ${field('name','Name','text',true)}${field('company','Company','text',true)}
+            ${field('businessEmail','Business Email','email',true)}${field('phone','Phone Number','tel',false,'phone')}
+            <input type="hidden" name="product" value="${product.replaceAll('"','&quot;')}">
+            <div class="form-field form-field--full"><label for="demo-notes">What would you like to evaluate?</label><textarea id="demo-notes" name="notes"></textarea><span class="field-error"></span></div>
+          </div>
+          <div class="form-actions"><button class="btn btn--primary" type="submit">Submit</button><p class="form-status" data-form-status></p></div>
+        </form>`);
+      bindForms();
     });
   });
 }
