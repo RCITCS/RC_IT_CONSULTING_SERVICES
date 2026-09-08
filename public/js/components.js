@@ -1,4 +1,5 @@
 import { COMPANY, FOOTER_GROUPS, PRIMARY_NAV, UTILITY_NAV } from './site-config.js';
+import { responsiveImageMarkup } from './image-utils.js';
 
 const esc = (value = '') => String(value)
   .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -99,7 +100,14 @@ export function breadcrumbs(items) {
 }
 
 export function pageHero({ category, title, lead, image, imageAlt, crumbs = [] }) {
-  return `<section class="page-hero"><div class="container page-hero-grid"><div>${breadcrumbs(crumbs)}<span class="eyebrow">${esc(category)}</span><h1>${esc(title)}</h1><p>${esc(lead)}</p></div><img src="${esc(image)}" alt="${esc(imageAlt)}" loading="eager" decoding="async" /></div></section>`;
+  const heroImage = responsiveImageMarkup(image, imageAlt, {
+    loading: 'eager',
+    fetchPriority: 'high',
+    sizes: '(max-width: 900px) calc(100vw - 2rem), 42vw',
+    width: 1600,
+    height: 1000
+  });
+  return `<section class="page-hero"><div class="container page-hero-grid"><div>${breadcrumbs(crumbs)}<span class="eyebrow">${esc(category)}</span><h1>${esc(title)}</h1><p>${esc(lead)}</p></div>${heroImage}</div></section>`;
 }
 
 export function sectionHeading(eyebrowText, title, text = '') {
