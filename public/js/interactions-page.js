@@ -1,7 +1,15 @@
 import { field, bindForms } from './forms.js';
 import { openDialog, showToast } from './ui.js';
 
+function applyContactIntent(intent) {
+  const input = document.getElementById('contact-intent');
+  if (input) input.value = intent;
+}
+
 export function bindContactOptions() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('intent') === 'consultation') applyContactIntent('Consult our Expert');
+
   document.querySelectorAll('[data-chat-now]').forEach((button) => button.addEventListener('click', () => {
     openDialog('chat-with-us', 'Chat With Us', `
       <p>Send a message to the RC technology team. This message flow records the enquiry through the website endpoint.</p>
@@ -12,11 +20,14 @@ export function bindContactOptions() {
       </form>`);
     bindForms();
   }));
+
   document.querySelectorAll('[data-contact-intent]').forEach((button) => button.addEventListener('click', () => {
-    const input = document.getElementById('contact-intent');
-    if (input) input.value = button.dataset.contactIntent;
-    document.getElementById('contact-form')?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
-    document.querySelector('#contact-form input:not([type="hidden"])')?.focus({preventScroll:true});
+    applyContactIntent(button.dataset.contactIntent);
+    const form = document.getElementById('contact-form');
+    form?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+    const topic = document.getElementById('consultation-topic');
+    if (button.dataset.contactIntent === 'Consult our Expert' && topic) topic.focus({preventScroll:true});
+    else form?.querySelector('input:not([type="hidden"])')?.focus({preventScroll:true});
   }));
 }
 
@@ -36,4 +47,3 @@ export function bindLogin() {
     } catch { status.textContent='Login service is unavailable.'; status.style.color='var(--color-danger)'; }
   });
 }
-
