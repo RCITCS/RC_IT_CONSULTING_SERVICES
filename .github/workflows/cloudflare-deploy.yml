@@ -49,7 +49,69 @@ jobs:
           grep -q 'rcitcservices' wrangler.jsonc
           grep -q 'serveApplication' worker/index.js
 
+  production-route-smoke:
+    name: Verify live production routes
+    needs: quality
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Wait for Cloudflare Workers Build and verify deep routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcservices.frsmkgit.workers.dev'
+          routes=(
+            '/'
+            '/careers'
+            '/contact'
+            '/services/it/cyber-security'
+            '/services/it/consultancy-services/agile'
+            '/privacy'
+          )
+
+          for attempt in $(seq 1 30); do
+            all_ok=1
+            for route in "${routes[@]}"; do
+              code=$(curl -L -sS -o /tmp/rc-page.html -w '%{http_code}' "${BASE}${route}" || true)
+              if [[ "$code" != '200' ]] || ! grep -q 'site-root' /tmp/rc-page.html; then
+                all_ok=0
+                break
+              fi
+            done
+
+            health_code=$(curl -sS -o /tmp/rc-health.json -w '%{http_code}' "${BASE}/api/health" || true)
+            if [[ "$health_code" != '200' ]] || ! grep -q '"ok":true' /tmp/rc-health.json; then
+              all_ok=0
+            fi
+
+            if [[ "$all_ok" == '1' ]]; then
+              echo "Cloudflare production routes verified on attempt ${attempt}."
+              break
+            fi
+
+            if [[ "$attempt" == '30' ]]; then
+              echo 'Cloudflare production did not become healthy within the verification window.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify Vercel fallback routes remain reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rc-it-services.vercel.app'
+          for route in '/' '/careers' '/contact' '/services/it/cyber-security' '/privacy'; do
+            code=$(curl -L -sS -o /tmp/vercel-page.html -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'site-root' /tmp/vercel-page.html
+          done
+          echo 'Vercel fallback routes are reachable.'
+
       - name: Deployment ownership
         run: |
-          echo 'CI passed. Production deployment is handled by the connected Cloudflare Workers Builds Git integration.'
-          echo 'Vercel remains a secondary deployment target and is not required for this CI job.'
+          echo 'CI and live-route verification passed.'
+          echo 'Cloudflare Workers Builds is the primary CD path from main.'
+          echo 'Vercel is retained as a secondary live fallback.'
