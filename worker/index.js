@@ -106,10 +106,19 @@ async function handleApi(request) {
   return json(404, { ok: false, message: 'API endpoint not found.' });
 }
 
+async function serveApplication(request, env) {
+  const assetResponse = await env.ASSETS.fetch(request);
+  if (assetResponse.status !== 404) return assetResponse;
+
+  const indexUrl = new URL('/index.html', request.url);
+  const fallbackRequest = new Request(indexUrl, request);
+  return env.ASSETS.fetch(fallbackRequest);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) return handleApi(request);
-    return env.ASSETS.fetch(request);
+    return serveApplication(request, env);
   }
 };
