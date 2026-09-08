@@ -13,35 +13,48 @@ await mkdir(out, { recursive: true });
 await cp(source, out, { recursive: true });
 await mkdir(assets, { recursive: true });
 
-await build({
+const jsBuild = await build({
   entryPoints: [path.join(source, 'js', 'app.js')],
   bundle: true,
   minify: true,
   treeShaking: true,
   format: 'esm',
   target: ['es2020'],
-  outfile: path.join(assets, 'app.min.js'),
+  outdir: assets,
+  entryNames: 'app-[hash]',
+  metafile: true,
   legalComments: 'none'
 });
 
-await build({
+const cssBuild = await build({
   entryPoints: [path.join(source, 'css', 'app.css')],
   bundle: true,
   minify: true,
   target: ['es2020'],
-  outfile: path.join(assets, 'app.min.css'),
+  outdir: assets,
+  entryNames: 'app-[hash]',
+  metafile: true,
   legalComments: 'none'
 });
+
+function outputFile(meta, extension) {
+  const output = Object.keys(meta.outputs).find((file) => file.endsWith(extension));
+  if (!output) throw new Error(`Missing ${extension} build output.`);
+  return path.basename(output);
+}
+
+const jsFile = outputFile(jsBuild.metafile, '.js');
+const cssFile = outputFile(cssBuild.metafile, '.css');
 
 const htmlPath = path.join(out, 'index.html');
 let html = await readFile(htmlPath, 'utf8');
 html = html
   .replace(/\s*<link rel="stylesheet" href="\/css\/(?:tokens|base|components|service-detail|legal|responsive|audit-fixes)\.css" \/>/g, '')
-  .replace('</head>', '  <link rel="stylesheet" href="/assets/app.min.css" />\n</head>')
-  .replace('<script type="module" src="/js/app.js"></script>', '<script type="module" src="/assets/app.min.js"></script>');
+  .replace('</head>', `  <link rel="stylesheet" href="/assets/${cssFile}" />\n</head>`)
+  .replace('<script type="module" src="/js/app.js"></script>', `<script type="module" src="/assets/${jsFile}"></script>`);
 await writeFile(htmlPath, html);
 
 await rm(path.join(out, 'js'), { recursive: true, force: true });
 await rm(path.join(out, 'css'), { recursive: true, force: true });
 
-console.log('Built optimized static site with bundled CSS and JavaScript.');
+console.log(`Built optimized static site: ${cssFile}, ${jsFile}`);
