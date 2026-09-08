@@ -12,6 +12,13 @@ function isActive(href, pathName) {
   return pathName === href || pathName.startsWith(href + '/');
 }
 
+function menuVariant(item) {
+  if (item.label === 'SERVICES') return 'mega-menu--services';
+  if (item.label === 'Industry') return 'mega-menu--industry';
+  if (item.label === 'Careers') return 'mega-menu--careers';
+  return '';
+}
+
 function navItem(item, pathName, index) {
   if (!item.groups) {
     return `<a class="nav-link ${isActive(item.href, pathName) ? 'is-active' : ''}" href="${esc(item.href)}">${esc(item.label)}</a>`;
@@ -24,7 +31,7 @@ function navItem(item, pathName, index) {
     </div>`).join('');
   return `<div class="nav-item" data-nav-item>
     <button class="nav-trigger ${active ? 'is-active' : ''}" type="button" aria-expanded="false" aria-controls="mega-${index}">${esc(item.label)}${chevron()}</button>
-    <div class="mega-menu" id="mega-${index}" role="region" aria-label="${esc(item.label)} menu"><div class="mega-grid">${groups}</div></div>
+    <div class="mega-menu ${menuVariant(item)}" id="mega-${index}" role="region" aria-label="${esc(item.label)} menu"><div class="mega-grid">${groups}</div></div>
   </div>`;
 }
 
@@ -91,7 +98,7 @@ export function breadcrumbs(items) {
 }
 
 export function pageHero({ category, title, lead, image, imageAlt, crumbs = [] }) {
-  return `<section class="page-hero"><div class="container page-hero-grid"><div>${breadcrumbs(crumbs)}<span class="eyebrow">${esc(category)}</span><h1>${esc(title)}</h1><p>${esc(lead)}</p></div><img src="${esc(image)}" alt="${esc(imageAlt)}" loading="eager" decoding="async" referrerpolicy="no-referrer" /></div></section>`;
+  return `<section class="page-hero"><div class="container page-hero-grid"><div>${breadcrumbs(crumbs)}<span class="eyebrow">${esc(category)}</span><h1>${esc(title)}</h1><p>${esc(lead)}</p></div><img src="${esc(image)}" alt="${esc(imageAlt)}" loading="eager" decoding="async" /></div></section>`;
 }
 
 export function sectionHeading(eyebrowText, title, text = '') {
