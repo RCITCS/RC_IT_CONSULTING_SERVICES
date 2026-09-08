@@ -54,6 +54,18 @@ function detailContextMarkup(content) {
         <div><span class="eyebrow">Wider service context</span><h2>Designed as part of an end-to-end operating environment.</h2><p>${esc(content.proposition)}</p></div>
         <div><h3>Associated capability areas</h3><div class="service-capability-tags service-capability-tags--compact">${capabilityTags(content.capabilities)}</div></div>
       </div>
+    </section>
+    <section class="section section--soft service-detail-business-context">
+      <div class="container">
+        <div class="section-heading"><span class="eyebrow">Business context</span><h2>Problems the wider service is designed to address</h2><p>The capability is considered alongside the operating, governance and technology conditions around it.</p></div>
+        <div class="topic-grid service-depth-grid">${challengeCards(content.challenges)}</div>
+      </div>
+    </section>
+    <section class="section service-detail-deliverables">
+      <div class="container service-deliverables-layout">
+        <div class="service-deliverables-intro"><span class="eyebrow">Representative outputs</span><h2>What an engagement can leave behind</h2><p>Deliverables are adapted to scope, but the work should create usable artefacts, controls, decisions and operational ownership rather than presentation-only recommendations.</p></div>
+        <div class="service-deliverables-list">${deliverableRows(content.deliverables)}</div>
+      </div>
     </section>`;
 }
 
