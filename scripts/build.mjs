@@ -4,30 +4,35 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = path.join(root, 'public');
+const publicRoot = path.join(root, 'public');
+const frontendRoot = path.join(root, 'src', 'frontend');
 const out = path.join(root, 'dist');
 const assets = path.join(out, 'assets');
+const jsEntry = path.join(frontendRoot, 'app', 'app.js');
+const cssEntry = path.join(frontendRoot, 'styles', 'app.css');
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
-await cp(source, out, { recursive: true });
+await cp(publicRoot, out, { recursive: true });
 await mkdir(assets, { recursive: true });
 
 const jsBuild = await build({
-  entryPoints: [path.join(source, 'js', 'app.js')],
+  entryPoints: [jsEntry],
   bundle: true,
   minify: true,
   treeShaking: true,
+  splitting: true,
   format: 'esm',
   target: ['es2020'],
   outdir: assets,
   entryNames: 'app-[hash]',
+  chunkNames: 'chunk-[hash]',
   metafile: true,
   legalComments: 'none'
 });
 
 const cssBuild = await build({
-  entryPoints: [path.join(source, 'css', 'app.css')],
+  entryPoints: [cssEntry],
   bundle: true,
   minify: true,
   target: ['es2020'],
@@ -49,12 +54,9 @@ const cssFile = outputFile(cssBuild.metafile, '.css');
 const htmlPath = path.join(out, 'index.html');
 let html = await readFile(htmlPath, 'utf8');
 html = html
-  .replace(/\s*<link rel="stylesheet" href="\/css\/(?:tokens|base|components|service-detail|legal|responsive|audit-fixes)\.css" \/>/g, '')
+  .replace(/\s*<link rel="stylesheet" href="\/(?:css\/[^\"]+|vendor\/bootstrap-grid\.css)" \/>/g, '')
   .replace('</head>', `  <link rel="stylesheet" href="/assets/${cssFile}" />\n</head>`)
   .replace('<script type="module" src="/js/app.js"></script>', `<script type="module" src="/assets/${jsFile}"></script>`);
 await writeFile(htmlPath, html);
 
-await rm(path.join(out, 'js'), { recursive: true, force: true });
-await rm(path.join(out, 'css'), { recursive: true, force: true });
-
-console.log(`Built optimized static site: ${cssFile}, ${jsFile}`);
+console.log(`Built optimized static site from src/frontend: ${cssFile}, ${jsFile}`);

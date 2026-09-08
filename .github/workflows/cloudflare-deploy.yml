@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Test and production build
+    name: Architecture, test and production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify source architecture
+        run: npm run check:architecture
+
       - name: Run smoke tests
         run: npm test
 
@@ -44,10 +47,14 @@ jobs:
           test -d dist/assets
           test -f wrangler.jsonc
           test -f worker/index.js
+          test -f src/frontend/app/app.js
+          test -f src/frontend/styles/app.css
+          test -f src/backend/runtime/worker.js
           grep -q 'site-root' dist/index.html
           grep -q 'single-page-application' wrangler.jsonc
           grep -q 'rcitcservices' wrangler.jsonc
           grep -q 'serveApplication' worker/index.js
+          grep -q "src.*frontend" scripts/build.mjs
 
   production-route-smoke:
     name: Verify live production routes

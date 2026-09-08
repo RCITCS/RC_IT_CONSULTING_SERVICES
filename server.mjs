@@ -7,6 +7,9 @@ import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const FRONTEND_JS_DIR = path.join(__dirname, 'src', 'frontend', 'app');
+const FRONTEND_CSS_DIR = path.join(__dirname, 'src', 'frontend', 'styles');
+const BOOTSTRAP_GRID = path.join(__dirname, 'node_modules', 'bootstrap', 'dist', 'css', 'bootstrap-grid.min.css');
 const DATA_DIR = process.env.RC_DATA_DIR ? path.resolve(process.env.RC_DATA_DIR) : path.join(__dirname, 'data');
 const UPLOAD_DIR = process.env.RC_UPLOAD_DIR ? path.resolve(process.env.RC_UPLOAD_DIR) : path.join(__dirname, 'uploads', 'resumes');
 const PORT = Number(process.env.PORT || 4173);
@@ -36,7 +39,7 @@ const securityHeaders = {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://images.unsplash.com",
+    "img-src 'self' data: https://images.unsplash.com https://images.pexels.com",
     "font-src 'self' data:",
     "connect-src 'self'",
     "object-src 'none'",
@@ -101,10 +104,7 @@ async function appendRecord(fileName, record) {
 }
 
 function makeRecord(payload, fields) {
-  const out = {
-    id: crypto.randomUUID(),
-    receivedAt: new Date().toISOString()
-  };
+  const out = { id: crypto.randomUUID(), receivedAt: new Date().toISOString() };
   for (const [key, max] of fields) out[key] = cleanText(payload[key], max);
   return out;
 }
@@ -132,8 +132,7 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === '/api/demo') {
     const record = makeRecord(payload, [
-      ['name', 120], ['company', 140], ['businessEmail', 254], ['phone', 30],
-      ['product', 120], ['notes', 3000]
+      ['name', 120], ['company', 140], ['businessEmail', 254], ['phone', 30], ['product', 120], ['notes', 3000]
     ]);
     if (!record.name || !record.company || !record.businessEmail || !record.product) {
       return sendJson(res, 422, { ok: false, message: 'Name, company, business email and product are required.' });
@@ -146,8 +145,7 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === '/api/consultation') {
     const record = makeRecord(payload, [
-      ['name', 120], ['company', 140], ['businessEmail', 254], ['phone', 30],
-      ['topic', 140], ['brief', 4000]
+      ['name', 120], ['company', 140], ['businessEmail', 254], ['phone', 30], ['topic', 140], ['brief', 4000]
     ]);
     if (!record.name || !record.company || !record.businessEmail || !record.topic) {
       return sendJson(res, 422, { ok: false, message: 'Name, company, business email and consultation topic are required.' });
@@ -159,9 +157,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/chat') {
-    const record = makeRecord(payload, [
-      ['name', 120], ['businessEmail', 254], ['company', 140], ['message', 3000]
-    ]);
+    const record = makeRecord(payload, [['name', 120], ['businessEmail', 254], ['company', 140], ['message', 3000]]);
     if (!record.name || !record.businessEmail || !record.message) {
       return sendJson(res, 422, { ok: false, message: 'Name, business email and message are required.' });
     }
@@ -203,11 +199,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === '/api/login') {
-    return sendJson(res, 501, {
-      ok: false,
-      code: 'AUTH_NOT_CONFIGURED',
-      message: 'Portal authentication is intentionally not enabled in this build. Connect the approved identity provider before production.'
-    });
+    return sendJson(res, 501, { ok: false, code: 'AUTH_NOT_CONFIGURED', message: 'Portal authentication is intentionally not enabled in this build. Connect the approved identity provider before production.' });
   }
 
   return false;
@@ -231,18 +223,37 @@ async function serveFile(res, filePath, cache = false) {
   }
 }
 
+function safePath(root, requestPath) {
+  const decoded = decodeURIComponent(requestPath);
+  const normalized = path.posix.normalize(decoded).replace(/^\.\.(\/|\\|$)/, '');
+  const candidate = path.resolve(root, '.' + normalized);
+  return candidate.startsWith(root) ? candidate : null;
+}
+
+async function serveDevelopmentSource(res, pathname) {
+  if (pathname === '/vendor/bootstrap-grid.css') return serveFile(res, BOOTSTRAP_GRID, true);
+  if (pathname.startsWith('/js/')) {
+    const candidate = safePath(FRONTEND_JS_DIR, pathname.slice('/js'.length));
+    return candidate ? serveFile(res, candidate, false) : false;
+  }
+  if (pathname.startsWith('/css/')) {
+    const candidate = safePath(FRONTEND_CSS_DIR, pathname.slice('/css'.length));
+    return candidate ? serveFile(res, candidate, false) : false;
+  }
+  return false;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const apiHandled = await handleApi(req, res, url);
     if (apiHandled !== false) return;
-
     if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { ok: false, message: 'API endpoint not found.' });
 
-    const decodedPath = decodeURIComponent(url.pathname);
-    const normalized = path.posix.normalize(decodedPath).replace(/^\.\.(\/|\\|$)/, '');
-    const candidate = path.resolve(PUBLIC_DIR, '.' + normalized);
-    if (!candidate.startsWith(PUBLIC_DIR)) {
+    if (await serveDevelopmentSource(res, url.pathname)) return;
+
+    const candidate = safePath(PUBLIC_DIR, url.pathname);
+    if (!candidate) {
       res.writeHead(403, securityHeaders);
       return res.end('Forbidden');
     }
@@ -256,9 +267,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`RC IT Services running at http://localhost:${PORT}`);
-  });
+  server.listen(PORT, '0.0.0.0', () => console.log(`RC IT Services running at http://localhost:${PORT}`));
 }
 
 export { server };
