@@ -5,7 +5,7 @@ const configuredOrigin = environment.PUBLIC_ORIGIN || '';
 const workersBuildBranch = String(environment.WORKERS_CI_BRANCH || '').trim();
 
 export const SITE_NAME = 'RC IT Services';
-export const SITE_ORIGIN = String(configuredOrigin || 'https://rcitcs.com').replace(/\/+$/, '');
+export const SITE_ORIGIN = String(configuredOrigin || 'https://rcitcservices.frsmkgit.workers.dev').replace(/\/+$/, '');
 
 // Cloudflare Workers Builds exposes WORKERS_CI_BRANCH. Non-main branch builds are
 // preview deployments and must never become a second indexable copy of production.

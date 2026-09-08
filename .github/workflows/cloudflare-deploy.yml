@@ -60,15 +60,12 @@ jobs:
           test -f src/frontend/app/app.js
           test -f src/frontend/styles/app.css
           test -f src/backend/runtime/worker.js
-          test -f src/backend/runtime/domain-routing.js
           grep -q 'site-root' dist/index.html
           grep -q 'data-route-styles' dist/index.html
           grep -q 'data-prerendered-path' dist/index.html
           grep -q '404-page' wrangler.jsonc
           grep -q 'drop-trailing-slash' wrangler.jsonc
           grep -q 'rcitcservices' wrangler.jsonc
-          grep -q 'rcitcs.com' wrangler.jsonc
-          grep -q 'zone_name' wrangler.jsonc
           grep -q 'serveApplication' worker/index.js
           grep -q 'getPrerenderRoutes' scripts/build.mjs
 
@@ -77,14 +74,14 @@ jobs:
     needs: quality
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 8
 
     steps:
-      - name: Wait for current Cloudflare domain-route deployment and verify deep routes
+      - name: Wait for current Cloudflare prerender build and verify deep routes
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcs.com'
+          BASE='https://rcitcservices.frsmkgit.workers.dev'
           routes=(
             '/'
             '/careers'
@@ -95,7 +92,7 @@ jobs:
             '/privacy'
           )
 
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 30); do
             all_ok=1
             for route in "${routes[@]}"; do
               code=$(curl -sS -o /tmp/rc-page.html -w '%{http_code}' "${BASE}${route}" || true)
@@ -116,12 +113,12 @@ jobs:
             fi
 
             if [[ "$all_ok" == '1' ]]; then
-              echo "Current rcitcs.com Cloudflare deployment verified on attempt ${attempt}."
+              echo "Current Phase 6 Cloudflare prerender build verified on attempt ${attempt}."
               break
             fi
 
-            if [[ "$attempt" == '60' ]]; then
-              echo 'rcitcs.com did not become healthy within the domain-route verification window.' >&2
+            if [[ "$attempt" == '30' ]]; then
+              echo 'Current Cloudflare Phase 6 prerender build did not become healthy within the verification window.' >&2
               exit 1
             fi
             sleep 5
@@ -131,7 +128,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcs.com'
+          BASE='https://rcitcservices.frsmkgit.workers.dev'
 
           curl -sS "${BASE}/about-us" -o /tmp/about.html
           grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
@@ -173,28 +170,13 @@ jobs:
           [[ "$alias_code" == '301' || "$alias_code" == '308' ]]
           curl -sSI "${BASE}/careers/job-opportunities" | tr -d '\r' | grep -qi '^location:.*\/careers'
 
-          echo 'rcitcs.com metadata, eligibility gating, schema, sitemap, robots, redirects and real 404 behaviour verified.'
-
-      - name: Verify canonical hostname and secondary-origin isolation
-        shell: bash
-        run: |
-          set -euo pipefail
-          WWW='https://www.rcitcs.com'
-          CANONICAL='https://rcitcs.com'
-          LEGACY='https://rcitcservices.frsmkgit.workers.dev'
-
-          www_code=$(curl -sS -o /dev/null -w '%{http_code}' "${WWW}/about-us?source=www")
-          test "$www_code" = '308'
-          curl -sSI "${WWW}/about-us?source=www" | tr -d '\r' | grep -qi "^location: ${CANONICAL}/about-us?source=www"
-
-          curl -sSI "${LEGACY}/about-us" | tr -d '\r' | grep -Eqi '^x-robots-tag:.*noindex'
-          echo 'www canonical redirect and workers.dev search isolation verified.'
+          echo 'Production metadata, eligibility gating, schema, sitemap, robots, redirects and real 404 behaviour verified.'
 
       - name: Verify production cache policy and split assets
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcs.com'
+          BASE='https://rcitcservices.frsmkgit.workers.dev'
 
           curl -sS "${BASE}/" -o /tmp/rc-index.html
           app_asset=$(grep -oE '/assets/app-[A-Za-z0-9]+\.js' /tmp/rc-index.html | head -n1)
@@ -230,7 +212,7 @@ jobs:
             echo 'Production prerendered HTML is missing the required revalidation cache policy.' >&2
             exit 1
           }
-          echo 'Cloudflare prerendered HTML revalidation and immutable split-asset caching verified on rcitcs.com.'
+          echo 'Cloudflare prerendered HTML revalidation and immutable split-asset caching verified.'
 
       - name: Verify Vercel fallback routes remain reachable
         shell: bash
@@ -247,7 +229,5 @@ jobs:
       - name: Deployment ownership
         run: |
           echo 'CI and live-route verification passed.'
-          echo 'rcitcs.com is the canonical Cloudflare zone-routed production origin.'
-          echo 'www.rcitcs.com permanently redirects to the canonical apex domain.'
-          echo 'workers.dev remains an isolated deployment/debug surface.'
-          echo 'Vercel is retained as a secondary noindex fallback.'
+          echo 'Cloudflare Workers Builds is the primary CD path from main.'
+          echo 'Vercel is retained as a secondary live fallback.'
