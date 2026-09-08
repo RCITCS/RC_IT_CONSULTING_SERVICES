@@ -16,11 +16,13 @@ function isActive(href, pathName) {
 function menuVariant(item) {
   if (item.label === 'SERVICES') return 'mega-menu--services';
   if (item.label === 'Industry') return 'mega-menu--industry';
-  if (item.label === 'Careers') return 'mega-menu--careers';
   return '';
 }
 
 function navItem(item, pathName, index) {
+  if (item.label === 'Careers') {
+    return `<a class="nav-link ${isActive('/careers', pathName) ? 'is-active' : ''}" href="/careers">Careers</a>`;
+  }
   if (!item.groups) {
     return `<a class="nav-link ${isActive(item.href, pathName) ? 'is-active' : ''}" href="${esc(item.href)}">${esc(item.label)}</a>`;
   }
@@ -37,6 +39,7 @@ function navItem(item, pathName, index) {
 }
 
 function mobileItem(item, pathName, index) {
+  if (item.label === 'Careers') return `<a class="${isActive('/careers', pathName) ? 'is-active' : ''}" href="/careers">Careers</a>`;
   if (!item.groups) return `<a class="${isActive(item.href, pathName) ? 'is-active' : ''}" href="${esc(item.href)}">${esc(item.label)}</a>`;
   return `<div class="mobile-accordion" data-mobile-accordion>
     <button class="mobile-accordion__trigger" type="button" aria-expanded="false" aria-controls="mobile-panel-${index}">${esc(item.label)}${chevron()}</button>
@@ -77,6 +80,10 @@ export function headerTemplate(pathName) {
     </div>`;
 }
 
+function footerHref(item) {
+  return item.label === 'Careers' ? '/careers' : item.href;
+}
+
 export function footerTemplate() {
   return `<footer class="site-footer">
     <div class="container footer-main">
@@ -85,7 +92,7 @@ export function footerTemplate() {
           <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">RC</span><span class="brand-copy"><strong style="color:white">RC IT Services</strong><span>Technology & Consulting</span></span></a>
           <p>Technology consulting, engineering and management services presented through a clean, accountable delivery model.</p>
         </div>
-        ${FOOTER_GROUPS.map((group) => `<div class="footer-column"><h2>${esc(group.label)}</h2>${group.items.map((item) => `<a href="${esc(item.href)}">${esc(item.label)}</a>`).join('')}</div>`).join('')}
+        ${FOOTER_GROUPS.map((group) => `<div class="footer-column"><h2>${esc(group.label)}</h2>${group.items.map((item) => `<a href="${esc(footerHref(item))}">${esc(item.label)}</a>`).join('')}</div>`).join('')}
       </div>
     </div>
     <div class="footer-bottom"><div class="container footer-bottom-inner">
