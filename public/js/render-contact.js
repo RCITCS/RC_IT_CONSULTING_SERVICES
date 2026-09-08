@@ -41,9 +41,9 @@ export function renderContact() {
             <div class="form-grid">
               ${field('firstName','First Name','text',true)}
               ${field('lastName','Last Name','text',true)}
-              ${field('company','Company / Organisation','text',true)}
-              ${field('jobTitle','Job Title','text',true)}
-              ${field('businessEmail','Business Email','email',true)}
+              ${field('company','Company / Organisation')}
+              ${field('jobTitle','Job Title')}
+              ${field('email','Email','email',true)}
               ${field('phone','Phone Number','tel',true,'phone')}
               <div class="form-field form-field--full"><label for="consultation-topic">Consultation topic *</label><select id="consultation-topic" name="consultationTopic" required><option value="">Choose a topic</option><option>IT Consultancy</option><option>Cyber Security</option><option>Artificial Intelligence</option><option>Cloud Computing</option><option>Big Data / Data Engineering</option><option>IT Support Services</option><option>Risk & Management Consulting</option><option>Strategy and Implementation</option><option>Sustainability</option><option>Education Consultancy</option><option>Products / Demonstration</option><option>Partnership</option><option>General Business Enquiry</option></select><span class="field-error"></span></div>
               <div class="form-field form-field--full"><label for="message">How can we help? *</label><textarea id="message" name="message" required placeholder="Describe the requirement, target outcome, current environment, known constraints and preferred timeline."></textarea><span class="field-error"></span></div>
