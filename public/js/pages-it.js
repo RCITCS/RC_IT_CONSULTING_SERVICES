@@ -5,6 +5,8 @@ export const IT_SERVICE_PAGES = {
   '/services/it/consultancy-services': {
     category: 'IT Services', title: 'Consultancy Services', image: IMAGES.consulting,
     imageAlt: 'Technology consultants collaborating around laptops in a professional office',
+    secondaryImage: IMAGES.consultingDetail,
+    secondaryImageAlt: 'Engineers and technology professionals collaborating around project screens in a real office',
     lead: 'Practical technology consulting that connects business priorities, architecture decisions and measurable delivery.',
     introTitle: 'Turn technology decisions into delivery plans',
     intro: 'We help organisations assess current capabilities, define a realistic target state and move from strategy into implementation without losing operational context. Engagements are structured around business outcomes, delivery constraints, risk and maintainability.',
@@ -19,7 +21,9 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/cyber-security': {
     category: 'IT Services', title: 'Cyber Security', image: IMAGES.cyber,
-    imageAlt: 'Cybersecurity specialist reviewing code and security information across multiple monitors in a real office',
+    imageAlt: 'Cybersecurity specialist reviewing security information in a real technology workspace',
+    secondaryImage: IMAGES.cyberDetail,
+    secondaryImageAlt: 'Cybersecurity professional working across multiple security and data monitors in a real office',
     lead: 'Security services that reduce exposure across users, endpoints, applications and business data.',
     introTitle: 'Build security into technology delivery',
     intro: 'Cyber security is treated as a system quality, not a final checklist. We help teams identify practical control gaps, reduce attack surface and make security requirements visible through design, engineering and operations.',
@@ -32,7 +36,9 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/artificial-intelligence': {
     category: 'IT Services', title: 'Artificial Intelligence', image: IMAGES.ai,
-    imageAlt: 'Data scientist working with a laptop in a real professional office environment',
+    imageAlt: 'Data scientist working with technology in a real professional office environment',
+    secondaryImage: IMAGES.aiDetail,
+    secondaryImageAlt: 'Real laptop displaying coding and data-analysis software used for AI and machine-learning engineering',
     lead: 'AI and machine-learning initiatives designed around useful outcomes, reliable data and controlled operational risk.',
     introTitle: 'Move from AI experimentation to governed capability',
     intro: 'We help organisations frame AI problems correctly, validate whether AI is warranted, establish data and evaluation requirements, and integrate solutions into existing systems with appropriate human oversight.',
@@ -45,7 +51,9 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/cloud-computing': {
     category: 'IT Services', title: 'Cloud Computing', image: IMAGES.cloud,
-    imageAlt: 'Infrastructure engineer working directly with enterprise server and network equipment in a real data centre',
+    imageAlt: 'Real enterprise server and network infrastructure in a modern data-centre environment',
+    secondaryImage: IMAGES.cloudDetail,
+    secondaryImageAlt: 'Infrastructure engineer using a laptop while monitoring server racks in a real data centre',
     lead: 'Cloud architecture and modernisation that balance delivery speed with resilience, security, operability and cost.',
     introTitle: 'Use cloud where it creates an operational advantage',
     intro: 'We design cloud adoption around workload characteristics and business constraints. The goal is not migration for its own sake, but an environment that is secure, observable, recoverable and maintainable.',
@@ -64,7 +72,9 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/big-data': {
     category: 'IT Services', title: 'Big Data', image: IMAGES.bigData,
-    imageAlt: 'Technology and business professionals collaborating around data analysis on a laptop in a real office',
+    imageAlt: 'Technology professionals collaborating around business data and analytics in a real office',
+    secondaryImage: IMAGES.bigDataDetail,
+    secondaryImageAlt: 'Team analysing graphs and charts with laptops during a real business data workshop',
     lead: 'Data engineering and analytics foundations that make high-volume, high-variety information useful and governable.',
     introTitle: 'Engineer data for reliable decisions',
     intro: 'We help teams build ingestion, transformation, storage and analytics capabilities around clear ownership and quality expectations. Architecture is driven by latency, scale, governance and the decisions the data needs to support.',
@@ -82,7 +92,9 @@ export const IT_SERVICE_PAGES = {
   },
   '/services/it/it-support-services': {
     category: 'IT Services', title: 'IT Support Services', image: IMAGES.support,
-    imageAlt: 'Professional IT support team using laptops and headsets in a real office environment',
+    imageAlt: 'Professional IT support team using computers and headsets in a real office environment',
+    secondaryImage: IMAGES.supportDetail,
+    secondaryImageAlt: 'Diverse IT support and service-desk team working together with headsets and computers in a real office',
     lead: 'Structured technology support focused on continuity, issue ownership and transparent service operation.',
     introTitle: 'Support that connects users, systems and operations',
     intro: 'We structure support around clear service ownership, incident priority, escalation and repeatable resolution. The aim is to reduce disruption while creating the operational evidence needed to prevent recurring problems.',
@@ -92,5 +104,5 @@ export const IT_SERVICE_PAGES = {
       help('Application Support', 'Support business applications through monitored, repeatable operations.', 'We combine runbooks, observability, incident response, release awareness and known-error management to improve application supportability.'),
       help('Service Improvement', 'Use incident evidence to reduce repeated failure and support demand.', 'We identify recurring patterns, root causes, automation opportunities and knowledge gaps, then track improvement actions to closure.')
     ]
-  },
+  }
 };
