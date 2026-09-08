@@ -3,17 +3,66 @@ import { pageHero, sectionHeading, ctaPanel, arrow, esc } from './components.js'
 import { field } from './forms.js';
 import { pageTitle, imageTag } from './render-helpers.js';
 
-export function renderServicePage(page) {
+export function renderServicePage(page, servicePath) {
   pageTitle(page.title);
   const dimensions = page.dimensions ? `<section class="section section--blue"><div class="container">${sectionHeading('Big Data dimensions', 'The operating characteristics that shape the data architecture')}<div class="topic-grid">${page.dimensions.map((d) => `<article class="topic-card"><h3>${esc(d)}</h3><p>Considered explicitly in data design, quality and operating decisions.</p></article>`).join('')}</div></div></section>` : '';
   return `<main id="main-content">
     ${pageHero({ ...page, crumbs: [{label:'Home',href:'/'},{label:'Services',href:'/services/it/consultancy-services'},{label:page.title}] })}
     <section class="section"><div class="container split"><div>${imageTag(page.image, page.imageAlt)}</div><div><span class="eyebrow">Service overview</span><h2>${esc(page.introTitle)}</h2><p>${esc(page.intro)}</p><ul class="list-check">${page.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div></div></section>
     ${dimensions}
-    <section class="section section--soft"><div class="container">${sectionHeading('HOW WE HELP', `How RC approaches ${page.title}`, 'Explore the practical capabilities within this service area and open each topic for additional detail.')}
-      <div class="help-grid">${page.howWeHelp.map((item, index) => `<article class="help-card"><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p><button class="btn btn--text" type="button" data-read-more data-dialog-id="detail-${index}" data-title="${esc(item.title)}" data-detail="${esc(item.detail)}">Read More ${arrow()}</button></article>`).join('')}</div>
+    <section class="section section--soft"><div class="container">${sectionHeading('HOW WE HELP', `How RC approaches ${page.title}`, 'Each capability now opens as a complete page with its own context, delivery approach, outcomes and related service paths.')}
+      <div class="help-grid">${page.howWeHelp.map((item) => `<article class="help-card"><h3>${esc(item.title)}</h3><p>${esc(item.summary)}</p><a class="btn btn--text" href="${esc(servicePath)}/${esc(item.slug)}">Read More ${arrow()}</a></article>`).join('')}</div>
     </div></section>
     ${ctaPanel(`Talk to us about ${page.title}`)}
+  </main>`;
+}
+
+function capabilityOutcome(item, page) {
+  return `${item.title} is treated as part of the wider ${page.title} service, with decisions tied to business outcomes, ownership, security, data quality, operational readiness and measurable acceptance criteria.`;
+}
+
+export function renderServiceDetail({ page, item, servicePath }) {
+  pageTitle(`${item.title} | ${page.title}`);
+  const siblings = page.howWeHelp.filter((candidate) => candidate.slug !== item.slug);
+  return `<main id="main-content" class="service-detail-page">
+    ${pageHero({
+      category:`${page.title} · How We Help`,
+      title:item.title,
+      lead:item.summary,
+      image:page.image,
+      imageAlt:page.imageAlt,
+      crumbs:[{label:'Home',href:'/'},{label:'Services',href:'/services/it/consultancy-services'},{label:page.title,href:servicePath},{label:item.title}]
+    })}
+
+    <section class="section"><div class="container detail-intro">
+      <div class="detail-intro__media">${imageTag(page.image, page.imageAlt)}</div>
+      <div class="detail-intro__copy"><span class="eyebrow">Capability overview</span><h2>${esc(item.title)} in practice</h2><p class="detail-lead">${esc(item.detail)}</p><p>${esc(capabilityOutcome(item, page))}</p><a class="detail-back-link" href="${esc(servicePath)}">← Back to ${esc(page.title)}</a></div>
+    </div></section>
+
+    <section class="section section--soft"><div class="container detail-two-column">
+      <div><span class="eyebrow">What the work covers</span><h2>Connected to the complete service context.</h2><p>${esc(page.intro)}</p></div>
+      <ol class="detail-scope-list">${page.bullets.map((bullet, index) => `<li><span>${String(index + 1).padStart(2,'0')}</span><div><strong>${esc(bullet)}</strong><p>Considered as part of the scope, architecture, implementation and operating model for ${esc(item.title)}.</p></div></li>`).join('')}</ol>
+    </div></section>
+
+    <section class="section"><div class="container">${sectionHeading('Delivery approach', `How we structure ${item.title}`, 'The exact engagement changes by client context, but the work should move through explicit discovery, design, implementation and verification rather than an isolated recommendation.')}
+      <div class="delivery-steps">
+        <article><span>01</span><h3>Discover</h3><p>Clarify the business problem, users, current systems, constraints, risks, data and desired outcome.</p></article>
+        <article><span>02</span><h3>Design</h3><p>Define responsibilities, architecture boundaries, controls, interfaces, measures and acceptance criteria.</p></article>
+        <article><span>03</span><h3>Implement</h3><p>Deliver the agreed capability in controlled increments with engineering, quality and stakeholder feedback built in.</p></article>
+        <article><span>04</span><h3>Validate & operate</h3><p>Verify the outcome, document ownership, monitor behaviour and establish the next improvement cycle.</p></article>
+      </div>
+    </div></section>
+
+    <section class="section section--soft"><div class="container detail-outcome">
+      <div><span class="eyebrow">Expected result</span><h2>A capability that can be used, governed and improved.</h2></div>
+      <p>${esc(item.summary)} The objective is a practical outcome that fits the organisation's wider technology and operating environment rather than a standalone deliverable with no ownership after launch.</p>
+    </div></section>
+
+    ${siblings.length ? `<section class="section"><div class="container">${sectionHeading('Related capabilities', `More within ${page.title}`, 'Continue into another capability without returning to the main navigation.')}
+      <div class="related-capabilities">${siblings.map((candidate) => `<a href="${esc(servicePath)}/${esc(candidate.slug)}"><span>${esc(candidate.title)}</span>${arrow()}</a>`).join('')}</div>
+    </div></section>` : ''}
+
+    ${ctaPanel(`Discuss ${item.title}`, `Tell us what you need to achieve with ${item.title}, what systems or processes are involved and what constraints are already known.`)}
   </main>`;
 }
 
