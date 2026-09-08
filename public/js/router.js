@@ -1,11 +1,15 @@
-import { SERVICE_PAGES, INDUSTRY_PAGES } from './pages.js';
+import { SERVICE_PAGES, INDUSTRY_PAGES, findServiceDetail } from './pages.js';
 import { renderHome } from './render-home.js';
-import { renderServicePage, renderIndustryPage, renderAbout, renderProducts, renderWhitePapers, renderConsultExpert, renderContact } from './render-main.js';
+import { renderServicePage, renderServiceDetail, renderIndustryPage, renderAbout, renderProducts, renderWhitePapers, renderConsultExpert, renderContact } from './render-main.js';
 import { renderResume, renderJobs, renderFaqs, renderBlog, renderLogin, renderLegal, renderNotFound } from './render-support.js';
 
 export function routeContent(pathName) {
   if (pathName === '/') return renderHome();
-  if (SERVICE_PAGES[pathName]) return renderServicePage(SERVICE_PAGES[pathName]);
+  if (SERVICE_PAGES[pathName]) return renderServicePage(SERVICE_PAGES[pathName], pathName);
+
+  const serviceDetail = findServiceDetail(pathName);
+  if (serviceDetail) return renderServiceDetail(serviceDetail);
+
   if (INDUSTRY_PAGES[pathName]) return renderIndustryPage(INDUSTRY_PAGES[pathName]);
   if (pathName === '/about-us') return renderAbout();
   if (pathName === '/products') return renderProducts();
