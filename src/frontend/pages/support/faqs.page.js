@@ -1,7 +1,7 @@
 import { IMAGES } from '../../app/site-config.js';
-import { FAQS } from '../../app/pages.js';
 import { pageHero, esc } from '../../app/components.js';
 import { pageTitle } from '../../app/render-helpers.js';
+import { FAQS } from './faq-content.js';
 
 export function renderFaqsPage() {
   pageTitle('FAQs');
