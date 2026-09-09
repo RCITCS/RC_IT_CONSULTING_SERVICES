@@ -17,6 +17,9 @@ for (const required of [
   'const ADMIN_UI_SCRIPT =',
   'const ADMIN_UI_STYLE =',
   'function adminOriginAllowed',
+  "const fetchSite = request.headers.get('sec-fetch-site')",
+  "const fetchMode = request.headers.get('sec-fetch-mode')",
+  "fetchSite === 'same-origin' && fetchMode === 'navigate'",
   'function adminUiScriptResponse',
   'function enhanceAdminHtml',
   'function isAdminPath',
@@ -71,4 +74,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin delivery preserves the private security boundary, accepts only the approved production/staging admin origins, serves the embedded admin UI correctly, and provides an accessible same-origin password visibility control without exposing secrets.');
+console.log('PASS: Phase 10 admin delivery preserves the private security boundary, accepts approved Origin-bearing POSTs plus browser-verified same-origin navigation POSTs when Origin is omitted, serves the embedded admin UI correctly, and provides an accessible password visibility control without exposing secrets.');
