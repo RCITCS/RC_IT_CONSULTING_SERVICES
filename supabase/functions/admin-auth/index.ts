@@ -33,6 +33,12 @@ const SESSION_TTL = 8 * 60 * 60;
 const IDLE_TTL = 30 * 60;
 const RECOVERY_TTL = 10 * 60;
 const BOOTSTRAP_VERIFIER = Deno.env.get("ADMIN_BOOTSTRAP_PASSWORD_VERIFIER") ?? "";
+const ADMIN_PROXY_HEADER = "x-rcitcs-admin-proxy";
+const ADMIN_PROXY_VALUE = "cloudflare";
+const ADMIN_PUBLIC_ORIGINS = new Set([
+  "https://admin.rcitcs.com",
+  "https://admin-staging.rcitcs.com"
+]);
 
 function base(url: URL): string {
   return url.hostname.endsWith(".supabase.co") ? "/functions/v1/admin-auth" : "";
@@ -79,9 +85,35 @@ function recoveryCookies(url: URL, token = "", csrf = "", maxAge = RECOVERY_TTL)
   return headers;
 }
 
+function browserNavigationPostOk(request: Request): boolean {
+  return request.headers.get("sec-fetch-site") === "same-origin"
+    && request.headers.get("sec-fetch-mode") === "navigate"
+    && request.headers.get("sec-fetch-dest") === "document"
+    && request.headers.get("sec-fetch-user") === "?1";
+}
+
+function normalizedOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
 function originOk(request: Request, url: URL): boolean {
   const origin = request.headers.get("origin");
-  return Boolean(origin) && (origin === `${url.protocol}//${url.host}` || origin === "https://admin.rcitcs.com");
+  const proxied = request.headers.get(ADMIN_PROXY_HEADER) === ADMIN_PROXY_VALUE;
+
+  if (proxied) {
+    if (!browserNavigationPostOk(request)) return false;
+    if (!origin || origin === "null") return true;
+    const parsedOrigin = normalizedOrigin(origin);
+    return parsedOrigin !== null && ADMIN_PUBLIC_ORIGINS.has(parsedOrigin);
+  }
+
+  if (!origin || origin === "null") return false;
+  const parsedOrigin = normalizedOrigin(origin);
+  return parsedOrigin === `${url.protocol}//${url.host}`;
 }
 
 async function ipHash(request: Request): Promise<string> {
