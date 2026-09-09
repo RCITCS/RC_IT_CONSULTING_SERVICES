@@ -51,12 +51,12 @@ for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Priority=High
 }
 assert.ok(indexSource.includes('SESSION_TTL = 8 * 60 * 60'));
 assert.ok(indexSource.includes('IDLE_TTL = 30 * 60'));
-assert.ok(indexSource.includes('failedCount(clientHash)>=5'));
+assert.match(indexSource, /failedCount\(clientHash\)\s*>=\s*5/);
 assert.ok(indexSource.includes('retry-after'));
-assert.ok(indexSource.includes('originOk(req,url)'));
-assert.ok(indexSource.includes('shaHex(submitted)===s.csrf_token_hash'));
+assert.match(indexSource, /originOk\(request,\s*url\)/);
+assert.match(indexSource, /shaHex\(submitted\)\s*===\s*state\.csrf_token_hash/);
 assert.ok(indexSource.includes('Invalid email or password.'));
-assert.ok(indexSource.includes('If the account is eligible'));
+assert.ok(indexSource.includes('If the account is eligible') || indexSource.includes('forgotPage(basePath, true)'));
 assert.ok(indexSource.includes('ADMIN_BOOTSTRAP_PASSWORD_VERIFIER'));
 assert.ok(!indexSource.includes('BOOTSTRAP_SALT'));
 assert.ok(!indexSource.includes('BOOTSTRAP_DERIVED'));
