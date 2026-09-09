@@ -5,7 +5,7 @@ import {
   audit,
   changePassword,
   consumeResetToken,
-  dashboardSnapshot,
+  dashboardPageContextByHash,
   failedCount,
   queueResetRequest,
   resetByHash,
@@ -125,15 +125,38 @@ function strong(value: string): boolean {
   return value.length >= 12 && value.length <= 256 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
 }
 
-async function session(request: Request): Promise<any | null> {
+function sessionCookie(request: Request): { token: string; csrf: string } | null {
   const cookies = parseCookies(request);
   if (!cookies.rcitcs_admin_session) return null;
+  return {
+    token: cookies.rcitcs_admin_session,
+    csrf: cookies.rcitcs_admin_csrf ?? ""
+  };
+}
+
+async function session(request: Request): Promise<any | null> {
+  const cookie = sessionCookie(request);
+  if (!cookie) return null;
   const row = await sessionContextByHash(
-    await shaHex(cookies.rcitcs_admin_session),
+    await shaHex(cookie.token),
     new Date(Date.now() - IDLE_TTL * 1000).toISOString()
   );
   if (!row || !row.admin) return null;
-  return { ...row, csrf: cookies.rcitcs_admin_csrf ?? "" };
+  return { ...row, csrf: cookie.csrf };
+}
+
+async function dashboardContext(request: Request): Promise<{ session: any; snapshot: any } | null> {
+  const cookie = sessionCookie(request);
+  if (!cookie) return null;
+  const context = await dashboardPageContextByHash(
+    await shaHex(cookie.token),
+    new Date(Date.now() - IDLE_TTL * 1000).toISOString()
+  );
+  if (!context?.session?.admin || !context.snapshot) return null;
+  return {
+    session: { ...context.session, csrf: cookie.csrf },
+    snapshot: context.snapshot
+  };
 }
 
 async function csrfOk(state: any, submitted: string): Promise<boolean> {
@@ -255,6 +278,17 @@ Deno.serve(async (request: Request) => {
       return new Response(null, { status: 303, headers });
     }
 
+    if (request.method === "GET" && path === "/") {
+      const context = await dashboardContext(request);
+      if (!context) {
+        const flag = url.searchParams.get("password");
+        const message = flag === "changed" ? "Password updated. Sign in again." : flag === "reset" ? "Password reset completed. Sign in with the new password." : "";
+        return loginPage(basePath, message, false);
+      }
+      if (context.session.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration dashboard requires super administrator authority.</p>", 403);
+      return dashboardPage(basePath, context.session, context.snapshot);
+    }
+
     const authState = await session(request);
     if (request.method === "GET" && path === "/session") return authState ? json({ authenticated: true, email: authState.admin.email, role: authState.admin.role, expires_at: authState.expires_at }) : json({ authenticated: false }, 401);
 
@@ -292,18 +326,6 @@ Deno.serve(async (request: Request) => {
       const headers = authCookies(url, "", "", 0);
       headers.set("location", `${basePath}/?password=changed`);
       return new Response(null, { status: 303, headers });
-    }
-
-    if (request.method === "GET" && path === "/") {
-      if (!authState) {
-        const flag = url.searchParams.get("password");
-        const message = flag === "changed" ? "Password updated. Sign in again." : flag === "reset" ? "Password reset completed. Sign in with the new password." : "";
-        return loginPage(basePath, message, false);
-      }
-      if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration dashboard requires super administrator authority.</p>", 403);
-      const snapshot = await dashboardSnapshot(authState.admin.id);
-      if (!snapshot) return authPage("Dashboard unavailable", "<h1>Dashboard unavailable</h1><p>The operational snapshot could not be authorised. Please try again shortly.</p>", 403);
-      return dashboardPage(basePath, authState, snapshot);
     }
 
     return authPage("Not found", "<h1>Not found</h1><p>The requested administration route does not exist.</p>", 404);
