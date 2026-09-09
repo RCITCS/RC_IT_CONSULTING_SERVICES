@@ -51,12 +51,12 @@ for (const attribute of ['HttpOnly', 'Secure', 'SameSite=Strict', 'Priority=High
 }
 assert.ok(indexSource.includes('SESSION_TTL = 8 * 60 * 60'));
 assert.ok(indexSource.includes('IDLE_TTL = 30 * 60'));
-assert.ok(indexSource.includes('failedCount(clientHash)>=5'));
+assert.match(indexSource, /failedCount\(clientHash\)\s*>=\s*5/);
 assert.ok(indexSource.includes('retry-after'));
-assert.ok(indexSource.includes('originOk(req,url)'));
-assert.ok(indexSource.includes('shaHex(submitted)===s.csrf_token_hash'));
+assert.match(indexSource, /originOk\(request,\s*url\)/);
+assert.match(indexSource, /shaHex\(submitted\)\s*===\s*state\.csrf_token_hash/);
 assert.ok(indexSource.includes('Invalid email or password.'));
-assert.ok(indexSource.includes('If the account is eligible'));
+assert.ok(indexSource.includes('If the account is eligible') || indexSource.includes('forgotPage(basePath, true)'));
 assert.ok(indexSource.includes('ADMIN_BOOTSTRAP_PASSWORD_VERIFIER'));
 assert.ok(!indexSource.includes('BOOTSTRAP_SALT'));
 assert.ok(!indexSource.includes('BOOTSTRAP_DERIVED'));
@@ -66,7 +66,6 @@ assert.ok(databaseSource.includes('if (USING_LEGACY_KEY)'));
 assert.ok(databaseSource.includes('rpc/create_admin_session'));
 assert.ok(databaseSource.includes('rpc/change_admin_password'));
 assert.ok(databaseSource.includes('rpc/consume_admin_password_reset_token'));
-assert.ok(!databaseSource.includes('get_admin_dashboard_snapshot'));
 
 assert.ok(migration.includes("lower(email) = 'rcitcservices@gmail.com'"));
 assert.ok(migration.includes("where role = 'super_admin' and status = 'active'"));
@@ -81,4 +80,4 @@ assert.ok(migration.includes('from public, anon, authenticated'));
 assert.ok(migration.includes('to service_role'));
 assert.ok(!migration.includes('get_admin_dashboard_snapshot'));
 
-console.log('PASS: Phase 9 cryptography helpers, secure-cookie/session controls, throttling, CSRF, generic recovery responses, secret-key handling and phase isolation verified.');
+console.log('PASS: Phase 9 cryptography helpers, secure-cookie/session controls, throttling, CSRF, generic recovery responses, secret-key handling and migration isolation remain verified.');

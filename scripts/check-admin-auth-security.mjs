@@ -42,7 +42,7 @@ const functionContracts = [
   'consume_admin_password_reset_token'
 ];
 for (const contract of functionContracts) {
-  if (!functionSource.includes(contract)) throw new Error('Admin auth source missing contract: ' + contract);
+  if (!functionSource.includes(contract)) throw new Error('Admin auth source missing Phase 9 contract: ' + contract);
 }
 
 const migrationContracts = [
@@ -69,22 +69,18 @@ for (const contract of migrationContracts) {
   if (!migration.includes(contract)) throw new Error('Phase 9 migration missing contract: ' + contract);
 }
 
-for (const forbidden of [
-  'dashboardSnapshot',
-  'get_admin_dashboard_snapshot',
-  'Open positions',
-  'Applications today',
-  'BOOTSTRAP_SALT',
-  'BOOTSTRAP_DERIVED',
-  'pg_net'
-]) {
+for (const forbidden of ['BOOTSTRAP_SALT', 'BOOTSTRAP_DERIVED', 'pg_net']) {
   if (functionSource.includes(forbidden) || migration.includes(forbidden)) {
-    throw new Error('Phase 9 boundary or secret-material violation: ' + forbidden);
+    throw new Error('Phase 9 secret-material or unsafe-runtime violation: ' + forbidden);
   }
+}
+
+if (migration.includes('get_admin_dashboard_snapshot')) {
+  throw new Error('Phase 9 migration history must remain isolated from Phase 10 dashboard schema.');
 }
 
 if (!config.includes('[functions.admin-auth]') || !config.includes('verify_jwt = false')) {
   throw new Error('Supabase config must declare browser-facing custom admin authentication explicitly.');
 }
 
-console.log('PASS: Phase 9 auth architecture, phase boundary, database controls, runtime-secret bootstrap and browser-role isolation verified.');
+console.log('PASS: Phase 9 auth architecture, database controls, runtime-secret bootstrap and browser-role isolation remain preserved in the current admin implementation.');

@@ -231,3 +231,13 @@ export async function consumeResetToken(tokenHash: string, newPassword: string):
     })
   }));
 }
+
+export async function dashboardSnapshot(adminId: string) {
+  const response = await rest("rpc/get_admin_dashboard_snapshot", {
+    method: "POST",
+    body: JSON.stringify({ p_admin_id: adminId })
+  });
+  if (!response.ok) throw new Error("dashboard request failed");
+  const body = await response.json();
+  return Array.isArray(body) ? body[0] ?? null : body;
+}
