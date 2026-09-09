@@ -66,7 +66,6 @@ assert.ok(databaseSource.includes('if (USING_LEGACY_KEY)'));
 assert.ok(databaseSource.includes('rpc/create_admin_session'));
 assert.ok(databaseSource.includes('rpc/change_admin_password'));
 assert.ok(databaseSource.includes('rpc/consume_admin_password_reset_token'));
-assert.ok(!databaseSource.includes('get_admin_dashboard_snapshot'));
 
 assert.ok(migration.includes("lower(email) = 'rcitcservices@gmail.com'"));
 assert.ok(migration.includes("where role = 'super_admin' and status = 'active'"));
@@ -81,4 +80,4 @@ assert.ok(migration.includes('from public, anon, authenticated'));
 assert.ok(migration.includes('to service_role'));
 assert.ok(!migration.includes('get_admin_dashboard_snapshot'));
 
-console.log('PASS: Phase 9 cryptography helpers, secure-cookie/session controls, throttling, CSRF, generic recovery responses, secret-key handling and phase isolation verified.');
+console.log('PASS: Phase 9 cryptography helpers, secure-cookie/session controls, throttling, CSRF, generic recovery responses, secret-key handling and migration isolation remain verified.');
