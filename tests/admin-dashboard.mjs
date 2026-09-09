@@ -10,6 +10,7 @@ const securitySource = await readFile(path.join(root, 'supabase/functions/admin-
 const dashboardSource = `${indexSource}\n${uiSource}\n${securitySource}`;
 const databaseSource = await readFile(path.join(root, 'supabase/functions/admin-auth/db.ts'), 'utf8');
 const migration = await readFile(path.join(root, 'supabase/migrations/20260909052846_phase_10_dashboard_snapshot_query_optimization.sql'), 'utf8');
+const sessionFastPathMigration = await readFile(path.join(root, 'supabase/migrations/20260909215000_phase_10_admin_session_context_fast_path.sql'), 'utf8');
 
 for (const header of ['cache-control','no-store','x-robots-tag','noindex','content-security-policy','strict-transport-security','x-frame-options']) {
   assert.ok(dashboardSource.includes(header), 'missing private-admin response control: ' + header);
@@ -72,4 +73,21 @@ assert.ok(migration.includes('revoke all on function public.get_admin_dashboard_
 assert.ok(migration.includes('grant execute on function public.get_admin_dashboard_snapshot(uuid) to service_role'));
 assert.ok(!/security\s+definer/i.test(migration));
 
-console.log('PASS: Phase 10 enterprise operations and authenticated security workspaces, private controls, responsive/accessibility hooks and database authority verified.');
+// Authenticated Overview/Security navigation must not perform the old sequential
+// session lookup -> admin lookup -> heartbeat request chain. One RPC validates
+// the session, active super-admin authority and conditional heartbeat together.
+assert.ok(indexSource.includes('sessionContextByHash('), 'admin navigation must use the single session-context fast path');
+assert.ok(!indexSource.includes('sessionByHash('), 'old session REST lookup must not remain in the request path');
+assert.ok(!indexSource.includes('touchSession('), 'heartbeat must not require a separate request from the Edge Function');
+assert.ok(databaseSource.includes('rpc/get_admin_session_context'));
+assert.ok(sessionFastPathMigration.includes('create or replace function public.get_admin_session_context'));
+assert.ok(sessionFastPathMigration.includes('join public.admins a on a.id = s.admin_id'));
+assert.ok(sessionFastPathMigration.includes("a.status = 'active'"));
+assert.ok(sessionFastPathMigration.includes("a.role = 'super_admin'"));
+assert.ok(sessionFastPathMigration.includes("interval '5 minutes'"));
+assert.ok(sessionFastPathMigration.includes('security invoker'));
+assert.ok(sessionFastPathMigration.includes('revoke all on function public.get_admin_session_context(text, timestamptz) from public, anon, authenticated'));
+assert.ok(sessionFastPathMigration.includes('grant execute on function public.get_admin_session_context(text, timestamptz) to service_role'));
+assert.ok(!/security\s+definer/i.test(sessionFastPathMigration));
+
+console.log('PASS: Phase 10 enterprise operations/security workspaces, private controls, responsive/accessibility hooks, database authority and single-round-trip authenticated navigation contract verified.');
