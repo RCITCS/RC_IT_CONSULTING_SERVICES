@@ -5,10 +5,6 @@ import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '..
 const ADMIN_PUBLIC_BASE = '/admin';
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
-const ADMIN_ALLOWED_PUBLIC_ORIGINS = new Set([
-  'https://admin.rcitcs.com',
-  'https://admin-staging.rcitcs.com'
-]);
 const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 const ADMIN_UI_SCRIPT = `(() => {
   const eye = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.75"/></svg>';
@@ -89,20 +85,25 @@ function isAdminPath(pathname) {
   return pathname === ADMIN_PUBLIC_BASE || pathname.startsWith(`${ADMIN_PUBLIC_BASE}/`);
 }
 
-function adminOriginAllowed(request, incomingUrl) {
+function adminFetchMetadataAllowsNavigationPost(request) {
+  return request.headers.get('sec-fetch-site') === 'same-origin'
+    && request.headers.get('sec-fetch-mode') === 'navigate'
+    && request.headers.get('sec-fetch-dest') === 'document'
+    && request.headers.get('sec-fetch-user') === '?1';
+}
+
+export function adminOriginAllowed(request, incomingUrl) {
   const origin = request.headers.get('origin');
-  if (origin) {
+
+  if (origin && origin !== 'null') {
     try {
-      const normalized = new URL(origin).origin;
-      return normalized === incomingUrl.origin || ADMIN_ALLOWED_PUBLIC_ORIGINS.has(normalized);
+      return new URL(origin).origin === incomingUrl.origin;
     } catch {
       return false;
     }
   }
 
-  const fetchSite = request.headers.get('sec-fetch-site');
-  const fetchMode = request.headers.get('sec-fetch-mode');
-  return fetchSite === 'same-origin' && fetchMode === 'navigate';
+  return adminFetchMetadataAllowsNavigationPost(request);
 }
 
 function adminUiScriptResponse(requestMethod) {
