@@ -131,24 +131,17 @@ export async function sessionContextByHash(hash: string, idleCutoff: string) {
   return Array.isArray(body) ? body[0] ?? null : body;
 }
 
-export async function sessionByHash(hash: string, idleCutoff: string) {
-  const now = new Date().toISOString();
-  const data = await rows(await rest(
-    `sessions?token_hash=eq.${encodeURIComponent(hash)}&revoked_at=is.null&expires_at=gt.${encodeURIComponent(now)}&last_seen_at=gt.${encodeURIComponent(idleCutoff)}&select=id,admin_id,csrf_token_hash,expires_at,last_seen_at&limit=1`,
-    { method: "GET" }
-  ));
-  return data.length === 1 ? data[0] : null;
-}
-
-export async function touchSession(id: string) {
-  const response = await rest(
-    `sessions?id=eq.${encodeURIComponent(id)}&revoked_at=is.null`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ last_seen_at: new Date().toISOString() })
-    }
-  );
-  if (!response.ok) throw new Error("session touch failed");
+export async function dashboardPageContextByHash(hash: string, idleCutoff: string) {
+  const response = await rest("rpc/get_admin_dashboard_page_context", {
+    method: "POST",
+    body: JSON.stringify({
+      p_token_hash: hash,
+      p_idle_cutoff: idleCutoff
+    })
+  });
+  if (!response.ok) throw new Error("dashboard page context request failed");
+  const body = await response.json();
+  return Array.isArray(body) ? body[0] ?? null : body;
 }
 
 export async function revokeSession(id: string) {
