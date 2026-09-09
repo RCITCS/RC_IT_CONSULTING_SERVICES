@@ -119,6 +119,15 @@ function adminUpstreamUrl(incomingUrl) {
   return new URL(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}${suffix}${incomingUrl.search}`);
 }
 
+export function buildAdminUpstreamRequest(request, upstreamUrl) {
+  const upstreamRequest = new Request(upstreamUrl, request);
+  upstreamRequest.headers.delete('host');
+  upstreamRequest.headers.delete('content-length');
+  upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare');
+  if (request.method === 'POST') upstreamRequest.headers.set('origin', upstreamUrl.origin);
+  return upstreamRequest;
+}
+
 function adminCookieValues(headers) {
   if (typeof headers.getSetCookie === 'function') return headers.getSetCookie();
   const combined = headers.get('set-cookie');
@@ -185,19 +194,10 @@ async function handleAdminRequest(request) {
   }
 
   const upstreamUrl = adminUpstreamUrl(incomingUrl);
-  const headers = new Headers(request.headers);
-  headers.delete('host');
-  headers.delete('content-length');
-  headers.set('x-rcitcs-admin-proxy', 'cloudflare');
-  if (request.method === 'POST') headers.set('origin', ADMIN_UPSTREAM_ORIGIN);
+  const upstreamRequest = buildAdminUpstreamRequest(request, upstreamUrl);
 
   try {
-    const upstream = await fetch(new Request(upstreamUrl, {
-      method: request.method,
-      headers,
-      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
-      redirect: 'manual'
-    }));
+    const upstream = await fetch(upstreamRequest, { redirect: 'manual' });
     const bodyText = ['HEAD'].includes(request.method) ? '' : await upstream.text();
     return proxyAdminResponse(upstream, bodyText, request.method);
   } catch {
