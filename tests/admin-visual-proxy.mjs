@@ -11,7 +11,14 @@ const workflowSource = await readFile(path.join(root, '.github/workflows/cloudfl
 for (const required of [
   "const ADMIN_PUBLIC_BASE = '/admin'",
   "const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth'",
-  "const ADMIN_HTML_CSP = \"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'\"",
+  "'https://admin.rcitcs.com'",
+  "'https://admin-staging.rcitcs.com'",
+  "script-src 'self'",
+  'const ADMIN_UI_SCRIPT =',
+  'const ADMIN_UI_STYLE =',
+  'function adminOriginAllowed',
+  'function adminUiScriptResponse',
+  'function enhanceAdminHtml',
   'function isAdminPath',
   'function adminUpstreamUrl',
   'function rewriteAdminReference',
@@ -20,11 +27,23 @@ for (const required of [
   "headers.set('content-type', 'text/html; charset=utf-8')",
   "headers.set('content-security-policy', ADMIN_HTML_CSP)",
   "headers.set('origin', ADMIN_UPSTREAM_ORIGIN)",
-  "origin !== incomingUrl.origin",
+  "ADMIN_ALLOWED_PUBLIC_ORIGINS.has(normalized)",
+  "incomingUrl.pathname === `${ADMIN_PUBLIC_BASE}/ui.js`",
   "headers.append('set-cookie', rewriteAdminReference(cookie))",
   "if (isAdminPath(url.pathname)) return handleAdminRequest(request)"
 ]) {
   assert.ok(workerSource.includes(required), `admin visual proxy contract missing: ${required}`);
+}
+
+for (const passwordUiContract of [
+  "document.querySelectorAll('input[type=\"password\"]')",
+  "button.setAttribute('aria-label', 'Show password')",
+  "button.setAttribute('aria-pressed', 'false')",
+  "input.type = reveal ? 'text' : 'password'",
+  'password-reveal',
+  'password-control'
+]) {
+  assert.ok(workerSource.includes(passwordUiContract), `password reveal contract missing: ${passwordUiContract}`);
 }
 
 assert.ok(workerSource.includes("'cache-control': 'no-store, max-age=0, must-revalidate'"));
@@ -52,4 +71,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin HTML delivery is owned by Cloudflare, preserves no-store/noindex protections, permits only the embedded admin styles required by the server-rendered UI, rewrites paths/cookies safely, and keeps Supabase as the private backend runtime.');
+console.log('PASS: Phase 10 admin delivery preserves the private security boundary, accepts only the approved production/staging admin origins, serves the embedded admin UI correctly, and provides an accessible same-origin password visibility control without exposing secrets.');

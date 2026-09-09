@@ -5,7 +5,44 @@ import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '..
 const ADMIN_PUBLIC_BASE = '/admin';
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
-const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+const ADMIN_ALLOWED_PUBLIC_ORIGINS = new Set([
+  'https://admin.rcitcs.com',
+  'https://admin-staging.rcitcs.com'
+]);
+const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+const ADMIN_UI_SCRIPT = `(() => {
+  const eye = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.75"/></svg>';
+  const eyeOff = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.2 10.2 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1"/><path d="M6.1 6.2C3.7 8 2.5 12 2.5 12s3.5 6 9.5 6c1.5 0 2.8-.4 4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+  for (const input of document.querySelectorAll('input[type="password"]')) {
+    if (input.dataset.revealReady === 'true') continue;
+    input.dataset.revealReady = 'true';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'password-control';
+    input.parentNode.insertBefore(wrapper, input);
+    wrapper.appendChild(input);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'password-reveal';
+    button.setAttribute('aria-label', 'Show password');
+    button.setAttribute('aria-pressed', 'false');
+    button.title = 'Show password';
+    button.innerHTML = eye;
+    button.addEventListener('click', () => {
+      const reveal = input.type === 'password';
+      input.type = reveal ? 'text' : 'password';
+      button.setAttribute('aria-label', reveal ? 'Hide password' : 'Show password');
+      button.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+      button.title = reveal ? 'Hide password' : 'Show password';
+      button.innerHTML = reveal ? eyeOff : eye;
+      input.focus({ preventScroll: true });
+    });
+    wrapper.appendChild(button);
+  }
+})();`;
+const ADMIN_UI_STYLE = `<style>
+.password-control{position:relative}.password-control input{padding-right:48px}.password-reveal{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:3px;background:transparent;color:#667085;cursor:pointer}.password-reveal:hover{background:#f4f6f8;color:#263244}.password-reveal:focus-visible{outline:3px solid rgba(47,91,211,.22);outline-offset:1px}.password-reveal svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>`;
+const ADMIN_UI_SCRIPT_TAG = `<script src="${ADMIN_PUBLIC_BASE}/ui.js" defer></script>`;
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -52,6 +89,23 @@ function isAdminPath(pathname) {
   return pathname === ADMIN_PUBLIC_BASE || pathname.startsWith(`${ADMIN_PUBLIC_BASE}/`);
 }
 
+function adminOriginAllowed(request, incomingUrl) {
+  const origin = request.headers.get('origin');
+  if (!origin) return false;
+  try {
+    const normalized = new URL(origin).origin;
+    return normalized === incomingUrl.origin || ADMIN_ALLOWED_PUBLIC_ORIGINS.has(normalized);
+  } catch {
+    return false;
+  }
+}
+
+function adminUiScriptResponse(requestMethod) {
+  const headers = adminGatewayHeaders('application/javascript; charset=utf-8');
+  headers.set('content-security-policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+  return new Response(requestMethod === 'HEAD' ? null : ADMIN_UI_SCRIPT, { status: 200, headers });
+}
+
 function adminUpstreamUrl(incomingUrl) {
   const suffix = incomingUrl.pathname === ADMIN_PUBLIC_BASE
     ? '/'
@@ -71,6 +125,13 @@ function rewriteAdminReference(value) {
     .replaceAll(ADMIN_UPSTREAM_BASE, ADMIN_PUBLIC_BASE);
 }
 
+function enhanceAdminHtml(body) {
+  let enhanced = rewriteAdminReference(body);
+  if (enhanced.includes('</head>')) enhanced = enhanced.replace('</head>', `${ADMIN_UI_STYLE}</head>`);
+  if (enhanced.includes('</body>')) enhanced = enhanced.replace('</body>', `${ADMIN_UI_SCRIPT_TAG}</body>`);
+  return enhanced;
+}
+
 function proxyAdminResponse(upstream, bodyText, requestMethod) {
   const headers = new Headers(upstream.headers);
   headers.delete('content-length');
@@ -88,7 +149,7 @@ function proxyAdminResponse(upstream, bodyText, requestMethod) {
 
   let body = bodyText;
   if (body.trimStart().toLowerCase().startsWith('<!doctype html>')) {
-    body = rewriteAdminReference(body);
+    body = enhanceAdminHtml(body);
     headers.set('content-type', 'text/html; charset=utf-8');
     headers.set('content-security-policy', ADMIN_HTML_CSP);
     headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
@@ -109,11 +170,12 @@ function proxyAdminResponse(upstream, bodyText, requestMethod) {
 async function handleAdminRequest(request) {
   const incomingUrl = new URL(request.url);
 
-  if (request.method === 'POST') {
-    const origin = request.headers.get('origin');
-    if (!origin || origin !== incomingUrl.origin) {
-      return new Response('Request rejected', { status: 403, headers: adminGatewayHeaders() });
-    }
+  if (incomingUrl.pathname === `${ADMIN_PUBLIC_BASE}/ui.js` && ['GET', 'HEAD'].includes(request.method)) {
+    return adminUiScriptResponse(request.method);
+  }
+
+  if (request.method === 'POST' && !adminOriginAllowed(request, incomingUrl)) {
+    return new Response('Request rejected', { status: 403, headers: adminGatewayHeaders() });
   }
 
   const upstreamUrl = adminUpstreamUrl(incomingUrl);
