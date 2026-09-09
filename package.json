@@ -16,6 +16,7 @@
     "test:persistence": "node tests/persistence-storage.mjs && node tests/persistence-storage-hardening.mjs",
     "test:admin-auth": "node tests/admin-auth-security.mjs",
     "test:admin-dashboard": "node tests/admin-dashboard.mjs",
+    "test:admin-visual-proxy": "node tests/admin-visual-proxy.mjs",
     "test:render": "node tests/render-routes.mjs",
     "test:design-system": "node tests/design-system.mjs",
     "test:performance-routing": "node tests/performance-routing.mjs",
@@ -23,7 +24,7 @@
     "test:seo-preview": "node tests/seo-preview.mjs",
     "test:performance": "node scripts/check-performance.mjs",
     "test:seo-build": "node tests/seo-build.mjs",
-    "test": "npm run test:smoke && npm run test:backend && npm run test:persistence && npm run test:admin-auth && npm run test:admin-dashboard && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
+    "test": "npm run test:smoke && npm run test:backend && npm run test:persistence && npm run test:admin-auth && npm run test:admin-dashboard && npm run test:admin-visual-proxy && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
     "build": "node scripts/build.mjs",
     "provision:storage": "node scripts/provision-supabase-storage.mjs",
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:performance && npm run test:seo-build"
