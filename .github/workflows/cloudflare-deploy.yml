@@ -66,6 +66,9 @@ jobs:
           grep -q '404-page' wrangler.jsonc
           grep -q 'drop-trailing-slash' wrangler.jsonc
           grep -q 'rcitcservices' wrangler.jsonc
+          grep -q '"/admin"' wrangler.jsonc
+          grep -q '"/admin/\*"' wrangler.jsonc
+          grep -q 'handleAdminRequest' src/backend/runtime/worker.js
           grep -q 'serveApplication' worker/index.js
           grep -q 'getPrerenderRoutes' scripts/build.mjs
 
@@ -244,7 +247,39 @@ jobs:
           grep -q '"authenticated":false' /tmp/admin-session.json
           tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
 
-          echo 'Phase 10 live private admin enterprise workspace health, login shell, unauthenticated session and defensive headers verified.'
+          echo 'Phase 10 live private admin backend runtime, unauthenticated session and defensive headers verified.'
+
+      - name: Verify live Phase 10 visual admin delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'
+
+          root_code=$(curl -sS -D /tmp/admin-visual.headers -o /tmp/admin-visual.html -w '%{http_code}' "${ADMIN}")
+          test "$root_code" = '200'
+          grep -q '<!doctype html>' /tmp/admin-visual.html
+          grep -q 'Administrator sign in' /tmp/admin-visual.html
+          grep -q 'Private administration for controlled operational work.' /tmp/admin-visual.html
+          grep -q 'action="/admin/login"' /tmp/admin-visual.html
+          ! grep -q '/functions/v1/admin-auth' /tmp/admin-visual.html
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^content-type:.*text/html'
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^cache-control:.*no-store'
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^x-robots-tag:.*noindex'
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^x-frame-options: *DENY'
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^content-security-policy:'
+          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^strict-transport-security:'
+
+          session_code=$(curl -sS -D /tmp/admin-visual-session.headers -o /tmp/admin-visual-session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/admin-visual-session.json
+          tr -d '\r' < /tmp/admin-visual-session.headers | grep -qi '^content-type:.*application/json'
+          tr -d '\r' < /tmp/admin-visual-session.headers | grep -qi '^cache-control:.*no-store'
+
+          rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
+          test "$rejected_code" = '403'
+          grep -q 'Request rejected' /tmp/admin-rejected.txt
+
+          echo 'Phase 10 visual admin HTML delivery, rewritten routes, private headers, session proxy and same-origin POST guard verified.'
 
       - name: Verify Vercel fallback routes remain reachable
         shell: bash
@@ -261,6 +296,6 @@ jobs:
       - name: Deployment ownership
         run: |
           echo 'CI and live-route verification passed.'
-          echo 'Cloudflare Workers Builds is the primary CD path from main.'
-          echo 'Supabase admin-auth is the private Phase 10 administration runtime.'
+          echo 'Cloudflare Workers Builds is the primary CD path from main and owns the visual Phase 10 admin delivery.'
+          echo 'Supabase admin-auth remains the private Phase 10 administration backend runtime.'
           echo 'Vercel is retained as a secondary live fallback.'
