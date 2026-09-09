@@ -65,7 +65,7 @@ async function handleApiRequest(request, env) {
 function adminGatewayHeaders(contentType = 'text/plain; charset=utf-8') {
   return new Headers({
     'content-type': contentType,
-    'cache-control': 'no-store, max-age=0, must-revalidate',
+    'cache-control': 'no-store, no-transform, max-age=0, must-revalidate',
     pragma: 'no-cache',
     expires: '0',
     'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
@@ -124,7 +124,6 @@ export function buildAdminUpstreamRequest(request, upstreamUrl) {
   upstreamRequest.headers.delete('host');
   upstreamRequest.headers.delete('content-length');
   upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare');
-  if (request.method === 'POST') upstreamRequest.headers.set('origin', upstreamUrl.origin);
   return upstreamRequest;
 }
 
@@ -175,7 +174,7 @@ function proxyAdminResponse(upstream, bodyText, requestMethod) {
     headers.set('cross-origin-resource-policy', 'same-origin');
   }
 
-  if (!headers.has('cache-control')) headers.set('cache-control', 'no-store, max-age=0, must-revalidate');
+  headers.set('cache-control', 'no-store, no-transform, max-age=0, must-revalidate');
   if (!headers.has('x-robots-tag')) headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
 
   const bodyForbidden = requestMethod === 'HEAD' || [204, 205, 304].includes(upstream.status);

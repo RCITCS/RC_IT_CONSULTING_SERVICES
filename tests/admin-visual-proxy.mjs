@@ -24,7 +24,7 @@ for (const required of [
   "request.headers.get('sec-fetch-dest') === 'document'",
   "request.headers.get('sec-fetch-user') === '?1'",
   "origin && origin !== 'null'",
-  "upstreamRequest.headers.set('origin', upstreamUrl.origin)",
+  "upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare')",
   'function adminUiScriptResponse',
   'function enhanceAdminHtml',
   'function isAdminPath',
@@ -139,18 +139,23 @@ const upstreamUrl = new URL('https://chsizmffzpxcqhaptjeu.supabase.co/functions/
 const upstreamRequest = buildAdminUpstreamRequest(browserPost, upstreamUrl);
 assert.equal(upstreamRequest.url, upstreamUrl.href, 'admin POST must target the Supabase admin-auth endpoint');
 assert.equal(upstreamRequest.method, 'POST', 'admin POST method must be preserved');
-assert.equal(upstreamRequest.headers.get('origin'), upstreamUrl.origin, 'upstream Origin must be rewritten after Request construction');
+assert.equal(upstreamRequest.headers.get('origin'), 'null', 'browser Origin must be preserved for the upstream browser-metadata gate');
+assert.equal(upstreamRequest.headers.get('sec-fetch-site'), 'same-origin', 'browser Fetch Metadata must be preserved upstream');
+assert.equal(upstreamRequest.headers.get('sec-fetch-mode'), 'navigate', 'browser navigation mode must be preserved upstream');
+assert.equal(upstreamRequest.headers.get('sec-fetch-dest'), 'document', 'browser navigation destination must be preserved upstream');
+assert.equal(upstreamRequest.headers.get('sec-fetch-user'), '?1', 'browser user activation must be preserved upstream');
 assert.equal(upstreamRequest.headers.get('x-rcitcs-admin-proxy'), 'cloudflare', 'upstream request must retain the admin proxy marker');
 assert.equal(upstreamRequest.headers.get('host'), null, 'client Host must not be forwarded');
 assert.equal(upstreamRequest.headers.get('content-length'), null, 'client Content-Length must not be forwarded');
 assert.equal(await upstreamRequest.text(), 'email=admin%40example.invalid&password=placeholder', 'form body must be preserved exactly');
 
-assert.ok(workerSource.includes("'cache-control': 'no-store, max-age=0, must-revalidate'"));
+assert.ok(workerSource.includes("'cache-control': 'no-store, no-transform, max-age=0, must-revalidate'"));
 assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive"));
 assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
 assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
 assert.ok(workerSource.includes("upstreamRequest.headers.delete('content-length')"));
 assert.ok(workerSource.includes("fetch(upstreamRequest, { redirect: 'manual' })"));
+assert.ok(!workerSource.includes("upstreamRequest.headers.set('origin'"), 'proxy must not rewrite the browser Origin header');
 assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
 
 assert.ok(wranglerSource.includes('"/admin"'));
@@ -170,4 +175,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin delivery accepts the standards-compliant Origin: null browser POST at the public gateway, rewrites the upstream Origin on the constructed Cloudflare subrequest exactly as required by the Supabase admin-auth origin gate, preserves the form body, rejects hostile origins, and keeps private admin delivery controls intact.');
+console.log('PASS: Phase 10 admin delivery validates the browser POST at the public gateway, preserves Origin and Fetch Metadata through the Cloudflare proxy for independent upstream validation, preserves the form body, rejects hostile origins, and keeps private admin delivery controls intact.');
