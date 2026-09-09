@@ -118,6 +118,19 @@ export async function createSession(data: Record<string, unknown>) {
   return response.json();
 }
 
+export async function sessionContextByHash(hash: string, idleCutoff: string) {
+  const response = await rest("rpc/get_admin_session_context", {
+    method: "POST",
+    body: JSON.stringify({
+      p_token_hash: hash,
+      p_idle_cutoff: idleCutoff
+    })
+  });
+  if (!response.ok) throw new Error("session context request failed");
+  const body = await response.json();
+  return Array.isArray(body) ? body[0] ?? null : body;
+}
+
 export async function sessionByHash(hash: string, idleCutoff: string) {
   const now = new Date().toISOString();
   const data = await rows(await rest(
