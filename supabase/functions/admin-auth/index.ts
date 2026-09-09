@@ -1,6 +1,32 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { adminByEmail, adminById, audit, changePassword, consumeResetToken, dashboardSnapshot, failedCount, queueResetRequest, resetByHash, resetRequestCount, revokeSession, saveNewPassword, sessionByHash, touchSession, updateLastLogin, verifyPassword, createSession } from "./db.ts";
+import {
+  adminByEmail,
+  adminById,
+  audit,
+  changePassword,
+  consumeResetToken,
+  dashboardSnapshot,
+  failedCount,
+  queueResetRequest,
+  resetByHash,
+  resetRequestCount,
+  revokeSession,
+  saveNewPassword,
+  sessionByHash,
+  touchSession,
+  updateLastLogin,
+  verifyPassword,
+  createSession
+} from "./db.ts";
 import { randomToken, shaHex, verifyBootstrapPassword } from "./crypto.js";
+import {
+  authPage,
+  dashboardPage,
+  esc,
+  forgotPage,
+  loginPage,
+  privateHeaders
+} from "./ui.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
 const SESSION_TTL = 8 * 60 * 60;
@@ -8,167 +34,245 @@ const IDLE_TTL = 30 * 60;
 const RECOVERY_TTL = 10 * 60;
 const BOOTSTRAP_VERIFIER = Deno.env.get("ADMIN_BOOTSTRAP_PASSWORD_VERIFIER") ?? "";
 
-function base(url: URL): string { return url.hostname.endsWith(".supabase.co") ? "/functions/v1/admin-auth" : ""; }
+function base(url: URL): string {
+  return url.hostname.endsWith(".supabase.co") ? "/functions/v1/admin-auth" : "";
+}
+
 function route(url: URL): string {
-  let p = url.pathname || "/";
+  let path = url.pathname || "/";
   for (const prefix of ["/functions/v1/admin-auth", "/admin-auth"]) {
-    if (p === prefix) return "/";
-    if (p.startsWith(prefix + "/")) { p = p.slice(prefix.length); break; }
+    if (path === prefix) return "/";
+    if (path.startsWith(`${prefix}/`)) {
+      path = path.slice(prefix.length);
+      break;
+    }
   }
-  return p || "/";
+  return path || "/";
 }
-function parseCookies(req: Request): Record<string,string> {
-  const out: Record<string,string> = {};
-  for (const part of (req.headers.get("cookie") ?? "").split(";")) {
-    const i = part.indexOf("=");
-    if (i > 0) out[part.slice(0,i).trim()] = decodeURIComponent(part.slice(i+1).trim());
+
+function parseCookies(request: Request): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
+    const separator = part.indexOf("=");
+    if (separator > 0) cookies[part.slice(0, separator).trim()] = decodeURIComponent(part.slice(separator + 1).trim());
   }
-  return out;
-}
-function headers(type="text/html; charset=utf-8"): Headers {
-  return new Headers({
-    "content-type": type,
-    "cache-control": "no-store, max-age=0, must-revalidate",
-    "pragma": "no-cache",
-    "expires": "0",
-    "x-robots-tag": "noindex, nofollow, noarchive, nosnippet, noimageindex",
-    "x-content-type-options": "nosniff",
-    "x-frame-options": "DENY",
-    "referrer-policy": "no-referrer",
-    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
-    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-    "cross-origin-opener-policy": "same-origin",
-    "cross-origin-resource-policy": "same-origin",
-    "x-permitted-cross-domain-policies": "none"
-  });
-}
-function esc(v: unknown): string { return String(v ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] ?? c)); }
-function shell(title:string, body:string, status=200, extra?:Headers):Response {
-  const h=headers(); if(extra) extra.forEach((v,k)=>h.append(k,v));
-  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><meta name="color-scheme" content="light"><title>${esc(title)} | RC IT Services Admin</title><style>
-:root{--bg:#f6f7f9;--surface:#fff;--surface-subtle:#f9fafb;--ink:#101828;--text:#182230;--muted:#667085;--faint:#98a2b3;--line:#e4e7ec;--line-strong:#d0d5dd;--brand:#2457d6;--brand-dark:#173b99;--brand-soft:#eef4ff;--success:#067647;--danger:#b42318;--warning:#b54708;--radius:6px;--font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
-*{box-sizing:border-box}html{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}body{margin:0;min-height:100vh;background:var(--bg)}a,button,input,summary{font:inherit}a{color:inherit}.skip{position:fixed;left:12px;top:-64px;z-index:100;background:#fff;color:var(--ink);padding:10px 14px;border:2px solid var(--brand);border-radius:4px;text-decoration:none}.skip:focus{top:12px}button,a,input,summary{outline:none}button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid rgba(36,87,214,.24);outline-offset:2px}
-.auth{min-height:100vh;display:grid;grid-template-columns:minmax(280px,.8fr) minmax(420px,1.2fr);background:var(--surface)}.auth-context{background:#111827;color:#fff;padding:48px;display:flex;flex-direction:column;justify-content:space-between;min-height:100vh}.auth-context-brand{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:760;letter-spacing:.02em}.brandmark{width:34px;height:34px;display:grid;place-items:center;border-radius:5px;background:var(--brand);color:#fff;font-size:12px;font-weight:800;letter-spacing:-.02em}.auth-context-copy{max-width:420px}.auth-context-copy strong{display:block;font-size:30px;line-height:1.12;letter-spacing:-.035em;margin-bottom:14px}.auth-context-copy span{color:#cbd5e1;font-size:14px;line-height:1.65}.auth-context-foot{font-size:12px;color:#94a3b8}.auth-main{display:grid;place-items:center;padding:44px;background:var(--surface)}.auth-card{width:min(100%,460px)}.auth h1{font-size:28px;line-height:1.15;letter-spacing:-.03em;margin:0 0 10px;color:var(--ink)}.auth p{color:var(--muted);line-height:1.58;margin:8px 0 0}.field{margin:20px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px;color:var(--text)}.field input{width:100%;border:1px solid var(--line-strong);border-radius:5px;padding:11px 12px;font:inherit;background:#fff;color:var(--text);min-height:44px}.field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(36,87,214,.12)}.btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--brand);border-radius:5px;background:var(--brand);color:#fff;padding:9px 14px;font-size:13px;font-weight:720;text-decoration:none;cursor:pointer;min-height:40px}.btn:hover{background:var(--brand-dark);border-color:var(--brand-dark)}.btn.secondary{background:#fff;color:var(--text);border-color:var(--line-strong)}.btn.secondary:hover{background:var(--surface-subtle);border-color:#b9c0ca}.link{color:var(--brand);font-weight:680;text-decoration-thickness:1px;text-underline-offset:3px}.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:22px}.actions form{margin:0}.msg{border-left:3px solid currentColor;padding:11px 12px;margin:16px 0;font-size:13px;background:var(--surface-subtle)}.error{color:var(--danger)}.ok{color:var(--success)}.muted{font-size:12px!important;color:var(--faint)!important}.row{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:12px 0}.row span{color:var(--muted)}
-.app{min-height:100vh;display:grid;grid-template-columns:232px minmax(0,1fr)}.sidebar{position:sticky;top:0;height:100vh;background:var(--surface);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:28px;z-index:30}.sidebar-brandline{display:flex;align-items:center;gap:10px;padding:0 7px}.sidebar-brand{font-size:13px;font-weight:780;letter-spacing:-.01em;color:var(--ink)}.sidebar-sub{font-size:11px;color:var(--muted);margin-top:2px}.nav{display:grid;gap:3px}.nav-label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);padding:0 10px;margin:0 0 6px;font-weight:720}.nav a{display:flex;align-items:center;gap:10px;color:#475467;text-decoration:none;padding:9px 10px;border-radius:5px;font-size:13px;font-weight:650;min-height:40px}.nav a svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8}.nav a:hover{background:var(--surface-subtle);color:var(--ink)}.nav a.active{background:var(--brand-soft);color:var(--brand-dark)}.sidebar-foot{margin-top:auto;border-top:1px solid var(--line);padding:16px 8px 2px;font-size:11px;line-height:1.55;color:var(--muted)}.sidebar-foot strong{display:block;color:var(--text);font-size:11px;margin-bottom:3px}.main{min-width:0}.topbar{height:64px;background:rgba(255,255,255,.98);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:20}.topbar-left{display:flex;align-items:center;gap:10px}.topbar-left strong{font-size:13px;color:var(--ink)}.topbar-divider{width:1px;height:18px;background:var(--line)}.topbar-context{font-size:12px;color:var(--muted)}.topbar-right{display:flex;align-items:center;gap:12px}.account{font-size:12px;color:var(--muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.top-signout{margin:0}.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1px solid var(--line);border-radius:5px;color:#475467;cursor:pointer}.icon-btn:hover{background:var(--surface-subtle);color:var(--ink)}.icon-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}.mobile-nav{display:none;position:relative}.mobile-nav summary{list-style:none;cursor:pointer;border:1px solid var(--line-strong);background:#fff;padding:8px 10px;border-radius:5px;font-size:12px;font-weight:700}.mobile-nav summary::-webkit-details-marker{display:none}.mobile-menu{position:absolute;right:0;top:44px;width:220px;background:#fff;border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 8px 22px rgba(16,24,40,.08);padding:7px;z-index:40}.mobile-menu a,.mobile-menu button{display:block;width:100%;text-align:left;background:#fff;border:0;color:var(--text);text-decoration:none;padding:10px;border-radius:4px;font-size:13px}.mobile-menu a:hover,.mobile-menu button:hover{background:var(--surface-subtle)}.mobile-menu form{margin:0}.content{padding:32px 32px 44px;max-width:1480px;margin:0 auto}.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;margin-bottom:24px}.breadcrumb{font-size:11px;color:var(--muted);margin-bottom:8px}.headline{font-size:30px;line-height:1.08;letter-spacing:-.035em;margin:0;color:var(--ink);font-weight:760}.subhead{margin:8px 0 0;color:var(--muted);font-size:13px;max-width:680px;line-height:1.55}.snapshot{text-align:right;font-size:11px;color:var(--muted);line-height:1.55;white-space:nowrap}.snapshot strong{display:block;color:var(--text);font-size:11px;font-weight:700}.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}.surface{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}.surface-head{padding:18px 20px 15px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.surface-head h2{font-size:14px;line-height:1.3;margin:0;color:var(--ink);font-weight:740;letter-spacing:-.01em}.surface-head p{font-size:11px;line-height:1.5;color:var(--muted);margin:4px 0 0}.surface-meta{font-size:10px;color:var(--faint);white-space:nowrap}.measure-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.measure{padding:20px;min-height:124px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between}.measure:last-child{border-right:0}.measure-label{font-size:11px;color:var(--muted);font-weight:650}.measure-value{font-size:31px;line-height:1;font-weight:720;letter-spacing:-.04em;color:var(--ink);font-variant-numeric:tabular-nums;margin:14px 0 8px}.measure-note{font-size:10px;line-height:1.45;color:var(--faint)}.queue{grid-column:1/-1}.queue-list{display:grid}.queue-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:24px;padding:17px 20px;border-bottom:1px solid var(--line)}.queue-row:last-child{border-bottom:0}.queue-label{font-size:13px;font-weight:680;color:var(--text)}.queue-note{font-size:11px;color:var(--muted);margin-top:4px}.queue-value{font-size:22px;font-weight:720;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}.lower-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.65fr);gap:16px;margin-top:16px}.activity-wrap{overflow-x:auto}.activity-table{width:100%;border-collapse:collapse;table-layout:fixed}.activity-table th{font-size:10px;letter-spacing:.055em;text-transform:uppercase;text-align:left;color:var(--faint);font-weight:720;background:var(--surface-subtle);padding:10px 18px;border-bottom:1px solid var(--line)}.activity-table td{padding:13px 18px;border-bottom:1px solid var(--line);font-size:12px;color:var(--text);vertical-align:top}.activity-table tr:last-child td{border-bottom:0}.activity-table th:nth-child(1){width:46%}.activity-table th:nth-child(2){width:24%}.activity-table th:nth-child(3){width:30%;text-align:right}.activity-table td:last-child{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}.activity-action{font-weight:680;color:var(--text)}.activity-type{color:var(--muted)}.empty{padding:30px 20px;color:var(--muted);font-size:12px;line-height:1.55}.access-body{padding:2px 20px 18px}.access-row{display:grid;grid-template-columns:98px minmax(0,1fr);gap:12px;padding:13px 0;border-bottom:1px solid var(--line);font-size:11px}.access-row span{color:var(--muted)}.access-row strong{text-align:right;overflow-wrap:anywhere;color:var(--text);font-weight:680}.role-chip{display:inline-flex;align-items:center;background:var(--brand-soft);color:var(--brand-dark);border-radius:4px;padding:3px 6px;font-size:10px;font-weight:720}.panel-actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:16px}.panel-actions form{margin:0}.panel-actions .btn{font-size:11px;padding:7px 10px;min-height:36px}.read-only{margin-top:16px;display:flex;align-items:flex-start;gap:10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);padding:12px 14px;color:var(--muted);font-size:11px;line-height:1.55}.read-only svg{width:16px;height:16px;flex:0 0 16px;stroke:var(--brand);fill:none;stroke-width:1.8;margin-top:1px}.footerline{display:flex;justify-content:space-between;gap:16px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:10px;color:var(--faint)}
-@media(max-width:1100px){.workspace{grid-template-columns:1fr}.queue{grid-column:auto}.lower-grid{grid-template-columns:1fr}.access-body{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:22px}.panel-actions{grid-column:2;grid-row:1/4;align-content:start;padding-top:12px}.access-row{grid-column:1}}
-@media(max-width:780px){.auth{grid-template-columns:1fr}.auth-context{display:none}.auth-main{min-height:100vh;padding:24px}.app{grid-template-columns:1fr}.sidebar{display:none}.topbar{height:60px;padding:0 16px}.topbar-left .topbar-divider,.topbar-context,.topbar-right .account,.top-signout{display:none}.mobile-nav{display:block}.content{padding:24px 16px 34px}.masthead{display:block}.snapshot{text-align:left;margin-top:14px}.headline{font-size:27px}.workspace,.lower-grid{gap:12px}.measure-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.measure{padding:17px 14px}.measure-value{font-size:28px}.surface-head{padding:16px}.queue-row{padding:15px 16px}.lower-grid{margin-top:12px}.access-body{display:block;padding:2px 16px 16px}.panel-actions{padding-top:16px}.footerline{display:grid;gap:5px}}
-@media(max-width:560px){.measure-grid{grid-template-columns:1fr}.measure{min-height:auto;border-right:0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"label value" "note value";column-gap:18px;align-items:center}.measure:last-child{border-bottom:0}.measure-label{grid-area:label}.measure-value{grid-area:value;margin:0;font-size:27px}.measure-note{grid-area:note;margin-top:4px}.surface-meta{display:none}.activity-table{min-width:590px}.queue-row{grid-template-columns:minmax(0,1fr) auto}.access-row{grid-template-columns:1fr;gap:4px}.access-row strong{text-align:left}.auth h1{font-size:25px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
-</style></head><body><a class="skip" href="#main-content">Skip to main content</a>${body}</body></html>`;
-  return new Response(html,{status,headers:h});
-}
-function authPage(title:string,body:string,status=200,extra?:Headers){return shell(title,`<main class="auth" id="main-content"><aside class="auth-context" aria-label="RC IT Services administration"><div class="auth-context-brand"><span class="brandmark" aria-hidden="true">RC</span><span>RC IT Services</span></div><div class="auth-context-copy"><strong>Enterprise administration</strong><span>Private access for authorised RC IT Services operational administration.</span></div><div class="auth-context-foot">Secure · Private · Server-authoritative</div></aside><section class="auth-main"><div class="auth-card">${body}</div></section></main>`,status,extra);}
-function json(data:unknown,status=200):Response{return new Response(JSON.stringify(data),{status,headers:headers("application/json; charset=utf-8")});}
-function loginPage(url:URL,message="",error=false):Response{
-  const b=base(url); const notice=message?`<div class="msg ${error?"error":"ok"}" role="status">${esc(message)}</div>`:"";
-  return authPage("Sign in",`<h1>Administrator sign in</h1><p>Authorised RC IT Services administration access only.</p>${notice}<form method="post" action="${b}/login"><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" maxlength="254" required></div><div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required></div><button class="btn" type="submit">Sign in</button></form><p><a class="link" href="${b}/forgot-password">Forgot password?</a></p><p class="muted">Search indexing and browser caching are disabled for this private surface.</p>`);
-}
-function forgotPage(url:URL,accepted=false):Response{
-  const b=base(url);
-  return authPage("Forgot password",`<h1>Forgot password</h1>${accepted?`<div class="msg ok" role="status">If the account is eligible, the reset request has been accepted.</div>`:`<p>Enter the administrator email address. The response will not disclose whether an account exists.</p>`}<form method="post" action="${b}/forgot-password"><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" required></div><div class="actions"><button class="btn" type="submit">Request reset</button><a class="btn secondary" href="${b || "/"}">Back to sign in</a></div></form><p class="muted">Transactional reset delivery is connected in Phase 13.</p>`);
-}
-function authCookies(url:URL,session="",csrf="",maxAge=SESSION_TTL):Headers{
-  const h=new Headers(); const path=base(url)||"/";
-  h.append("set-cookie",`rcitcs_admin_session=${encodeURIComponent(session)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
-  h.append("set-cookie",`rcitcs_admin_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`); return h;
-}
-function recoveryCookies(url:URL,token="",csrf="",maxAge=RECOVERY_TTL):Headers{
-  const h=new Headers(); const path=`${base(url)}/reset-password`||"/reset-password";
-  h.append("set-cookie",`rcitcs_admin_recovery=${encodeURIComponent(token)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
-  h.append("set-cookie",`rcitcs_admin_recovery_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`); return h;
-}
-function originOk(req:Request,url:URL):boolean{const o=req.headers.get("origin");return !!o&&(o===`${url.protocol}//${url.host}`||o==="https://admin.rcitcs.com");}
-async function ipHash(req:Request):Promise<string>{const ip=(req.headers.get("cf-connecting-ip")||req.headers.get("x-forwarded-for")||"unknown").split(",")[0].trim();return shaHex(ip);}
-function strong(v:string):boolean{return v.length>=12&&v.length<=256&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/[0-9]/.test(v)&&/[^A-Za-z0-9]/.test(v);}
-async function session(req:Request):Promise<any|null>{
-  const c=parseCookies(req); if(!c.rcitcs_admin_session)return null;
-  const row=await sessionByHash(await shaHex(c.rcitcs_admin_session),new Date(Date.now()-IDLE_TTL*1000).toISOString()); if(!row)return null;
-  const admin=await adminById(row.admin_id); if(!admin)return null;
-  if(!row.last_seen_at||Date.now()-Date.parse(row.last_seen_at)>5*60_000)await touchSession(row.id);
-  return {...row,admin,csrf:c.rcitcs_admin_csrf??""};
-}
-async function csrfOk(s:any,submitted:string):Promise<boolean>{return !!submitted&&submitted===s.csrf&&await shaHex(submitted)===s.csrf_token_hash;}
-async function recovery(req:Request):Promise<any|null>{const c=parseCookies(req);if(!c.rcitcs_admin_recovery)return null;const r=await resetByHash(await shaHex(c.rcitcs_admin_recovery));if(!r)return null;const admin=await adminById(r.admin_id);if(!admin)return null;return {reset:r,admin,csrf:c.rcitcs_admin_recovery_csrf??"",token:c.rcitcs_admin_recovery};}
-function prettyAction(v:string):string{return v.replace(/^admin_/,"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());}
-function prettyType(v:string):string{return v.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());}
-function prettyTime(v:string):string{try{return new Intl.DateTimeFormat("en-GB",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/London"}).format(new Date(v));}catch{return v;}}
-function icon(name:"overview"|"security"|"signout"|"info"):string{
-  if(name==="overview")return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h6v6H4zM14 5.5h6v4h-6zM14 13.5h6v5h-6zM4 15.5h6v3H4z"/></svg>`;
-  if(name==="security")return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5c0 4.6-2.7 7.8-7 9.5C7.7 18.8 5 15.6 5 11V6l7-2.5Z"/><path d="m9.2 12 1.8 1.8 3.8-4"/></svg>`;
-  if(name==="signout")return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14.5 8.5 18 12l-3.5 3.5M9 12h9"/></svg>`;
-  return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>`;
-}
-function measure(label:string,value:unknown,note:string):string{return `<div class="measure"><div class="measure-label">${esc(label)}</div><div class="measure-value">${esc(value)}</div><div class="measure-note">${esc(note)}</div></div>`;}
-function dashboardPage(url:URL,s:any,snapshot:any):Response{
-  const b=base(url);const m=snapshot?.metrics??{};const activity=Array.isArray(snapshot?.recent_activity)?snapshot.recent_activity:[];
-  const activityHtml=activity.length?`<div class="activity-wrap"><table class="activity-table"><thead><tr><th scope="col">Activity</th><th scope="col">Area</th><th scope="col">Time</th></tr></thead><tbody>${activity.map((item:any)=>`<tr><td><span class="activity-action">${esc(prettyAction(String(item.action??"Activity")))}</span></td><td><span class="activity-type">${esc(prettyType(String(item.entity_type??"System")))}</span></td><td><time datetime="${esc(item.created_at??"")}">${esc(prettyTime(String(item.created_at??"")))}</time></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">No recent administrative activity has been recorded. New authorised operational and security events will appear here automatically.</div>`;
-  const generated=prettyTime(String(snapshot?.generated_at??new Date().toISOString()));
-  return shell("Dashboard",`<div class="app"><aside class="sidebar"><div class="sidebar-brandline"><div class="brandmark" aria-hidden="true">RC</div><div><div class="sidebar-brand">RC IT Services</div><div class="sidebar-sub">Administration</div></div></div><nav class="nav" aria-label="Administration"><div class="nav-label">Workspace</div><a class="active" aria-current="page" href="${b||"/"}">${icon("overview")}<span>Overview</span></a><a href="${b}/change-password">${icon("security")}<span>Security</span></a></nav><div class="sidebar-foot"><strong>Private administration</strong>Authorised access only.<br>Search indexing and caching disabled.</div></aside><main class="main" id="main-content"><header class="topbar"><div class="topbar-left"><strong>Administration</strong><span class="topbar-divider" aria-hidden="true"></span><span class="topbar-context">Operational overview</span></div><div class="topbar-right"><span class="account">${esc(s.admin.email)}</span><form class="top-signout" method="post" action="${b}/logout"><input type="hidden" name="csrf" value="${esc(s.csrf)}"><button class="icon-btn" type="submit" aria-label="Sign out" title="Sign out">${icon("signout")}</button></form><details class="mobile-nav"><summary>Menu</summary><div class="mobile-menu"><a href="${b||"/"}" aria-current="page">Overview</a><a href="${b}/change-password">Security</a><form method="post" action="${b}/logout"><input type="hidden" name="csrf" value="${esc(s.csrf)}"><button type="submit">Sign out</button></form></div></details></div></header><section class="content" aria-labelledby="dashboard-title"><div class="masthead"><div><div class="breadcrumb">Administration / Overview</div><h1 class="headline" id="dashboard-title">Operations overview</h1><p class="subhead">Current recruitment, application and enquiry workload from RC IT Services production data.</p></div><div class="snapshot"><strong>Data snapshot</strong>${esc(generated)}<br>Europe/London</div></div><div class="workspace"><section class="surface" aria-labelledby="recruitment-title"><header class="surface-head"><div><h2 id="recruitment-title">Recruitment positions</h2><p>Current position publishing state.</p></div><span class="surface-meta">Positions</span></header><div class="measure-grid">${measure("Open",m.open_positions??0,"Published and currently open")}${measure("Published",m.published_positions??0,"Visible recruitment positions")}${measure("Draft",m.draft_positions??0,"Not publicly visible")}</div></section><section class="surface" aria-labelledby="applications-title"><header class="surface-head"><div><h2 id="applications-title">Application workload</h2><p>Candidate intake requiring operational awareness.</p></div><span class="surface-meta">Applications</span></header><div class="measure-grid">${measure("Today",m.applications_today??0,"Received today")}${measure("This week",m.applications_week??0,"Current London week")}${measure("Unread",m.unread_applications??0,"New submissions awaiting review")}</div></section><section class="surface queue" aria-labelledby="queue-title"><header class="surface-head"><div><h2 id="queue-title">Work queue</h2><p>Outstanding communication and administration attention.</p></div><span class="surface-meta">Current</span></header><div class="queue-list"><div class="queue-row"><div><div class="queue-label">Contact enquiries</div><div class="queue-note">New, open or in-progress enquiries.</div></div><div class="queue-value">${esc(m.contact_enquiries??0)}</div></div><div class="queue-row"><div><div class="queue-label">Unread notifications</div><div class="queue-note">Administration notifications not yet read.</div></div><div class="queue-value">${esc(m.unread_notifications??0)}</div></div></div></section></div><div class="lower-grid"><section class="surface" aria-labelledby="activity-title"><header class="surface-head"><div><h2 id="activity-title">Recent activity</h2><p>Latest recorded administration and security events.</p></div><span class="surface-meta">Latest 8</span></header>${activityHtml}</section><aside class="surface" aria-labelledby="access-title"><header class="surface-head"><div><h2 id="access-title">Access &amp; session</h2><p>Server-authoritative administrator state.</p></div></header><div class="access-body"><div class="access-row"><span>Account</span><strong>${esc(s.admin.email)}</strong></div><div class="access-row"><span>Role</span><strong><span class="role-chip">${esc(s.admin.role)}</span></strong></div><div class="access-row"><span>Session expires</span><strong>${esc(prettyTime(s.expires_at))}</strong></div><div class="panel-actions"><a class="btn secondary" href="${b}/change-password">Change password</a><form method="post" action="${b}/logout"><input type="hidden" name="csrf" value="${esc(s.csrf)}"><button class="btn" type="submit">Sign out</button></form></div></div></aside></div><div class="read-only">${icon("info")}<span>This overview is intentionally read-only. Recruitment publishing and management actions are not available in this module.</span></div><div class="footerline"><span>RC IT Services · Private administration</span><span>No-cache · No-index · Server-authoritative</span></div></section></main></div>`);
+  return cookies;
 }
 
-Deno.serve(async(req:Request)=>{
-  const url=new URL(req.url); const path=route(url); const ua=(req.headers.get("user-agent")??"").slice(0,500); const clientHash=await ipHash(req);
-  try{
-    if(req.method==="GET"&&path==="/health")return json({ok:true,service:"rcitcs-admin",dashboard:true,design:"phase10-enterprise-workspace"});
-    if(!["GET","POST"].includes(req.method)){const h=headers();h.set("allow","GET, POST");return new Response("Method Not Allowed",{status:405,headers:h});}
-    if(req.method==="POST"&&!originOk(req,url))return authPage("Request rejected","<h1>Request rejected</h1><p>Reload the administration page and try again.</p>",403);
-    if(req.method==="POST"&&Number(req.headers.get("content-length")||"0")>32768)return authPage("Request rejected","<h1>Request too large</h1>",413);
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), { status, headers: privateHeaders("application/json; charset=utf-8") });
+}
 
-    if(req.method==="POST"&&path==="/login"){
-      if(await failedCount(clientHash)>=5){const h=new Headers();h.set("retry-after","900");return authPage("Sign in limited","<h1>Too many sign-in attempts</h1><div class=\"msg error\">Try again later.</div>",429,h);}
-      const f=await req.formData(); const email=String(f.get("email")??"").trim().toLowerCase(); const password=String(f.get("password")??"");
-      const admin=email===ADMIN_EMAIL?await adminByEmail(email):null; let accepted=false;
-      if(admin&&password.length>0&&password.length<=256){if(admin.password_hash){accepted=await verifyPassword(admin.id,password);}else if(BOOTSTRAP_VERIFIER&&await verifyBootstrapPassword(password,BOOTSTRAP_VERIFIER)){accepted=await saveNewPassword(admin.id,password);if(accepted)await audit("admin_bootstrap_password_activated",admin.id,clientHash,ua,{});}}
-      if(!accepted||!admin){await audit("admin_login_failed",null,clientHash,ua,{});return loginPage(url,"Invalid email or password.",true);}
-      const rawSession=randomToken(); const rawCsrf=randomToken();
-      await createSession({admin_id:admin.id,token_hash:await shaHex(rawSession),csrf_token_hash:await shaHex(rawCsrf),ip_hash:clientHash,user_agent:ua,expires_at:new Date(Date.now()+SESSION_TTL*1000).toISOString(),last_seen_at:new Date().toISOString()});
-      await updateLastLogin(admin.id); await audit("admin_login_success",admin.id,clientHash,ua,{});
-      const h=authCookies(url,rawSession,rawCsrf);h.set("location",base(url)||"/");return new Response(null,{status:303,headers:h});
+function authCookies(url: URL, session = "", csrf = "", maxAge = SESSION_TTL): Headers {
+  const headers = new Headers();
+  const path = base(url) || "/";
+  headers.append("set-cookie", `rcitcs_admin_session=${encodeURIComponent(session)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
+  headers.append("set-cookie", `rcitcs_admin_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
+  return headers;
+}
+
+function recoveryCookies(url: URL, token = "", csrf = "", maxAge = RECOVERY_TTL): Headers {
+  const headers = new Headers();
+  const path = `${base(url)}/reset-password` || "/reset-password";
+  headers.append("set-cookie", `rcitcs_admin_recovery=${encodeURIComponent(token)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
+  headers.append("set-cookie", `rcitcs_admin_recovery_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
+  return headers;
+}
+
+function originOk(request: Request, url: URL): boolean {
+  const origin = request.headers.get("origin");
+  return Boolean(origin) && (origin === `${url.protocol}//${url.host}` || origin === "https://admin.rcitcs.com");
+}
+
+async function ipHash(request: Request): Promise<string> {
+  const ip = (request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+  return shaHex(ip);
+}
+
+function strong(value: string): boolean {
+  return value.length >= 12 && value.length <= 256 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value) && /[^A-Za-z0-9]/.test(value);
+}
+
+async function session(request: Request): Promise<any | null> {
+  const cookies = parseCookies(request);
+  if (!cookies.rcitcs_admin_session) return null;
+  const row = await sessionByHash(await shaHex(cookies.rcitcs_admin_session), new Date(Date.now() - IDLE_TTL * 1000).toISOString());
+  if (!row) return null;
+  const admin = await adminById(row.admin_id);
+  if (!admin) return null;
+  if (!row.last_seen_at || Date.now() - Date.parse(row.last_seen_at) > 5 * 60_000) await touchSession(row.id);
+  return { ...row, admin, csrf: cookies.rcitcs_admin_csrf ?? "" };
+}
+
+async function csrfOk(state: any, submitted: string): Promise<boolean> {
+  return Boolean(submitted) && submitted === state.csrf && await shaHex(submitted) === state.csrf_token_hash;
+}
+
+async function recovery(request: Request): Promise<any | null> {
+  const cookies = parseCookies(request);
+  if (!cookies.rcitcs_admin_recovery) return null;
+  const reset = await resetByHash(await shaHex(cookies.rcitcs_admin_recovery));
+  if (!reset) return null;
+  const admin = await adminById(reset.admin_id);
+  if (!admin) return null;
+  return { reset, admin, csrf: cookies.rcitcs_admin_recovery_csrf ?? "", token: cookies.rcitcs_admin_recovery };
+}
+
+Deno.serve(async (request: Request) => {
+  const url = new URL(request.url);
+  const path = route(url);
+  const basePath = base(url);
+  const userAgent = (request.headers.get("user-agent") ?? "").slice(0, 500);
+  const clientHash = await ipHash(request);
+
+  try {
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, design: "phase10-enterprise-ledger" });
+
+    if (!["GET", "POST"].includes(request.method)) {
+      const headers = privateHeaders();
+      headers.set("allow", "GET, POST");
+      return new Response("Method Not Allowed", { status: 405, headers });
+    }
+    if (request.method === "POST" && !originOk(request, url)) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the administration page and try again.</p>", 403);
+    if (request.method === "POST" && Number(request.headers.get("content-length") || "0") > 32768) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
+
+    if (request.method === "POST" && path === "/login") {
+      if (await failedCount(clientHash) >= 5) {
+        const headers = new Headers();
+        headers.set("retry-after", "900");
+        return authPage("Sign in limited", "<h1>Too many sign-in attempts</h1><div class=\"msg error\">Try again later.</div>", 429, headers);
+      }
+      const form = await request.formData();
+      const email = String(form.get("email") ?? "").trim().toLowerCase();
+      const password = String(form.get("password") ?? "");
+      const admin = email === ADMIN_EMAIL ? await adminByEmail(email) : null;
+      let accepted = false;
+      if (admin && password.length > 0 && password.length <= 256) {
+        if (admin.password_hash) accepted = await verifyPassword(admin.id, password);
+        else if (BOOTSTRAP_VERIFIER && await verifyBootstrapPassword(password, BOOTSTRAP_VERIFIER)) {
+          accepted = await saveNewPassword(admin.id, password);
+          if (accepted) await audit("admin_bootstrap_password_activated", admin.id, clientHash, userAgent, {});
+        }
+      }
+      if (!accepted || !admin) {
+        await audit("admin_login_failed", null, clientHash, userAgent, {});
+        return loginPage(basePath, "Invalid email or password.", true);
+      }
+      const rawSession = randomToken();
+      const rawCsrf = randomToken();
+      await createSession({
+        admin_id: admin.id,
+        token_hash: await shaHex(rawSession),
+        csrf_token_hash: await shaHex(rawCsrf),
+        ip_hash: clientHash,
+        user_agent: userAgent,
+        expires_at: new Date(Date.now() + SESSION_TTL * 1000).toISOString()
+      });
+      await updateLastLogin(admin.id);
+      await audit("admin_login_success", admin.id, clientHash, userAgent, {});
+      const headers = authCookies(url, rawSession, rawCsrf);
+      headers.set("location", basePath || "/");
+      return new Response(null, { status: 303, headers });
     }
 
-    if(req.method==="GET"&&path==="/forgot-password")return forgotPage(url);
-    if(req.method==="POST"&&path==="/forgot-password"){
-      if(await resetRequestCount(clientHash)<3){const f=await req.formData();const email=String(f.get("email")??"").trim().toLowerCase();if(email===ADMIN_EMAIL){const admin=await adminByEmail(email);if(admin){await queueResetRequest(admin.id,admin.email);await audit("admin_password_reset_requested",admin.id,clientHash,ua,{delivery:"phase_13_queue"});}}}
-      return forgotPage(url,true);
+    if (request.method === "GET" && path === "/forgot-password") return forgotPage(basePath);
+    if (request.method === "POST" && path === "/forgot-password") {
+      if (await resetRequestCount(clientHash) < 3) {
+        const form = await request.formData();
+        const email = String(form.get("email") ?? "").trim().toLowerCase();
+        if (email === ADMIN_EMAIL) {
+          const admin = await adminByEmail(email);
+          if (admin) {
+            await queueResetRequest(admin.id, admin.email);
+            await audit("admin_password_reset_requested", admin.id, clientHash, userAgent, { delivery: "phase_13_queue" });
+          }
+        }
+      }
+      return forgotPage(basePath, true);
     }
 
-    if(req.method==="GET"&&path==="/reset-password"&&url.searchParams.get("token")){
-      const raw=String(url.searchParams.get("token")??""); const reset=raw.length>=32&&raw.length<=256?await resetByHash(await shaHex(raw)):null;
-      if(!reset)return authPage("Reset link invalid",`<h1>Reset link invalid</h1><div class="msg error">This password-reset link is invalid, expired, or already used.</div><a class="btn secondary" href="${base(url)}/forgot-password">Request another reset</a>`,400);
-      const csrf=randomToken();const h=recoveryCookies(url,raw,csrf);h.set("location",`${base(url)}/reset-password`);return new Response(null,{status:303,headers:h});
-    }
-    if(req.method==="GET"&&path==="/reset-password"){
-      const state=await recovery(req);if(!state)return authPage("Reset link invalid",`<h1>Reset link invalid</h1><div class="msg error">This password-reset link is invalid, expired, or already used.</div><a class="btn secondary" href="${base(url)}/forgot-password">Request another reset</a>`,400);
-      const b=base(url);return authPage("Reset password",`<h1>Choose a new password</h1><p>The reset link has been verified.</p><form method="post" action="${b}/reset-password"><input type="hidden" name="csrf" value="${esc(state.csrf)}"><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button class="btn" type="submit">Set new password</button><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form>`);
-    }
-    if(req.method==="POST"&&path==="/reset-password"){
-      const state=await recovery(req);if(!state)return authPage("Reset link invalid","<h1>Reset link invalid</h1><div class=\"msg error\">This password-reset session is invalid or expired.</div>",400);
-      const f=await req.formData();const c=String(f.get("csrf")??"");if(!c||c!==state.csrf)return authPage("Request rejected","<h1>Request rejected</h1><p>Reload and try again.</p>",403);
-      const next=String(f.get("next")??"");const confirm=String(f.get("confirm")??"");if(next!==confirm||!strong(next))return authPage("Password not changed","<h1>Password not changed</h1><div class=\"msg error\">The new password does not meet the password requirements.</div>",400);
-      if(!(await consumeResetToken(await shaHex(state.token),next)))throw new Error("password reset failed");await audit("admin_password_reset_completed",state.admin.id,clientHash,ua,{});
-      const h=recoveryCookies(url,"","",0);h.set("location",`${base(url)||""}/?password=reset`);return new Response(null,{status:303,headers:h});
+    if (request.method === "GET" && path === "/reset-password" && url.searchParams.get("token")) {
+      const raw = String(url.searchParams.get("token") ?? "");
+      const reset = raw.length >= 32 && raw.length <= 256 ? await resetByHash(await shaHex(raw)) : null;
+      if (!reset) return authPage("Reset link invalid", `<h1>Reset link invalid</h1><div class="msg error">This password-reset link is invalid, expired, or already used.</div><a class="btn secondary" href="${basePath}/forgot-password">Request another reset</a>`, 400);
+      const csrf = randomToken();
+      const headers = recoveryCookies(url, raw, csrf);
+      headers.set("location", `${basePath}/reset-password`);
+      return new Response(null, { status: 303, headers });
     }
 
-    const s=await session(req);
-    if(req.method==="GET"&&path==="/session")return s?json({authenticated:true,email:s.admin.email,role:s.admin.role,expires_at:s.expires_at}):json({authenticated:false},401);
-    if(req.method==="POST"&&path==="/logout"){
-      if(!s)return loginPage(url,"Your session has expired.",true);const f=await req.formData();if(!(await csrfOk(s,String(f.get("csrf")??""))))return authPage("Request rejected","<h1>Request rejected</h1><p>Reload and try again.</p>",403);
-      await revokeSession(s.id);await audit("admin_logout",s.admin.id,clientHash,ua,{});const h=authCookies(url,"","",0);h.set("location",base(url)||"/");return new Response(null,{status:303,headers:h});
+    if (request.method === "GET" && path === "/reset-password") {
+      const state = await recovery(request);
+      if (!state) return authPage("Reset link invalid", `<h1>Reset link invalid</h1><div class="msg error">This password-reset link is invalid, expired, or already used.</div><a class="btn secondary" href="${basePath}/forgot-password">Request another reset</a>`, 400);
+      return authPage("Reset password", `<h1>Choose a new password</h1><p>The reset link has been verified.</p><form method="post" action="${basePath}/reset-password"><input type="hidden" name="csrf" value="${esc(state.csrf)}"><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button class="btn" type="submit">Set new password</button><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form>`);
     }
-    if(req.method==="GET"&&path==="/change-password"){
-      if(!s)return loginPage(url,"Please sign in to continue.",true);const b=base(url);return authPage("Change password",`<h1>Change password</h1><p>Verify the current password before choosing a new one.</p><form method="post" action="${b}/change-password"><input type="hidden" name="csrf" value="${esc(s.csrf)}"><div class="field"><label for="current">Current password</label><input id="current" name="current" type="password" autocomplete="current-password" maxlength="256" required></div><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm new password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="actions"><button class="btn" type="submit">Update password</button><a class="btn secondary" href="${b||"/"}">Cancel</a></div><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form>`);
+
+    if (request.method === "POST" && path === "/reset-password") {
+      const state = await recovery(request);
+      if (!state) return authPage("Reset link invalid", "<h1>Reset link invalid</h1><div class=\"msg error\">This password-reset session is invalid or expired.</div>", 400);
+      const form = await request.formData();
+      const csrf = String(form.get("csrf") ?? "");
+      if (!csrf || csrf !== state.csrf) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload and try again.</p>", 403);
+      const next = String(form.get("next") ?? "");
+      const confirm = String(form.get("confirm") ?? "");
+      if (next !== confirm || !strong(next)) return authPage("Password not changed", "<h1>Password not changed</h1><div class=\"msg error\">The new password does not meet the password requirements.</div>", 400);
+      if (!(await consumeResetToken(await shaHex(state.token), next))) throw new Error("password reset failed");
+      await audit("admin_password_reset_completed", state.admin.id, clientHash, userAgent, {});
+      const headers = recoveryCookies(url, "", "", 0);
+      headers.set("location", `${basePath}/?password=reset`);
+      return new Response(null, { status: 303, headers });
     }
-    if(req.method==="POST"&&path==="/change-password"){
-      if(!s)return loginPage(url,"Your session has expired.",true);const f=await req.formData();if(!(await csrfOk(s,String(f.get("csrf")??""))))return authPage("Request rejected","<h1>Request rejected</h1><p>Reload and try again.</p>",403);
-      const current=String(f.get("current")??"");const next=String(f.get("next")??"");const confirm=String(f.get("confirm")??"");if(next===current||next!==confirm||!strong(next)||!(await changePassword(s.admin.id,current,next))){await audit("admin_password_change_failed",s.admin.id,clientHash,ua,{});return authPage("Password not changed",`<h1>Password not changed</h1><div class="msg error">Current password verification or new-password requirements failed.</div><a class="btn secondary" href="${base(url)}/change-password">Try again</a>`,400);}
-      await audit("admin_password_changed",s.admin.id,clientHash,ua,{});const h=authCookies(url,"","",0);h.set("location",`${base(url)||""}/?password=changed`);return new Response(null,{status:303,headers:h});
+
+    const authState = await session(request);
+    if (request.method === "GET" && path === "/session") return authState ? json({ authenticated: true, email: authState.admin.email, role: authState.admin.role, expires_at: authState.expires_at }) : json({ authenticated: false }, 401);
+
+    if (request.method === "POST" && path === "/logout") {
+      if (!authState) return loginPage(basePath, "Your session has expired.", true);
+      const form = await request.formData();
+      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload and try again.</p>", 403);
+      await revokeSession(authState.id);
+      await audit("admin_logout", authState.admin.id, clientHash, userAgent, {});
+      const headers = authCookies(url, "", "", 0);
+      headers.set("location", basePath || "/");
+      return new Response(null, { status: 303, headers });
     }
-    if(req.method==="GET"&&path==="/"){
-      if(!s){const flag=url.searchParams.get("password");const m=flag==="changed"?"Password updated. Sign in again.":flag==="reset"?"Password reset completed. Sign in with the new password.":"";return loginPage(url,m,false);}
-      if(s.admin.role!=="super_admin")return authPage("Access denied","<h1>Access denied</h1><p>This administration dashboard requires super administrator authority.</p>",403);
-      const snapshot=await dashboardSnapshot(s.admin.id);if(!snapshot)return authPage("Dashboard unavailable","<h1>Dashboard unavailable</h1><p>The operational snapshot could not be authorised. Please try again shortly.</p>",403);return dashboardPage(url,s,snapshot);
+
+    if (request.method === "GET" && path === "/change-password") {
+      if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
+      return authPage("Change password", `<h1>Change password</h1><p>Verify the current password before choosing a new one.</p><form method="post" action="${basePath}/change-password"><input type="hidden" name="csrf" value="${esc(authState.csrf)}"><div class="field"><label for="current">Current password</label><input id="current" name="current" type="password" autocomplete="current-password" maxlength="256" required></div><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm new password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="actions"><button class="btn" type="submit">Update password</button><a class="btn secondary" href="${basePath || "/"}">Cancel</a></div><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form>`);
     }
-    return authPage("Not found","<h1>Not found</h1><p>The requested administration route does not exist.</p>",404);
-  }catch{return authPage("Service unavailable","<h1>Administration unavailable</h1><p>Please try again shortly.</p>",503);}
+
+    if (request.method === "POST" && path === "/change-password") {
+      if (!authState) return loginPage(basePath, "Your session has expired.", true);
+      const form = await request.formData();
+      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload and try again.</p>", 403);
+      const current = String(form.get("current") ?? "");
+      const next = String(form.get("next") ?? "");
+      const confirm = String(form.get("confirm") ?? "");
+      if (next === current || next !== confirm || !strong(next) || !(await changePassword(authState.admin.id, current, next))) {
+        await audit("admin_password_change_failed", authState.admin.id, clientHash, userAgent, {});
+        return authPage("Password not changed", `<h1>Password not changed</h1><div class="msg error">Current password verification or new-password requirements failed.</div><a class="btn secondary" href="${basePath}/change-password">Try again</a>`, 400);
+      }
+      await audit("admin_password_changed", authState.admin.id, clientHash, userAgent, {});
+      const headers = authCookies(url, "", "", 0);
+      headers.set("location", `${basePath}/?password=changed`);
+      return new Response(null, { status: 303, headers });
+    }
+
+    if (request.method === "GET" && path === "/") {
+      if (!authState) {
+        const flag = url.searchParams.get("password");
+        const message = flag === "changed" ? "Password updated. Sign in again." : flag === "reset" ? "Password reset completed. Sign in with the new password." : "";
+        return loginPage(basePath, message, false);
+      }
+      if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration dashboard requires super administrator authority.</p>", 403);
+      const snapshot = await dashboardSnapshot(authState.admin.id);
+      if (!snapshot) return authPage("Dashboard unavailable", "<h1>Dashboard unavailable</h1><p>The operational snapshot could not be authorised. Please try again shortly.</p>", 403);
+      return dashboardPage(basePath, authState, snapshot);
+    }
+
+    return authPage("Not found", "<h1>Not found</h1><p>The requested administration route does not exist.</p>", 404);
+  } catch {
+    return authPage("Service unavailable", "<h1>Administration unavailable</h1><p>Please try again shortly.</p>", 503);
+  }
 });
