@@ -12,8 +12,7 @@ import {
   resetRequestCount,
   revokeSession,
   saveNewPassword,
-  sessionByHash,
-  touchSession,
+  sessionContextByHash,
   updateLastLogin,
   verifyPassword,
   createSession
@@ -129,12 +128,12 @@ function strong(value: string): boolean {
 async function session(request: Request): Promise<any | null> {
   const cookies = parseCookies(request);
   if (!cookies.rcitcs_admin_session) return null;
-  const row = await sessionByHash(await shaHex(cookies.rcitcs_admin_session), new Date(Date.now() - IDLE_TTL * 1000).toISOString());
-  if (!row) return null;
-  const admin = await adminById(row.admin_id);
-  if (!admin) return null;
-  if (!row.last_seen_at || Date.now() - Date.parse(row.last_seen_at) > 5 * 60_000) await touchSession(row.id);
-  return { ...row, admin, csrf: cookies.rcitcs_admin_csrf ?? "" };
+  const row = await sessionContextByHash(
+    await shaHex(cookies.rcitcs_admin_session),
+    new Date(Date.now() - IDLE_TTL * 1000).toISOString()
+  );
+  if (!row || !row.admin) return null;
+  return { ...row, csrf: cookies.rcitcs_admin_csrf ?? "" };
 }
 
 async function csrfOk(state: any, submitted: string): Promise<boolean> {
