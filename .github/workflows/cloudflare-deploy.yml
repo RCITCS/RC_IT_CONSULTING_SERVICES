@@ -35,8 +35,38 @@ jobs:
       - name: Verify source architecture
         run: npm run check:architecture
 
-      - name: Run smoke and regression tests
-        run: npm test
+      - name: Smoke tests
+        run: npm run test:smoke
+
+      - name: Backend regression tests
+        run: npm run test:backend
+
+      - name: Persistence regression tests
+        run: npm run test:persistence
+
+      - name: Admin authentication regression tests
+        run: npm run test:admin-auth
+
+      - name: Phase 10 dashboard regression tests
+        run: npm run test:admin-dashboard
+
+      - name: Phase 10 visual admin delivery regression tests
+        run: npm run test:admin-visual-proxy
+
+      - name: Route rendering regression tests
+        run: npm run test:render
+
+      - name: Design system regression tests
+        run: npm run test:design-system
+
+      - name: Performance routing regression tests
+        run: npm run test:performance-routing
+
+      - name: SEO regression tests
+        run: npm run test:seo
+
+      - name: SEO preview regression tests
+        run: npm run test:seo-preview
 
       - name: Build optimized prerendered production assets
         run: npm run build
