@@ -5,6 +5,7 @@ import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '..
 const ADMIN_PUBLIC_BASE = '/admin';
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
+const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -38,8 +39,12 @@ function adminGatewayHeaders(contentType = 'text/plain; charset=utf-8') {
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
     'referrer-policy': 'no-referrer',
-    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload'
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+    'content-security-policy': ADMIN_HTML_CSP,
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
+    'x-permitted-cross-domain-policies': 'none'
   });
 }
 
@@ -85,6 +90,13 @@ function proxyAdminResponse(upstream, bodyText, requestMethod) {
   if (body.trimStart().toLowerCase().startsWith('<!doctype html>')) {
     body = rewriteAdminReference(body);
     headers.set('content-type', 'text/html; charset=utf-8');
+    headers.set('content-security-policy', ADMIN_HTML_CSP);
+    headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    headers.set('x-content-type-options', 'nosniff');
+    headers.set('x-frame-options', 'DENY');
+    headers.set('referrer-policy', 'no-referrer');
+    headers.set('cross-origin-opener-policy', 'same-origin');
+    headers.set('cross-origin-resource-policy', 'same-origin');
   }
 
   if (!headers.has('cache-control')) headers.set('cache-control', 'no-store, max-age=0, must-revalidate');

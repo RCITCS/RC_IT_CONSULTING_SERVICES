@@ -11,12 +11,14 @@ const workflowSource = await readFile(path.join(root, '.github/workflows/cloudfl
 for (const required of [
   "const ADMIN_PUBLIC_BASE = '/admin'",
   "const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth'",
+  "const ADMIN_HTML_CSP = \"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'\"",
   'function isAdminPath',
   'function adminUpstreamUrl',
   'function rewriteAdminReference',
   'function proxyAdminResponse',
   'async function handleAdminRequest',
   "headers.set('content-type', 'text/html; charset=utf-8')",
+  "headers.set('content-security-policy', ADMIN_HTML_CSP)",
   "headers.set('origin', ADMIN_UPSTREAM_ORIGIN)",
   "origin !== incomingUrl.origin",
   "headers.append('set-cookie', rewriteAdminReference(cookie))",
@@ -28,7 +30,7 @@ for (const required of [
 assert.ok(workerSource.includes("'cache-control': 'no-store, max-age=0, must-revalidate'"));
 assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive"));
 assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
-assert.ok(workerSource.includes("'content-security-policy'"));
+assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
 assert.ok(workerSource.includes("headers.delete('content-length')"));
 assert.ok(workerSource.includes("headers.delete('content-encoding')"));
 assert.ok(workerSource.includes("redirect: 'manual'"));
@@ -50,4 +52,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin HTML delivery is owned by Cloudflare, preserves no-store/noindex protections, rewrites paths/cookies safely, and keeps Supabase as the private backend runtime.');
+console.log('PASS: Phase 10 admin HTML delivery is owned by Cloudflare, preserves no-store/noindex protections, permits only the embedded admin styles required by the server-rendered UI, rewrites paths/cookies safely, and keeps Supabase as the private backend runtime.');
