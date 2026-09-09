@@ -91,13 +91,18 @@ function isAdminPath(pathname) {
 
 function adminOriginAllowed(request, incomingUrl) {
   const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    const normalized = new URL(origin).origin;
-    return normalized === incomingUrl.origin || ADMIN_ALLOWED_PUBLIC_ORIGINS.has(normalized);
-  } catch {
-    return false;
+  if (origin) {
+    try {
+      const normalized = new URL(origin).origin;
+      return normalized === incomingUrl.origin || ADMIN_ALLOWED_PUBLIC_ORIGINS.has(normalized);
+    } catch {
+      return false;
+    }
   }
+
+  const fetchSite = request.headers.get('sec-fetch-site');
+  const fetchMode = request.headers.get('sec-fetch-mode');
+  return fetchSite === 'same-origin' && fetchMode === 'navigate';
 }
 
 function adminUiScriptResponse(requestMethod) {
