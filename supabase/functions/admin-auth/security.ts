@@ -7,7 +7,7 @@ function icon(name: "overview" | "security" | "signout" | "info"): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>`;
 }
 
-export function securityPage(basePath: string, session: AdminSessionView, message = "", error = false): Response {
+export function securityPage(basePath: string, session: AdminSessionView, message = "", error = false, status = 200): Response {
   const notice = message
     ? `<div class="msg ${error ? "error" : "ok"}" role="status">${esc(message)}</div>`
     : "";
@@ -26,5 +26,5 @@ export function securityPage(basePath: string, session: AdminSessionView, messag
 <aside class="side-plane" aria-label="Security status"><section class="side-section" aria-labelledby="identity-title"><div class="side-title"><h2 id="identity-title">Account authority</h2><span>Verified session</span></div><div class="identity-list"><div class="identity-row"><span>Account</span><strong>${esc(session.admin.email)}</strong></div><div class="identity-row"><span>Role</span><strong class="role-text">${esc(session.admin.role)}</strong></div><div class="identity-row"><span>Session expires</span><strong>${esc(prettyTime(session.expires_at))}</strong></div></div></section><section class="side-section" aria-labelledby="controls-title"><div class="side-title"><h3 id="controls-title">Security controls</h3><span>Phase 10</span></div><div class="readonly-note">${icon("info")}<span>Authentication, password verification, CSRF validation and session revocation are enforced server-side. This workspace does not expose job-management controls.</span></div><div class="side-actions"><a class="btn secondary" href="${basePath || "/"}">Return to overview</a></div></section></aside>
 </div>
 <div class="footerline"><span>RC IT Services · Private administration</span><span>No-cache · No-index · Server-authoritative</span></div>
-</main></div>`);
+</main></div>`, status);
 }
