@@ -8,7 +8,7 @@ const workerPath = path.join(root, 'src/backend/runtime/worker.js');
 const workerSource = await readFile(workerPath, 'utf8');
 const wranglerSource = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
 const workflowSource = await readFile(path.join(root, '.github/workflows/cloudflare-deploy.yml'), 'utf8');
-const { adminOriginAllowed } = await import(pathToFileURL(workerPath).href);
+const { adminOriginAllowed, buildAdminUpstreamRequest } = await import(pathToFileURL(workerPath).href);
 
 for (const required of [
   "const ADMIN_PUBLIC_BASE = '/admin'",
@@ -18,11 +18,13 @@ for (const required of [
   'const ADMIN_UI_STYLE =',
   'function adminFetchMetadataAllowsNavigationPost',
   'export function adminOriginAllowed',
+  'export function buildAdminUpstreamRequest',
   "request.headers.get('sec-fetch-site') === 'same-origin'",
   "request.headers.get('sec-fetch-mode') === 'navigate'",
   "request.headers.get('sec-fetch-dest') === 'document'",
   "request.headers.get('sec-fetch-user') === '?1'",
   "origin && origin !== 'null'",
+  "upstreamRequest.headers.set('origin', upstreamUrl.origin)",
   'function adminUiScriptResponse',
   'function enhanceAdminHtml',
   'function isAdminPath',
@@ -32,7 +34,6 @@ for (const required of [
   'async function handleAdminRequest',
   "headers.set('content-type', 'text/html; charset=utf-8')",
   "headers.set('content-security-policy', ADMIN_HTML_CSP)",
-  "headers.set('origin', ADMIN_UPSTREAM_ORIGIN)",
   "incomingUrl.pathname === `${ADMIN_PUBLIC_BASE}/ui.js`",
   "headers.append('set-cookie', rewriteAdminReference(cookie))",
   "if (isAdminPath(url.pathname)) return handleAdminRequest(request)"
@@ -125,13 +126,31 @@ assert.equal(
   'malformed explicit Origin must fail closed'
 );
 
+const browserPost = new Request(stagingLoginUrl, {
+  method: 'POST',
+  headers: {
+    origin: 'null',
+    ...sameOriginNavigation,
+    'content-type': 'application/x-www-form-urlencoded'
+  },
+  body: 'email=admin%40example.invalid&password=placeholder'
+});
+const upstreamUrl = new URL('https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth/login');
+const upstreamRequest = buildAdminUpstreamRequest(browserPost, upstreamUrl);
+assert.equal(upstreamRequest.url, upstreamUrl.href, 'admin POST must target the Supabase admin-auth endpoint');
+assert.equal(upstreamRequest.method, 'POST', 'admin POST method must be preserved');
+assert.equal(upstreamRequest.headers.get('origin'), upstreamUrl.origin, 'upstream Origin must be rewritten after Request construction');
+assert.equal(upstreamRequest.headers.get('x-rcitcs-admin-proxy'), 'cloudflare', 'upstream request must retain the admin proxy marker');
+assert.equal(upstreamRequest.headers.get('host'), null, 'client Host must not be forwarded');
+assert.equal(upstreamRequest.headers.get('content-length'), null, 'client Content-Length must not be forwarded');
+assert.equal(await upstreamRequest.text(), 'email=admin%40example.invalid&password=placeholder', 'form body must be preserved exactly');
+
 assert.ok(workerSource.includes("'cache-control': 'no-store, max-age=0, must-revalidate'"));
 assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive"));
 assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
 assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
-assert.ok(workerSource.includes("headers.delete('content-length')"));
-assert.ok(workerSource.includes("headers.delete('content-encoding')"));
-assert.ok(workerSource.includes("redirect: 'manual'"));
+assert.ok(workerSource.includes("upstreamRequest.headers.delete('content-length')"));
+assert.ok(workerSource.includes("fetch(upstreamRequest, { redirect: 'manual' })"));
 assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
 
 assert.ok(wranglerSource.includes('"/admin"'));
@@ -151,4 +170,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin delivery handles the standards-compliant Origin: null form POST produced by the no-referrer policy using strict Fetch Metadata validation, rejects explicit or cross-site origins, preserves private admin delivery controls, and provides an accessible password visibility control without exposing secrets.');
+console.log('PASS: Phase 10 admin delivery accepts the standards-compliant Origin: null browser POST at the public gateway, rewrites the upstream Origin on the constructed Cloudflare subrequest exactly as required by the Supabase admin-auth origin gate, preserves the form body, rejects hostile origins, and keeps private admin delivery controls intact.');
