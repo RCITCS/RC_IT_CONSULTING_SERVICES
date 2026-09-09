@@ -1,6 +1,6 @@
 # Phase 10 — Admin Dashboard Verification
 
-Status: **READY FOR FINAL MERGE** pending exact-main post-merge CI and deployment verification.
+Status: **IMPLEMENTATION COMPLETE**. Strict phase closure has one remaining Product Owner acceptance item: authenticated real-interaction verification at tablet (~768px) and mobile (~390px). No implementation, backend, database, security, CI, deployment or known performance blocker remains in Phase 10 scope.
 
 ## Scope
 
@@ -34,7 +34,7 @@ The superseded generic dashboard/ledger treatment was removed. The final impleme
 - tabular numerals for operational counts
 - no gradients, glassmorphism, fake charts, fake trends, decorative metric codes or Phase-11 CRUD controls
 
-The Product Owner verified the real staging login/dashboard flow and confirmed that Security now remains inside the dashboard workspace rather than falling back to the unauthenticated split-screen shell.
+The Product Owner verified the real staging login/dashboard flow on desktop and confirmed that Security remains inside the dashboard workspace rather than falling back to the unauthenticated split-screen shell.
 
 ## Data and authorization authority
 
@@ -58,7 +58,7 @@ Two narrow performance wrappers preserve that source of truth rather than duplic
 
 Both wrappers are `SECURITY INVOKER`, deny execute to `public`, `anon` and `authenticated`, and grant execute only to `service_role`.
 
-A production integration probe using the currently active admin session confirmed:
+A production integration probe using the active admin session confirmed:
 
 - session context returned successfully
 - role remained `super_admin`
@@ -73,12 +73,12 @@ The prior authenticated navigation path performed sequential session lookup, adm
 - **Security / session views:** one Edge-to-database session-context RPC
 - **Overview:** one Edge-to-database dashboard-page-context RPC containing both authorized session state and the canonical production snapshot
 
-Production database execution probes on the current small dataset measured approximately:
+Production database execution probes on the current dataset measured approximately:
 
 - session-context RPC: **2.7 ms execution time**
 - dashboard-page-context RPC: **7.1 ms execution time**
 
-These are database execution measurements, not a promise of zero end-to-end network latency. The implementation removes avoidable sequential database round trips while preserving fresh, uncached production data and server-side authority.
+These are database execution measurements, not a promise of zero end-to-end network latency. The implementation removes avoidable sequential database round trips while preserving fresh, uncached production data and server-side authority. Private admin pages intentionally remain `no-store`; performance was improved without weakening session freshness or caching sensitive dashboard content.
 
 ## Private-admin security controls
 
@@ -100,7 +100,7 @@ Preserved from Phase 9 and asserted by regression tests:
 
 Supabase Security Advisor after the performance closure deployment: **0 findings**.
 
-The performance advisor reports only informational unused-index notices across the existing database. No index was removed merely because the current development dataset has not exercised it.
+The Supabase performance advisor reports only informational unused-index notices across the existing database. No index was removed merely because the current development dataset has not exercised it.
 
 ## Production runtime
 
@@ -114,11 +114,24 @@ Edge Function:
 - JWT gateway verification: false by design; the function uses the existing custom secure cookie/session authorization layer
 - health design marker: `phase10-enterprise-workspace`
 
-## Regression and CI evidence
+## GitHub / Cloudflare closure evidence
 
-Closure pull request: **#25 — Finish Phase 10 performance and closure**.
+Performance closure pull request: **#25 — Finish Phase 10 performance and closure**.
 
-The final branch architecture/test/build gate validates:
+Functional closure checkpoint on `main`:
+
+- SHA: `384c5766e88b68885124961ed917a4bf2085b574`
+- Architecture, test and production build: **SUCCESS**
+- Verify live production routes: **SUCCESS**
+- primary Cloudflare Worker build: **SUCCESS**
+- mirror workflow: **SUCCESS**
+- mirror repository `main`: exact same SHA
+- staging Cloudflare Worker build: **SUCCESS**
+- staging Worker version: `afacaf95-d2dd-4070-ba1f-fab4bacb82c8`
+
+The branch gate also passed before merge. An earlier intermediate branch run correctly failed because a stale Phase-10 architecture checker still required the removed direct `dashboardSnapshot` call. The checker was corrected to require the canonical page-context fast path; the defect was not bypassed.
+
+The final architecture/test/build gate validates:
 
 - source architecture
 - backend/persistence architecture
@@ -131,23 +144,27 @@ The final branch architecture/test/build gate validates:
 - SEO/private indexing output
 - Cloudflare production configuration
 
-An intermediate branch run correctly failed when the old Phase-10 architecture checker still required the removed direct `dashboardSnapshot` call. The checker was updated to require the new canonical page-context fast path instead; the subsequent branch run passed. This failure was not ignored or bypassed.
-
-The final commit containing this verification document must pass the branch architecture/test/build gate. After merge, the exact `main` SHA must pass both architecture/test/build and live production-route verification before Phase 10 is marked COMPLETED & VERIFIED.
-
 ## Review gate
 
-- Product Owner: pass — real staging login/dashboard verified; Security remains in the authenticated dashboard shell; anti-generic enterprise direction accepted
-- Solution/Software Architecture: pass — public/private separation, server authority and canonical metric source preserved; performance wrappers compose existing authority instead of creating a second truth source
-- Senior Frontend: pass — enterprise information hierarchy, focus/reduced-motion states and responsive breakpoints preserved; no generic equal-card grid or Phase-11 controls
-- Backend: pass — Overview and Security navigation no longer perform avoidable sequential session/admin/heartbeat requests
-- Database: pass — forward-only migrations applied; functions are `SECURITY INVOKER`; browser roles cannot execute private admin context RPCs
-- QA: pass at branch gate — positive architecture/regression suite plus negative authorization/security contracts; exact-main verification remains the final gate
-- Security: pass — service-role-only context RPCs, CSRF/session controls preserved, production Security Advisor 0 findings
-- SEO/private indexing: pass — authenticated portal remains noindex/no-store; public SEO scope is unaffected
-- Performance: pass — authenticated navigation reduced to one Edge-to-database RPC per Overview/Security page; DB probes measured approximately 7.1 ms and 2.7 ms respectively
-- End user: pass — Overview, Security, Change Password and Sign Out remain coherent authenticated workflows with explicit errors
+- Product Owner: **desktop pass** — real staging login/dashboard verified; Security remains in the authenticated dashboard shell; anti-generic enterprise direction accepted. Tablet/mobile authenticated interaction remains to be visually accepted.
+- Solution/Software Architecture: **pass** — public/private separation, server authority and canonical metric source preserved; performance wrappers compose existing authority instead of creating a second truth source.
+- Senior Frontend: **pass** — enterprise information hierarchy, focus/reduced-motion states and responsive breakpoints preserved; no generic equal-card grid or Phase-11 controls.
+- Backend: **pass** — Overview and Security navigation no longer perform avoidable sequential session/admin/heartbeat requests.
+- Database: **pass** — forward-only migrations applied; functions are `SECURITY INVOKER`; browser roles cannot execute private admin context RPCs.
+- QA: **pass for automated/desktop-real scope** — positive architecture/regression suite, negative authorization/security contracts, exact-main CI and real desktop authentication/navigation all passed. Authenticated tablet/mobile real-interaction acceptance remains outstanding.
+- Security: **pass** — service-role-only context RPCs, CSRF/session controls preserved, production Security Advisor 0 findings.
+- SEO/private indexing: **pass / public SEO N/A** — authenticated portal remains noindex/no-store; public-site SEO is outside Phase 10.
+- Performance: **pass** — authenticated navigation reduced to one Edge-to-database RPC per Overview/Security page; DB probes measured approximately 7.1 ms and 2.7 ms respectively.
+- End user: **desktop pass** — Overview, Security, Change Password and Sign Out remain coherent authenticated workflows with explicit errors.
+- Actual code re-review: **pass** — changed Edge Function adapters, routing, forward-only migrations, regression checker and verification evidence were reopened after implementation; no unresolved implementation defect was found.
 
-Responsive CSS and regression contracts cover desktop/tablet/mobile breakpoints; the real staging browser flow used for final Product Owner acceptance was desktop. No separate physical-device screenshot is claimed by this document.
+## Remaining strict acceptance item
 
-Phase 11 remains **NOT STARTED**.
+Responsive CSS and regression contracts cover desktop/tablet/mobile breakpoints, but the authenticated real staging flow was manually verified only at desktop size. Under the global strict responsive-acceptance rule, Phase 10 must remain **OPEN** until the Product Owner verifies real interaction at approximately:
+
+- tablet: ~768px
+- mobile: ~390px
+
+Required interaction check: menu/navigation, Overview, Security, password-form visibility, buttons, scrolling, no horizontal overflow outside the intentionally scrollable recent-activity table, and Sign Out accessibility.
+
+Phase 11 remains **NOT STARTED** until that final acceptance is recorded.
