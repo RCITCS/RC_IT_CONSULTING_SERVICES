@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const indexSource = await readFile(path.join(root, 'supabase/functions/admin-auth/index.ts'), 'utf8');
 const uiSource = await readFile(path.join(root, 'supabase/functions/admin-auth/ui.ts'), 'utf8');
-const dashboardSource = `${indexSource}\n${uiSource}`;
+const securitySource = await readFile(path.join(root, 'supabase/functions/admin-auth/security.ts'), 'utf8');
+const dashboardSource = `${indexSource}\n${uiSource}\n${securitySource}`;
 const databaseSource = await readFile(path.join(root, 'supabase/functions/admin-auth/db.ts'), 'utf8');
 const migration = await readFile(path.join(root, 'supabase/migrations/20260909052846_phase_10_dashboard_snapshot_query_optimization.sql'), 'utf8');
 
@@ -33,6 +34,20 @@ const requiredLabels = [
 ];
 for (const label of requiredLabels) assert.ok(uiSource.includes(label), 'dashboard label missing: ' + label);
 
+for (const securityContract of [
+  'securityPage', 'Security &amp; access', 'Change administrator password', 'Account authority',
+  'Verified session', 'Credential control', 'Server-authoritative', 'aria-labelledby="security-title"',
+  'aria-current="page"', 'Current password', 'New password', 'Confirm new password'
+]) {
+  assert.ok(dashboardSource.includes(securityContract), 'security workspace contract missing: ' + securityContract);
+}
+assert.ok(indexSource.includes('import { securityPage } from "./security.ts"'));
+assert.ok(indexSource.includes('path === "/security" || path === "/change-password"'));
+assert.ok(indexSource.includes('return securityPage(basePath, authState);'));
+assert.ok(indexSource.includes('return securityPage(basePath, authState, "Request rejected. Reload the page and try again.", true, 403);'));
+assert.ok(indexSource.includes('return securityPage(basePath, authState, "Current password verification or new-password requirements failed.", true, 400);'));
+assert.ok(!indexSource.includes('return authPage("Change password"'), 'authenticated password control must not fall back to the unauthenticated split-screen shell');
+
 for (const rejected of [
   'Operations Console','Operational command view','Operational ledger','metric-board','live-badge',
   'linear-gradient','radial-gradient','glassmorphism','backdrop-filter','JOB/PUB','APP/WK','NTF/NEW',
@@ -57,4 +72,4 @@ assert.ok(migration.includes('revoke all on function public.get_admin_dashboard_
 assert.ok(migration.includes('grant execute on function public.get_admin_dashboard_snapshot(uuid) to service_role'));
 assert.ok(!/security\s+definer/i.test(migration));
 
-console.log('PASS: Phase 10 enterprise operations workspace, private controls, responsive/accessibility hooks and database authority verified.');
+console.log('PASS: Phase 10 enterprise operations and authenticated security workspaces, private controls, responsive/accessibility hooks and database authority verified.');
