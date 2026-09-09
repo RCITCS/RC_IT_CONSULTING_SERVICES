@@ -224,14 +224,15 @@ jobs:
           test "$health_code" = '200'
           grep -q '"ok":true' /tmp/admin-health.json
           grep -q '"dashboard":true' /tmp/admin-health.json
-          grep -q '"design":"phase10-enterprise-ledger"' /tmp/admin-health.json
+          grep -q '"design":"phase10-enterprise-workspace"' /tmp/admin-health.json
 
           root_code=$(curl -sS -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
           test "$root_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-root.html
-          grep -q 'Private administration, built for focused operational work.' /tmp/admin-root.html
+          grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
           ! grep -q 'Operations Console' /tmp/admin-root.html
           ! grep -q 'Operational command view' /tmp/admin-root.html
+          ! grep -q 'Operational ledger' /tmp/admin-root.html
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^cache-control:.*no-store'
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-robots-tag:.*noindex'
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-frame-options: *DENY'
@@ -243,7 +244,7 @@ jobs:
           grep -q '"authenticated":false' /tmp/admin-session.json
           tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
 
-          echo 'Phase 10 live private admin v10 health, login shell, unauthenticated session and defensive headers verified.'
+          echo 'Phase 10 live private admin enterprise workspace health, login shell, unauthenticated session and defensive headers verified.'
 
       - name: Verify Vercel fallback routes remain reachable
         shell: bash
@@ -261,5 +262,5 @@ jobs:
         run: |
           echo 'CI and live-route verification passed.'
           echo 'Cloudflare Workers Builds is the primary CD path from main.'
-          echo 'Supabase admin-auth v10 is the private Phase 10 administration runtime.'
+          echo 'Supabase admin-auth is the private Phase 10 administration runtime.'
           echo 'Vercel is retained as a secondary live fallback.'
