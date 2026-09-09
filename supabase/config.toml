@@ -8,3 +8,6 @@ file_size_limit = "20MiB"
 public = false
 file_size_limit = "20MiB"
 allowed_mime_types = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+
+[functions.admin-auth]
+verify_jwt = false

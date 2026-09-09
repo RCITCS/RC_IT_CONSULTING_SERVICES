@@ -1,12 +1,13 @@
 # RC IT Services
 
-Working frontend + interaction foundation for the dedicated RC IT Services website.
+Production-oriented public website and private administration foundation for RC IT Services.
 
 ## Run
 
 Requires Node.js 20+.
 
 ```bash
+npm install
 npm run dev
 ```
 
@@ -16,15 +17,13 @@ Open:
 http://localhost:4173
 ```
 
-No package installation is required for this milestone.
-
 ## Test
 
 ```bash
 npm test
 ```
 
-Current smoke suite verifies 28 routes, static assets, contact validation, demo requests, consultation requests, CV upload and the intentional Login integration boundary.
+The verification suite covers the layered backend, Supabase persistence/private storage, Phase-9 administrator authentication/security, 158 prerendered routes, SEO and performance budgets.
 
 ## Design direction
 
@@ -44,13 +43,15 @@ See:
 - `docs/ARCHITECTURE.md`
 - `docs/ROUTE_AND_INTERACTION_MATRIX.md`
 - `docs/QA_CHECKLIST.md`
+- `docs/PHASE_9_VERIFICATION.md`
 - `THIRD_PARTY_ASSETS.md`
 
 ## Important production integrations
 
-The local server gives the UI real behaviour for validation, persistence and uploads, but production should connect:
+The public runtime has server-authoritative validation and Supabase persistence boundaries. The private administrator authentication surface is maintained separately under supabase/functions/admin-auth.
+
+Later phases still need to connect:
 
 - enquiries to approved CRM/email workflow
 - resumes to approved ATS/storage with malware scanning and retention controls
-- login to approved identity provider and portal backend
 - analytics only after privacy/cookie requirements are agreed
