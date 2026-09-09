@@ -5,36 +5,44 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const files = {
   index: 'supabase/functions/admin-auth/index.ts',
+  ui: 'supabase/functions/admin-auth/ui.ts',
   db: 'supabase/functions/admin-auth/db.ts',
   migration: 'supabase/migrations/20260909052846_phase_10_dashboard_snapshot_query_optimization.sql'
 };
 for (const relative of Object.values(files)) await access(path.join(root, relative));
 
 const indexSource = await readFile(path.join(root, files.index), 'utf8');
+const uiSource = await readFile(path.join(root, files.ui), 'utf8');
+const dashboardSource = `${indexSource}\n${uiSource}`;
 const databaseSource = await readFile(path.join(root, files.db), 'utf8');
 const migration = await readFile(path.join(root, files.migration), 'utf8');
 
 const dashboardContracts = [
   'dashboardSnapshot',
   'Operations overview',
+  'Operational ledger',
   'Recruitment positions',
   'Application workload',
+  'Attention queue',
   'Contact enquiries',
   'Unread notifications',
   'Recent activity',
   'Access &amp; session',
   'Europe/London',
   'This overview is intentionally read-only',
-  's.admin.role!=="super_admin"',
   'prefers-reduced-motion',
   ':focus-visible',
-  '@media(max-width:780px)',
+  '@media(max-width:800px)',
   '@media(max-width:560px)',
   'aria-current="page"',
-  'Skip to main content'
+  'Skip to main content',
+  'phase10-enterprise-ledger'
 ];
 for (const contract of dashboardContracts) {
-  if (!indexSource.includes(contract)) throw new Error('Phase 10 dashboard source missing contract: ' + contract);
+  if (!dashboardSource.includes(contract)) throw new Error('Phase 10 dashboard source missing contract: ' + contract);
+}
+if (!/admin\.role\s*!==\s*["']super_admin["']/.test(indexSource)) {
+  throw new Error('Phase 10 dashboard must enforce super_admin before rendering.');
 }
 
 const requiredMetrics = [
@@ -48,7 +56,7 @@ const requiredMetrics = [
   'unread_notifications'
 ];
 for (const metric of requiredMetrics) {
-  if (!indexSource.includes(metric) || !migration.includes(metric)) {
+  if (!dashboardSource.includes(metric) || !migration.includes(metric)) {
     throw new Error('Phase 10 metric contract missing: ' + metric);
   }
 }
@@ -64,7 +72,7 @@ for (const rejectedPattern of [
   'APP/WK',
   'NTF/NEW'
 ]) {
-  if (indexSource.includes(rejectedPattern)) throw new Error('Rejected dashboard pattern reintroduced: ' + rejectedPattern);
+  if (dashboardSource.includes(rejectedPattern)) throw new Error('Rejected dashboard pattern reintroduced: ' + rejectedPattern);
 }
 
 for (const phase11Action of [
@@ -75,11 +83,11 @@ for (const phase11Action of [
   '>Delete job<',
   '>Close position<'
 ]) {
-  if (indexSource.includes(phase11Action)) throw new Error('Phase 11 control leaked into Phase 10: ' + phase11Action);
+  if (dashboardSource.includes(phase11Action)) throw new Error('Phase 11 control leaked into Phase 10: ' + phase11Action);
 }
 
 for (const unsafeOrFake of ['@import', 'fonts.googleapis.com', 'fake trend', 'SLA%', 'placeholder success']) {
-  if (indexSource.toLowerCase().includes(unsafeOrFake.toLowerCase())) {
+  if (dashboardSource.toLowerCase().includes(unsafeOrFake.toLowerCase())) {
     throw new Error('Unapproved UI/runtime dependency or fake signal detected: ' + unsafeOrFake);
   }
 }
@@ -102,4 +110,4 @@ for (const contract of migrationContracts) {
 if (/security\s+definer/i.test(migration)) throw new Error('Dashboard snapshot must never be SECURITY DEFINER.');
 if (/grant\s+execute[\s\S]*to\s+(?:anon|authenticated)/i.test(migration)) throw new Error('Browser roles must not execute dashboard snapshot.');
 
-console.log('PASS: Phase 10 enterprise dashboard, responsive/accessibility boundaries, read-only scope and snapshot authority verified.');
+console.log('PASS: Phase 10 enterprise ledger dashboard, responsive/accessibility boundaries, read-only scope and snapshot authority verified.');
