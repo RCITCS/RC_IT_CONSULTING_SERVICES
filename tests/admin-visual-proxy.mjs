@@ -38,8 +38,9 @@ assert.ok(wranglerSource.includes('"/admin/*"'));
 assert.ok(wranglerSource.includes('"run_worker_first"'));
 
 assert.ok(workflowSource.includes('Verify live Phase 10 visual admin delivery'));
+assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"));
 assert.ok(workflowSource.includes('content-type:.*text/html'));
-assert.ok(workflowSource.includes('/admin/session'));
+assert.ok(workflowSource.includes('${ADMIN}/session'));
 
 for (const forbidden of [
   'SUPABASE_SERVICE_ROLE_KEY',
