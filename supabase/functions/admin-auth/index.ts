@@ -27,6 +27,7 @@ import {
   loginPage,
   privateHeaders
 } from "./ui.ts";
+import { securityPage } from "./security.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
 const SESSION_TTL = 8 * 60 * 60;
@@ -269,21 +270,24 @@ Deno.serve(async (request: Request) => {
       return new Response(null, { status: 303, headers });
     }
 
-    if (request.method === "GET" && path === "/change-password") {
+    if (request.method === "GET" && (path === "/security" || path === "/change-password")) {
       if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
-      return authPage("Change password", `<h1>Change password</h1><p>Verify the current password before choosing a new one.</p><form method="post" action="${basePath}/change-password"><input type="hidden" name="csrf" value="${esc(authState.csrf)}"><div class="field"><label for="current">Current password</label><input id="current" name="current" type="password" autocomplete="current-password" maxlength="256" required></div><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm new password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="actions"><button class="btn" type="submit">Update password</button><a class="btn secondary" href="${basePath || "/"}">Cancel</a></div><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form>`);
+      if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration workspace requires super administrator authority.</p>", 403);
+      return securityPage(basePath, authState);
     }
 
     if (request.method === "POST" && path === "/change-password") {
       if (!authState) return loginPage(basePath, "Your session has expired.", true);
       const form = await request.formData();
-      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload and try again.</p>", 403);
+      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) {
+        return securityPage(basePath, authState, "Request rejected. Reload the page and try again.", true, 403);
+      }
       const current = String(form.get("current") ?? "");
       const next = String(form.get("next") ?? "");
       const confirm = String(form.get("confirm") ?? "");
       if (next === current || next !== confirm || !strong(next) || !(await changePassword(authState.admin.id, current, next))) {
         await audit("admin_password_change_failed", authState.admin.id, clientHash, userAgent, {});
-        return authPage("Password not changed", `<h1>Password not changed</h1><div class="msg error">Current password verification or new-password requirements failed.</div><a class="btn secondary" href="${basePath}/change-password">Try again</a>`, 400);
+        return securityPage(basePath, authState, "Current password verification or new-password requirements failed.", true, 400);
       }
       await audit("admin_password_changed", authState.admin.id, clientHash, userAgent, {});
       const headers = authCookies(url, "", "", 0);
