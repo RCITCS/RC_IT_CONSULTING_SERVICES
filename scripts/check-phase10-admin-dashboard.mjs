@@ -7,7 +7,8 @@ const files = {
   index: 'supabase/functions/admin-auth/index.ts',
   ui: 'supabase/functions/admin-auth/ui.ts',
   db: 'supabase/functions/admin-auth/db.ts',
-  migration: 'supabase/migrations/20260909052846_phase_10_dashboard_snapshot_query_optimization.sql'
+  migration: 'supabase/migrations/20260909052846_phase_10_dashboard_snapshot_query_optimization.sql',
+  dashboardFastPath: 'supabase/migrations/20260909220500_phase_10_dashboard_page_context_fast_path.sql'
 };
 for (const relative of Object.values(files)) await access(path.join(root, relative));
 
@@ -16,9 +17,10 @@ const uiSource = await readFile(path.join(root, files.ui), 'utf8');
 const dashboardSource = `${indexSource}\n${uiSource}`;
 const databaseSource = await readFile(path.join(root, files.db), 'utf8');
 const migration = await readFile(path.join(root, files.migration), 'utf8');
+const dashboardFastPath = await readFile(path.join(root, files.dashboardFastPath), 'utf8');
 
 const dashboardContracts = [
-  'dashboardSnapshot', 'Operations overview', 'Enterprise Administration',
+  'dashboardPageContextByHash', 'Operations overview', 'Enterprise Administration',
   'Recruitment &amp; application workload', 'Position inventory', 'Application flow',
   'Contact enquiries', 'Unread notifications', 'Recent activity', 'Access &amp; session',
   'Production snapshot', 'Europe/London', 'This overview is intentionally read-only',
@@ -60,7 +62,8 @@ for (const unsafeOrFake of ['@import','fonts.googleapis.com','fake trend','SLA%'
   }
 }
 
-if (!databaseSource.includes('rpc/get_admin_dashboard_snapshot')) throw new Error('Dashboard must use the server snapshot RPC.');
+if (!databaseSource.includes('rpc/get_admin_dashboard_snapshot')) throw new Error('Canonical dashboard snapshot RPC adapter must remain available.');
+if (!databaseSource.includes('rpc/get_admin_dashboard_page_context')) throw new Error('Dashboard must use the one-round-trip page-context RPC.');
 
 const migrationContracts = [
   'create or replace function public.get_admin_dashboard_snapshot','security invoker',
@@ -73,4 +76,16 @@ for (const contract of migrationContracts) {
 if (/security\s+definer/i.test(migration)) throw new Error('Dashboard snapshot must never be SECURITY DEFINER.');
 if (/grant\s+execute[\s\S]*to\s+(?:anon|authenticated)/i.test(migration)) throw new Error('Browser roles must not execute dashboard snapshot.');
 
-console.log('PASS: Phase 10 enterprise operations workspace, responsive/accessibility boundaries, read-only scope and snapshot authority verified.');
+for (const contract of [
+  'create or replace function public.get_admin_dashboard_page_context',
+  'public.get_admin_session_context(p_token_hash, p_idle_cutoff)',
+  'public.get_admin_dashboard_snapshot(v_admin_id)',
+  'security invoker',
+  'from public, anon, authenticated',
+  'to service_role'
+]) {
+  if (!dashboardFastPath.includes(contract)) throw new Error('Phase 10 dashboard fast path missing contract: ' + contract);
+}
+if (/security\s+definer/i.test(dashboardFastPath)) throw new Error('Dashboard page context must never be SECURITY DEFINER.');
+
+console.log('PASS: Phase 10 enterprise operations workspace, responsive/accessibility boundaries, read-only scope, snapshot authority and one-round-trip Overview loading verified.');
