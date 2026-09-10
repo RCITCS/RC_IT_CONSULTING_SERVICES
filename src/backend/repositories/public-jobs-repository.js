@@ -6,7 +6,7 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function normalizedJob(value) {
+function normalizedListJob(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return Object.freeze({
     id: String(value.id || ''),
@@ -14,12 +14,20 @@ function normalizedJob(value) {
     slug: String(value.slug || ''),
     title: String(value.title || ''),
     category: value.category == null ? '' : String(value.category),
-    summary: value.summary == null ? '' : String(value.summary),
-    description: value.description == null ? '' : String(value.description),
     location: value.location == null ? '' : String(value.location),
     workplaceType: value.workplace_type == null ? '' : String(value.workplace_type),
     employmentType: value.employment_type == null ? '' : String(value.employment_type),
-    experience: value.experience == null ? '' : String(value.experience),
+    experience: value.experience == null ? '' : String(value.experience)
+  });
+}
+
+function normalizedSelectedJob(value) {
+  const base = normalizedListJob(value);
+  if (!base) return null;
+  return Object.freeze({
+    ...base,
+    summary: value.summary == null ? '' : String(value.summary),
+    description: value.description == null ? '' : String(value.description),
     technologies: asArray(value.technologies).map(String),
     responsibilities: asArray(value.responsibilities).map(String),
     qualifications: asArray(value.qualifications).map(String),
@@ -31,12 +39,20 @@ function normalizedJob(value) {
   });
 }
 
+function normalizeContext(payload) {
+  const value = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
+  return Object.freeze({
+    jobs: Object.freeze(asArray(value.jobs).map(normalizedListJob).filter(Boolean)),
+    selected: normalizedSelectedJob(value.selected)
+  });
+}
+
 export function createPublicJobsRepository({ env = {}, fetchImpl = globalThis.fetch } = {}) {
   const persistence = createPersistenceConfig(env);
   if (!persistence.configured) {
     return Object.freeze({
       configured: false,
-      async listPublishedJobs() {
+      async getCareersContext() {
         throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
       }
     });
@@ -50,12 +66,12 @@ export function createPublicJobsRepository({ env = {}, fetchImpl = globalThis.fe
 
   return Object.freeze({
     configured: true,
-    async listPublishedJobs() {
-      const payload = await client.request('/rest/v1/rpc/get_public_jobs', {
+    async getCareersContext(slug = '') {
+      const payload = await client.request('/rest/v1/rpc/get_public_careers_context', {
         method: 'POST',
-        json: {}
+        json: { p_slug: String(slug || '').trim() || null }
       });
-      return Object.freeze(asArray(payload).map(normalizedJob).filter(Boolean));
+      return normalizeContext(payload);
     }
   });
 }
