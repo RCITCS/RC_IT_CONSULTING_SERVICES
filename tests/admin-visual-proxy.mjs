@@ -150,7 +150,7 @@ assert.equal(upstreamRequest.headers.get('content-length'), null, 'client Conten
 assert.equal(await upstreamRequest.text(), 'email=admin%40example.invalid&password=placeholder', 'form body must be preserved exactly');
 
 assert.ok(workerSource.includes("'cache-control': 'no-store, no-transform, max-age=0, must-revalidate'"));
-assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive"));
+assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive'"));
 assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
 assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
 assert.ok(workerSource.includes("upstreamRequest.headers.delete('content-length')"));
@@ -162,7 +162,10 @@ assert.ok(wranglerSource.includes('"/admin"'));
 assert.ok(wranglerSource.includes('"/admin/*"'));
 assert.ok(wranglerSource.includes('"run_worker_first"'));
 
-assert.ok(workflowSource.includes('Verify live Phase 10 visual admin delivery'));
+assert.ok(workflowSource.includes('Verify live Phase 11 private admin runtime'));
+assert.ok(workflowSource.includes('Verify live Phase 11 visual admin delivery'));
+assert.ok(workflowSource.includes('"jobs":true'));
+assert.ok(workflowSource.includes('"design":"phase11-job-management-cms"'));
 assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"));
 assert.ok(workflowSource.includes('content-type:.*text/html'));
 assert.ok(workflowSource.includes('${ADMIN}/session'));
@@ -175,4 +178,4 @@ for (const forbidden of [
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin delivery validates the browser POST at the public gateway, preserves Origin and Fetch Metadata through the Cloudflare proxy for independent upstream validation, preserves the form body, rejects hostile origins, and keeps private admin delivery controls intact.');
+console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 11 live release gate verifies the CMS-aware private runtime and visual admin delivery.');
