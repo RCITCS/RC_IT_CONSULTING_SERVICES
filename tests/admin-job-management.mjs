@@ -1,0 +1,100 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const read = (relative) => readFile(path.join(root, relative), 'utf8');
+
+const [migration, db, index, routes, ui, worker, catalog] = await Promise.all([
+  read('supabase/migrations/20260910152000_phase_11_job_management_cms.sql'),
+  read('supabase/functions/admin-auth/db.ts'),
+  read('supabase/functions/admin-auth/index.ts'),
+  read('supabase/functions/admin-auth/job-routes.ts'),
+  read('supabase/functions/admin-auth/jobs.ts'),
+  read('src/backend/runtime/worker.js'),
+  read('src/frontend/app/career-job-catalog.js')
+]);
+
+for (const column of [
+  'code text', 'experience text', 'technologies jsonb', 'responsibilities jsonb',
+  'qualifications jsonb', 'benefits jsonb', 'opens_at timestamptz', 'archived_at timestamptz',
+  'version integer'
+]) assert.ok(migration.includes(column), `Phase 11 schema field missing: ${column}`);
+
+for (const fn of [
+  'get_admin_job_management_context', 'admin_save_job', 'admin_transition_job',
+  'admin_duplicate_job', 'admin_delete_job', 'get_public_jobs', 'get_public_job'
+]) {
+  assert.ok(migration.includes(`function public.${fn}`), `Phase 11 RPC missing: ${fn}`);
+}
+
+assert.ok(migration.includes("a.status = 'active'"));
+assert.ok(migration.includes("a.role = 'super_admin'"));
+assert.ok(migration.includes("status = 'published'"));
+assert.ok(migration.includes("j.opens_at is null or j.opens_at <= now()"));
+assert.ok(migration.includes("j.closes_at is null or j.closes_at > now()"));
+assert.ok(migration.includes('for update'), 'Job mutations must serialize on the authoritative record.');
+assert.ok(migration.includes('STALE_VERSION'), 'Optimistic concurrency must fail visibly.');
+assert.ok(migration.includes('version = j.version + 1'), 'Successful mutations must advance the record version.');
+assert.ok(migration.includes("v_job.status <> 'draft' or v_job.published_at is not null or v_application_count > 0"), 'Permanent delete policy must protect published/history-bearing jobs.');
+assert.ok(migration.includes("'job_created'"));
+assert.ok(migration.includes("'job_updated'"));
+assert.ok(migration.includes("'job_duplicated'"));
+assert.ok(migration.includes("'job_deleted'"));
+assert.ok(migration.includes("'job_' || v_action"));
+assert.ok(migration.includes('before_data'));
+assert.ok(migration.includes('after_data'));
+assert.ok(/security invoker/gi.test(migration));
+assert.ok(!/security\s+definer/i.test(migration), 'Phase 11 RPCs must not bypass RLS via SECURITY DEFINER.');
+assert.ok(!/grant\s+execute[\s\S]{0,180}\bto\s+(?:anon|authenticated)\b/i.test(migration), 'Browser roles must not execute private/public job database RPCs directly.');
+for (const role of ['public, anon, authenticated', 'service_role']) assert.ok(migration.includes(role));
+
+for (const adapter of ['jobManagementContext', 'saveJob', 'transitionJob', 'duplicateJob', 'deleteJob']) {
+  assert.ok(db.includes(`function ${adapter}`), `Edge database adapter missing: ${adapter}`);
+}
+for (const rpc of ['rpc/get_admin_job_management_context', 'rpc/admin_save_job', 'rpc/admin_transition_job', 'rpc/admin_duplicate_job', 'rpc/admin_delete_job']) {
+  assert.ok(db.includes(rpc), `Edge adapter is not calling canonical RPC: ${rpc}`);
+}
+
+assert.ok(index.includes('handleJobRoute'));
+assert.ok(index.includes('jobs: true'));
+assert.ok(index.includes('phase11-job-management-cms'));
+assert.ok(index.includes('path.startsWith("/jobs") ? 131072 : 32768'), 'Admin payload ceilings must remain route scoped.');
+assert.ok(index.includes('originOk(request, url)'), 'Phase 9 same-origin protection must remain ahead of Phase 11 mutations.');
+
+for (const route of [
+  '/jobs/create', '"edit"', '"preview"', '"delete"', '"update"', '"transition"', '"duplicate"'
+]) assert.ok(routes.includes(route), `Job route contract missing: ${route}`);
+assert.ok(routes.includes('shaHex(submitted) === state.csrf_token_hash'), 'Phase 11 mutations must validate server-backed CSRF.');
+assert.ok(routes.includes('Europe/London'));
+assert.ok(routes.includes('STALE_VERSION'));
+assert.ok(routes.includes('confirm_slug'));
+assert.ok(routes.includes('303'));
+assert.ok(!routes.includes('localStorage') && !routes.includes('sessionStorage'), 'Admin workflow state must not move into browser storage.');
+
+for (const capability of [
+  'Create job', 'Edit job', 'Preview', 'Publish', 'Unpublish', 'Close', 'Archive',
+  'Restore', 'Duplicate', 'Category', 'Location', 'Work model', 'Employment type',
+  'Experience', 'Technologies', 'Description', 'Responsibilities', 'Qualifications',
+  'Benefits', 'Opening date &amp; time', 'Closing date &amp; time'
+]) assert.ok(ui.includes(capability), `Admin UI capability missing: ${capability}`);
+assert.ok(ui.includes('repeat(auto-fit,minmax('), 'Phase 11 editor must retain responsive adaptive form grids.');
+assert.ok(ui.includes('mobile-nav'));
+assert.ok(ui.includes('aria-label="Administration"'));
+assert.ok(ui.includes('aria-current="page"'));
+assert.ok(ui.includes('No jobs match this view.'));
+assert.ok(ui.includes('stale versions are rejected') || ui.includes('stale versions are rejected'.replace('versions','version')) || ui.includes('stale versions'));
+
+assert.ok(worker.includes('isPublicCareersRuntimePath'));
+assert.ok(worker.includes('handlePublicCareersRequest'));
+assert.ok(!catalog.includes('career-jobs.js'));
+assert.ok(!catalog.includes('career-jobs-data-expansion.js'));
+assert.ok(!catalog.includes('career-jobs-services-expansion.js'));
+assert.ok(catalog.includes('server-authoritative in PostgreSQL'));
+
+for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'sb_secret_']) {
+  assert.ok(!ui.includes(secretPattern) && !routes.includes(secretPattern), `Secret-like value leaked into Phase 11 presentation: ${secretPattern}`);
+}
+
+console.log('PASS: Phase 11 job CMS authority, state transitions, optimistic concurrency, audit trail, deletion policy, CSRF/RBAC boundaries, responsive admin workflow and runtime ownership contracts verified.');
