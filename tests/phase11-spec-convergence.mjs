@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [migration, adminUi, publicRepository, publicRuntime] = await Promise.all([
+const [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime] = await Promise.all([
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
   read('supabase/functions/admin-auth/jobs.ts'),
+  read('supabase/functions/admin-auth/ui.ts'),
+  read('supabase/functions/admin-auth/security.ts'),
   read('src/backend/repositories/public-jobs-repository.js'),
   read('src/backend/runtime/public-careers.js')
 ]);
@@ -39,6 +41,13 @@ for (const candidateLabel of [
   'Nature of working style', 'Location details'
 ]) assert.ok(adminUi.includes(candidateLabel), `Admin editor/preview omitted locked candidate field: ${candidateLabel}`);
 
+for (const [surface, source] of [['overview', overviewUi], ['jobs', adminUi], ['security', securityUi]]) {
+  assert.ok(source.includes('${basePath}/jobs'), `Authenticated ${surface} workspace must expose Jobs navigation.`);
+  assert.ok(source.includes('>Jobs<') || source.includes('<span>Jobs</span>'), `Authenticated ${surface} workspace must label the Jobs destination clearly.`);
+}
+assert.ok(overviewUi.includes('This overview is intentionally read-only'), 'Overview must remain non-mutating after Phase 11 navigation is added.');
+assert.ok(securityUi.includes('Recruitment publishing is managed from the Jobs workspace.'), 'Security surface must keep responsibility boundaries explicit.');
+
 for (const mapping of ['requiredSkills', 'preferredSkills', 'applicationResponseWindow']) {
   assert.ok(publicRepository.includes(mapping), `Public repository omitted canonical mapping: ${mapping}`);
 }
@@ -52,10 +61,10 @@ assert.ok(publicRuntime.includes('data-rcitcs-job-posting'), 'Published eligible
 assert.ok(publicRuntime.includes('directApply: false'), 'Phase 11 must not claim direct apply before Phase 12.');
 assert.ok(publicRuntime.includes('identifier:'), 'Structured data must use the immutable hiring identifier.');
 
-for (const source of [migration, adminUi, publicRepository, publicRuntime]) {
+for (const source of [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime]) {
   for (const secretPattern of ['ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'SUPABASE_SERVICE_ROLE_KEY=', 'sb_secret_']) {
     assert.ok(!source.includes(secretPattern), `Secret-like value leaked into Phase 11 convergence source: ${secretPattern}`);
   }
 }
 
-console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, shared content authority and correct public/private SEO boundaries.');
+console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority and correct public/private SEO boundaries.');
