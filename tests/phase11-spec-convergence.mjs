@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions] = await Promise.all([
+const [prerequisite, migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions] = await Promise.all([
+  read('supabase/migrations/20260910151000_phase_11_legacy_schema_convergence.sql'),
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
   read('supabase/functions/admin-auth/jobs.ts'),
   read('supabase/functions/admin-auth/ui.ts'),
@@ -15,6 +16,19 @@ const [migration, adminUi, overviewUi, securityUi, publicRepository, publicRunti
   read('src/backend/runtime/public-careers.js'),
   read('src/frontend/app/interactions-careers.js')
 ]);
+
+for (const prerequisiteContract of [
+  'add column if not exists published_at timestamptz',
+  'add column if not exists workplace_type text',
+  'add column if not exists display_order integer not null default 0',
+  "column_name = 'work_model'",
+  'set workplace_type = work_model',
+  "column_name = 'sort_order'",
+  'set display_order = sort_order',
+  'alter column description drop not null',
+  "tgname = 'jobs_assign_job_code'",
+  'alter column code drop not null'
+]) assert.ok(prerequisite.includes(prerequisiteContract), `Clean Phase 8 -> Phase 11 convergence contract missing: ${prerequisiteContract}`);
 
 for (const field of ['required_skills', 'preferred_skills', 'application_response_window']) {
   assert.ok(migration.includes(field), `Locked Phase 11 database field missing: ${field}`);
@@ -66,10 +80,10 @@ const runtimeNavigationGuard = 'if (selectRole(slug)) event.preventDefault();';
 assert.ok(careerInteractions.includes(runtimeNavigationGuard), 'Runtime-rendered vacancy links must retain native browser navigation when the legacy static selector cannot handle the role.');
 assert.ok(!careerInteractions.includes('event.preventDefault();\n      selectRole(slug);'), 'Legacy Careers JavaScript must not suppress runtime job navigation unconditionally.');
 
-for (const source of [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions]) {
+for (const source of [prerequisite, migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions]) {
   for (const secretPattern of ['ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'SUPABASE_SERVICE_ROLE_KEY=', 'sb_secret_']) {
     assert.ok(!source.includes(secretPattern), `Secret-like value leaked into Phase 11 convergence source: ${secretPattern}`);
   }
 }
 
-console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, runtime-link navigation, crawlable job pages and truthful pre-application SEO boundaries.');
+console.log('PASS: Phase 11 clean-schema convergence, server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, runtime-link navigation, crawlable job pages and truthful pre-application SEO boundaries verified.');
