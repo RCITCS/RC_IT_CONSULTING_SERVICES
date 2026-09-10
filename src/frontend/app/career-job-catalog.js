@@ -1,13 +1,12 @@
-import { CAREER_JOBS } from './career-jobs.js';
-import { ADDITIONAL_DATA_JOBS } from './career-jobs-data-expansion.js';
-import { SERVICE_AND_INDUSTRY_JOBS } from './career-jobs-services-expansion.js';
-
-const ALL_CAREER_JOBS = [...CAREER_JOBS, ...ADDITIONAL_DATA_JOBS, ...SERVICE_AND_INDUSTRY_JOBS];
-
+// Phase 11: production vacancy state is server-authoritative in PostgreSQL and is
+// loaded by the Cloudflare runtime. Static source catalogs are intentionally no
+// longer imported here, so publishing a vacancy never requires a code change or
+// redeployment. The static build renders the truthful no-openings baseline; the
+// runtime replaces it with current database-backed vacancies.
 export function getPublishedJobs() {
-  return ALL_CAREER_JOBS.filter((job) => job.status === 'published');
+  return [];
 }
 
-export function getPublishedJob(slug = '') {
-  return getPublishedJobs().find((job) => job.slug === slug) || null;
+export function getPublishedJob() {
+  return null;
 }

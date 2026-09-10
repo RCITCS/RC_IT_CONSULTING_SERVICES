@@ -40,6 +40,12 @@ async function rows(response: Response): Promise<any[]> {
   return Array.isArray(body) ? body : [];
 }
 
+async function jsonResult(response: Response): Promise<any> {
+  if (!response.ok) throw new Error("database request failed");
+  const body = await response.json();
+  return Array.isArray(body) && body.length === 1 ? body[0] : body;
+}
+
 async function booleanResult(response: Response): Promise<boolean> {
   if (!response.ok) return false;
   const body = await response.json();
@@ -246,4 +252,91 @@ export async function dashboardSnapshot(adminId: string) {
   if (!response.ok) throw new Error("dashboard request failed");
   const body = await response.json();
   return Array.isArray(body) ? body[0] ?? null : body;
+}
+
+export async function jobManagementContext(adminId: string, jobId: string | null = null) {
+  return jsonResult(await rest("rpc/get_admin_job_management_context", {
+    method: "POST",
+    body: JSON.stringify({ p_admin_id: adminId, p_job_id: jobId })
+  }));
+}
+
+export async function saveJob(
+  adminId: string,
+  jobId: string | null,
+  expectedVersion: number | null,
+  payload: Record<string, unknown>,
+  ipHash: string,
+  userAgent: string
+) {
+  return jsonResult(await rest("rpc/admin_save_job", {
+    method: "POST",
+    body: JSON.stringify({
+      p_admin_id: adminId,
+      p_job_id: jobId,
+      p_expected_version: expectedVersion,
+      p_payload: payload,
+      p_ip_hash: ipHash,
+      p_user_agent: userAgent
+    })
+  }));
+}
+
+export async function transitionJob(
+  adminId: string,
+  jobId: string,
+  expectedVersion: number,
+  action: string,
+  ipHash: string,
+  userAgent: string
+) {
+  return jsonResult(await rest("rpc/admin_transition_job", {
+    method: "POST",
+    body: JSON.stringify({
+      p_admin_id: adminId,
+      p_job_id: jobId,
+      p_expected_version: expectedVersion,
+      p_action: action,
+      p_ip_hash: ipHash,
+      p_user_agent: userAgent
+    })
+  }));
+}
+
+export async function duplicateJob(
+  adminId: string,
+  jobId: string,
+  expectedVersion: number,
+  ipHash: string,
+  userAgent: string
+) {
+  return jsonResult(await rest("rpc/admin_duplicate_job", {
+    method: "POST",
+    body: JSON.stringify({
+      p_admin_id: adminId,
+      p_job_id: jobId,
+      p_expected_version: expectedVersion,
+      p_ip_hash: ipHash,
+      p_user_agent: userAgent
+    })
+  }));
+}
+
+export async function deleteJob(
+  adminId: string,
+  jobId: string,
+  expectedVersion: number,
+  ipHash: string,
+  userAgent: string
+) {
+  return jsonResult(await rest("rpc/admin_delete_job", {
+    method: "POST",
+    body: JSON.stringify({
+      p_admin_id: adminId,
+      p_job_id: jobId,
+      p_expected_version: expectedVersion,
+      p_ip_hash: ipHash,
+      p_user_agent: userAgent
+    })
+  }));
 }

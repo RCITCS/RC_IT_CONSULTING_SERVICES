@@ -1,6 +1,7 @@
 import { routeNeedsJsonBody } from '../api/router.js';
 import { createBackendApplication } from '../application.js';
 import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '../core/payload.js';
+import { handlePublicCareersRequest, isPublicCareersRuntimePath } from './public-careers.js';
 
 const ADMIN_PUBLIC_BASE = '/admin';
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
@@ -216,6 +217,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) return handleApiRequest(request, env);
     if (isAdminPath(url.pathname)) return handleAdminRequest(request);
+    if (isPublicCareersRuntimePath(url.pathname)) return handlePublicCareersRequest(request, env);
     return serveApplication(request, env);
   }
 };
