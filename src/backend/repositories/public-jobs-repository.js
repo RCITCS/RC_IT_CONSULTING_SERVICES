@@ -6,6 +6,17 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function publicCareersApiUrl(env = {}) {
+  const value = String(env.PUBLIC_CAREERS_API_URL ?? '').trim().replace(/\/+$/, '');
+  if (!value) return '';
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' ? parsed.toString().replace(/\/$/, '') : '';
+  } catch {
+    return '';
+  }
+}
+
 function normalizedListJob(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return Object.freeze({
@@ -54,11 +65,44 @@ function normalizeContext(payload) {
   });
 }
 
+function createPublicBoundaryRepository({ apiUrl, fetchImpl }) {
+  return Object.freeze({
+    configured: true,
+    source: 'public-careers-edge',
+    async getCareersContext(slug = '') {
+      let response;
+      try {
+        response = await fetchImpl(apiUrl, {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: String(slug || '').trim() || null })
+        });
+      } catch {
+        throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
+      }
+      if (!response.ok) throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
+      try {
+        return normalizeContext(await response.json());
+      } catch {
+        throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
+      }
+    }
+  });
+}
+
 export function createPublicJobsRepository({ env = {}, fetchImpl = globalThis.fetch } = {}) {
+  if (typeof fetchImpl !== 'function') throw new TypeError('A fetch implementation is required.');
+
+  const apiUrl = publicCareersApiUrl(env);
+  if (apiUrl) return createPublicBoundaryRepository({ apiUrl, fetchImpl });
+
+  // Local/server compatibility fallback. Production Cloudflare uses the narrow
+  // public Edge Function and therefore does not need a database secret binding.
   const persistence = createPersistenceConfig(env);
   if (!persistence.configured) {
     return Object.freeze({
       configured: false,
+      source: 'unconfigured',
       async getCareersContext() {
         throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
       }
@@ -73,6 +117,7 @@ export function createPublicJobsRepository({ env = {}, fetchImpl = globalThis.fe
 
   return Object.freeze({
     configured: true,
+    source: 'direct-supabase-server',
     async getCareersContext(slug = '') {
       const payload = await client.request('/rest/v1/rpc/get_public_careers_context', {
         method: 'POST',
