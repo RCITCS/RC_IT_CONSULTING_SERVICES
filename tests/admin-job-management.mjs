@@ -130,10 +130,12 @@ assert.ok(publicRuntime.includes('siteOriginFromHtml'));
 assert.ok(!publicRuntime.includes("const SITE_ORIGIN = 'https://rcitcs.com'"), 'Runtime SEO must not diverge from the build-approved canonical origin.');
 assert.ok(publicRuntime.includes('getCareersContext(slug)'));
 assert.ok(publicRuntime.includes("robots = 'index,follow'"));
-assert.ok(publicRuntime.includes('data-rcitcs-job-posting'));
+assert.ok(publicRuntime.includes('Applications opening soon'));
+assert.ok(!publicRuntime.includes('data-rcitcs-job-posting'), 'Google JobPosting markup must wait until Phase 12 provides a real application method.');
+assert.ok(!publicRuntime.includes('directApply:'), 'Direct-apply semantics must not be claimed before Phase 12.');
 
 for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'sb_secret_']) {
   assert.ok(!ui.includes(secretPattern) && !routes.includes(secretPattern), `Secret-like value leaked into Phase 11 presentation: ${secretPattern}`);
 }
 
-console.log('PASS: Phase 11 job CMS authority, locked content contract, generated identifiers, transitions, concurrency, audit/deletion policy, CSRF/RBAC, bounded input, responsive workflow, optimized DB access and public Careers runtime contracts verified.');
+console.log('PASS: Phase 11 job CMS authority, locked content contract, generated identifiers, transitions, concurrency, audit/deletion policy, CSRF/RBAC, bounded input, responsive workflow, optimized DB access and truthful pre-application Careers SEO contracts verified.');
