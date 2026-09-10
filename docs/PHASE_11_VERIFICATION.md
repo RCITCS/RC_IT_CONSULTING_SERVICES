@@ -39,57 +39,34 @@ The locked recruitment specification was reconciled before merge:
 
 ## Security verification
 
-Verified in production for:
-
-- `get_admin_job_management_context(uuid,uuid)`
-- `admin_save_job(uuid,uuid,integer,jsonb,text,text)`
-- `admin_transition_job(uuid,uuid,integer,text,text,text)`
-- `admin_duplicate_job(uuid,uuid,integer,text,text)`
-- `admin_delete_job(uuid,uuid,integer,text,text)`
-- `get_job_content_document(uuid)`
-- `get_public_careers_context(text)`
+Verified in production for `get_admin_job_management_context`, `admin_save_job`, `admin_transition_job`, `admin_duplicate_job`, `admin_delete_job`, `get_job_content_document` and `get_public_careers_context`.
 
 All verified functions are `SECURITY INVOKER`, not executable by `anon` or `authenticated`, and executable by `service_role` at the database API boundary.
 
 Additional verified controls include job-code registry RLS/browser deny, server-backed CSRF, same-origin protection before mutations, route-scoped request ceilings, bounded streamed handling when `Content-Length` is absent, no-cache/no-index private admin responses, and **0 Supabase Security Advisor findings** after Phase 11 DDL changes.
 
-## Job identifier verification
-
-Production after convergence:
+## Production invariants
 
 - 46 jobs;
 - 46 published jobs;
 - 18 categories;
 - 0 null job codes;
-- 0 malformed corporate job codes;
-- 0 duplicate job codes;
-- 46 active generated identifiers in `job_code_registry`;
-- 46 retired legacy identifiers retained permanently;
-- server allocation trigger active;
-- immutable-code trigger active;
-- `jobs.code` remains `NOT NULL` after final convergence.
-
-Deleted never-published draft identifiers are retired in the registry rather than made reusable.
+- 0 malformed or duplicate corporate job codes;
+- 46 active generated identifiers and 46 permanently retired legacy identifiers;
+- allocation and immutable-code triggers active;
+- `jobs.code` remains `NOT NULL`.
 
 ## Production integration verification
 
 A rollback-contained production lifecycle test verified unauthorized fail-closed behavior, server-generated codes, locked-field persistence, stale-save rejection, code immutability, publish/public projection, stale-transition rejection, published-history delete protection, duplicate with a distinct generated code, safe draft deletion with code retirement, close/public removal, archive/restore and audit creation.
 
-The verification transaction was rolled back. A separate residue check confirmed 46 production jobs, 18 categories, zero verification jobs, zero verification audit rows, 46 active registry entries and 46 retired entries.
+A separate residue check after rollback confirmed 46 production jobs, 18 categories, zero verification jobs, zero verification audit rows, 46 active registry entries and 46 retired entries.
 
 ## Edge Function verification
 
-Production Supabase Edge Function:
+Production `admin-auth` is ACTIVE at version **15**, function id `d3464fc6-eeb5-4f51-b341-f19f9aabb7b8`, deployment hash `f810052a342306b14c05ee488e84c8e19aadc0b25e86e7547d44466390debb99`, with the established custom-auth `verify_jwt=false` boundary preserved.
 
-- function: `admin-auth`;
-- status: `ACTIVE`;
-- deployed version: **15**;
-- function id: `d3464fc6-eeb5-4f51-b341-f19f9aabb7b8`;
-- deployment hash: `f810052a342306b14c05ee488e84c8e19aadc0b25e86e7547d44466390debb99`;
-- `verify_jwt=false` retained intentionally because the established application implements its own hardened administrator/session boundary;
-- deployment contains the Phase 11 Jobs routes, CMS fields, bounded request handling and updated authenticated navigation.
-
-The v15 deployment source is semantically aligned with the tested Phase 11 admin source but was compacted during deployment; this record does **not** claim byte-for-byte source identity. Later Phase 11 commits after the v15 deployment modify public Careers JavaScript, tests, migrations and this verification document only, not the Supabase Edge Function source files.
+The v15 deployment contains Phase 11 Jobs routes, CMS fields, bounded request handling and updated authenticated navigation. Its source is semantically aligned with the tested admin source but was compacted during deployment; this record does **not** claim byte-for-byte source identity. Later Phase 11 commits modify public Careers JavaScript, tests, migrations and verification documentation only, not the Supabase Edge Function source files.
 
 ## Frontend and end-user verification
 
@@ -98,37 +75,33 @@ The v15 deployment source is semantically aligned with the tested Phase 11 admin
 - Job editor uses adaptive form grids and existing responsive admin shell behavior.
 - Generated job code is displayed read-only.
 - Private preview renders the canonical candidate-facing fields.
-- Empty/filter/stale/error/delete-blocked states are explicit rather than fake-success states.
-- Legacy Careers JavaScript no longer prevents navigation for runtime PostgreSQL vacancy cards: native navigation is suppressed only when the legacy in-page selector actually handled a static role.
+- Explicit empty/filter/stale/error/delete-blocked states are used instead of fake success.
+- Runtime PostgreSQL vacancy cards retain native browser navigation when the legacy static selector cannot handle the role.
 
 ## SEO verification
 
-Phase 11 uses a truthful pre-application SEO boundary:
-
-- `/careers` and published canonical vacancy pages remain crawlable (`index,follow`);
-- unavailable/error/application-placeholder routes are `noindex,nofollow`;
-- job title remains separate from the immutable job identifier;
-- Phase 11 does **not** emit Google `JobPosting` structured data and does not claim direct-apply semantics while candidate submission is disabled;
+- `/careers` and published canonical vacancy pages remain crawlable (`index,follow`).
+- unavailable/error/application-placeholder routes are `noindex,nofollow`.
+- job title remains separate from the immutable job identifier.
+- Phase 11 does **not** emit Google `JobPosting` structured data or claim direct-apply semantics while candidate submission is disabled.
 - `JobPosting` eligibility is deferred to Phase 12 and may be enabled only when the real application method is live and verified.
 
 ## QA / CI verification
 
-The implementation head before this release-record-only sequence was `5e4d631b7b0a56e88170970a1f79c0ec8993008f`. CI run #227 (`34514712236`) passed the complete Architecture, test and production build job on that exact implementation head.
+The last implementation head before verification-document-only revisions was `5e4d631b7b0a56e88170970a1f79c0ec8993008f`. CI #227 (`34514712236`) passed the complete Architecture, test and production build job on that exact implementation head, including source architecture, backend, persistence, authentication, Phase 10 dashboard, visual delivery, Phase 11 CMS/content/seed/spec/public-Careers, route rendering, design system, performance routing, SEO/SEO-preview, production build, performance budgets, prerendered SEO and Cloudflare configuration.
 
-That run passed source architecture, backend, persistence, authentication, Phase 10 dashboard, visual delivery, Phase 11 CMS/content/seed/spec/public-Careers, route rendering, design system, performance routing, SEO/SEO-preview, production build, production performance budgets, prerendered SEO checks and Cloudflare configuration.
-
-The commits after `5e4d631b...` are documentation-only revisions to this verification record. A final exact-head CI run is still required before merge so the merge gate remains SHA-specific.
+The subsequent commits are documentation-only revisions to this verification record. A final exact-head CI run is required before merge so the merge gate remains SHA-specific.
 
 ## Pull-request review closure
 
 Four P1 review threads were independently re-evaluated and fixed before resolution:
 
-- Phase 8 -> Phase 11 schema convergence: fixed with forward-only prerequisite migration;
-- nullable draft constraints: fixed in the same prerequisite/convergence chain;
-- runtime-loaded vacancy card navigation: fixed and regression-tested;
-- raw-source versus HTML-escaped date-label assertion: fixed.
+- Phase 8 -> Phase 11 schema convergence;
+- nullable draft constraints;
+- runtime-loaded vacancy card navigation;
+- raw-source versus HTML-escaped date-label assertion.
 
-All four threads were replied to with evidence and resolved only after implementation and re-verification.
+All four were replied to with evidence and resolved only after implementation and re-verification.
 
 ## Role sign-off
 
@@ -150,7 +123,7 @@ All four threads were replied to with evidence and resolved only after implement
 
 Do not mark Phase 11 `COMPLETED & VERIFIED` until all of the following pass on the resulting merge SHA:
 
-1. final exact-head PR CI after this verification-document revision;
+1. final exact-head PR CI;
 2. PR #28 merge using an expected-head SHA guard;
 3. exact merged `main` SHA CI/deployment verification;
 4. live Cloudflare route verification;
