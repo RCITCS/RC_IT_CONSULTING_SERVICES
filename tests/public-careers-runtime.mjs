@@ -30,9 +30,13 @@ const selectedJob = {
   summary: 'Build dependable platform capabilities.',
   description: 'Own platform delivery.\n\nImprove reliability.',
   technologies: ['Azure', 'Terraform'],
+  industries: ['Banking & Finance'],
   responsibilities: ['Build reliable platforms'],
   qualifications: ['Production platform experience'],
+  preferred_qualifications: ['Kubernetes experience'],
   benefits: ['Offer terms confirmed in writing'],
+  working_style_details: ['Hybrid attendance is engagement-aligned.'],
+  location_details: 'Primary employment location is London.',
   opens_at: '2026-09-10T00:00:00Z',
   published_at: '2026-09-10T00:00:00Z',
   closes_at: null,
@@ -74,6 +78,13 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.match(html, /Platform Engineer/);
   assert.match(html, /Build dependable platform capabilities\./);
   assert.match(html, /Azure/);
+  assert.match(html, /Industry context/);
+  assert.match(html, /Banking &amp; Finance/);
+  assert.match(html, /Preferred qualifications/);
+  assert.match(html, /Kubernetes experience/);
+  assert.match(html, /Nature of working style/);
+  assert.match(html, /Hybrid attendance is engagement-aligned/);
+  assert.match(html, /Primary employment location is London/);
   assert.match(html, /href="\/careers\/jobs\/platform-engineer#role-detail"/);
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers"'), 'Runtime must preserve the build-approved canonical origin.');
   assert.equal(html.includes('Base empty state.'), false);
@@ -92,6 +103,10 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers/jobs/platform-engineer"'));
   assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
   assert.match(html, /Key responsibilities/);
+  assert.match(html, /Industry context/);
+  assert.match(html, /Preferred qualifications/);
+  assert.match(html, /Nature of working style/);
+  assert.match(html, /Primary employment location is London/);
 }
 
 {
@@ -146,4 +161,4 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 11 public Careers uses one authoritative DB context request, preserves canonical-origin policy, renders published content, fails closed, keeps Phase 12 disabled, and handles 404/405/HEAD correctly.');
+console.log('PASS: Phase 11 public Careers uses one authoritative DB context request, preserves canonical-origin and approved vacancy content, fails closed, keeps Phase 12 disabled, and handles 404/405/HEAD correctly.');
