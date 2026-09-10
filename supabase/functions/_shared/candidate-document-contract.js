@@ -28,11 +28,23 @@ function startsWith(bytes, signature) {
 
 function includesAscii(bytes, text) {
   const needle = new TextEncoder().encode(text);
-  outer: for (let start = 0; start <= bytes.length - needle.length; start += 1) {
-    for (let index = 0; index < needle.length; index += 1) {
-      if (bytes[start + index] !== needle[index]) continue outer;
+  if (!needle.length || needle.length > bytes.length) return false;
+
+  let from = 0;
+  const lastStart = bytes.length - needle.length;
+  while (from <= lastStart) {
+    const start = bytes.indexOf(needle[0], from);
+    if (start < 0 || start > lastStart) return false;
+
+    let matched = true;
+    for (let index = 1; index < needle.length; index += 1) {
+      if (bytes[start + index] !== needle[index]) {
+        matched = false;
+        break;
+      }
     }
-    return true;
+    if (matched) return true;
+    from = start + 1;
   }
   return false;
 }
