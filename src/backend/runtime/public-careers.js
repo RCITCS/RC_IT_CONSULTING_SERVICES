@@ -57,10 +57,14 @@ function roleDetail(job) {
       ${job.experience ? `<div><span>Experience</span><strong>${esc(job.experience)}</strong></div>` : ''}
     </div>
     ${tagGroup('Technology environment', job.technologies)}
+    ${tagGroup('Industry context', job.industries)}
     ${description.length ? `<section class="career-role-section"><h3>Job description</h3>${description.map((paragraph) => `<p>${esc(paragraph)}</p>`).join('')}</section>` : ''}
     ${detailList('Key responsibilities', job.responsibilities)}
     ${detailList('Qualifications', job.qualifications)}
+    ${detailList('Preferred qualifications', job.preferredQualifications)}
     ${detailList('Benefits & employment terms', job.benefits)}
+    ${detailList('Nature of working style', job.workingStyleDetails)}
+    ${job.locationDetails ? `<section class="career-role-section"><h3>Location</h3><p>${esc(job.locationDetails)}</p></section>` : ''}
     <div class="career-role-detail__footer"><a class="btn btn--primary" href="/careers/jobs/${esc(job.slug)}/apply">Apply now <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
   </article>`;
 }
