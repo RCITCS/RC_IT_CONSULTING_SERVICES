@@ -26,6 +26,7 @@ import {
   loginPage,
   privateHeaders
 } from "./ui.ts";
+import { handleJobRoute } from "./job-routes.ts";
 import { securityPage } from "./security.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
@@ -173,6 +174,15 @@ async function recovery(request: Request): Promise<any | null> {
   return { reset, admin, csrf: cookies.rcitcs_admin_recovery_csrf ?? "", token: cookies.rcitcs_admin_recovery };
 }
 
+async function requestTooLarge(request: Request, path: string): Promise<boolean> {
+  if (request.method !== "POST") return false;
+  const limit = path.startsWith("/jobs") ? 131072 : 32768;
+  const declared = Number(request.headers.get("content-length") || "0");
+  if (Number.isFinite(declared) && declared > limit) return true;
+  if (!declared) return (await request.clone().arrayBuffer()).byteLength > limit;
+  return false;
+}
+
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   const path = route(url);
@@ -181,7 +191,7 @@ Deno.serve(async (request: Request) => {
   const clientHash = await ipHash(request);
 
   try {
-    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, design: "phase10-enterprise-workspace" });
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, design: "phase11-job-management-cms" });
 
     if (!["GET", "POST"].includes(request.method)) {
       const headers = privateHeaders();
@@ -189,7 +199,7 @@ Deno.serve(async (request: Request) => {
       return new Response("Method Not Allowed", { status: 405, headers });
     }
     if (request.method === "POST" && !originOk(request, url)) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the administration page and try again.</p>", 403);
-    if (request.method === "POST" && Number(request.headers.get("content-length") || "0") > 32768) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
+    if (await requestTooLarge(request, path)) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
 
     if (request.method === "POST" && path === "/login") {
       if (await failedCount(clientHash) >= 5) {
@@ -290,6 +300,9 @@ Deno.serve(async (request: Request) => {
     }
 
     const authState = await session(request);
+    const jobResponse = await handleJobRoute({ request, url, path, basePath, authState, clientHash, userAgent });
+    if (jobResponse) return jobResponse;
+
     if (request.method === "GET" && path === "/session") return authState ? json({ authenticated: true, email: authState.admin.email, role: authState.admin.role, expires_at: authState.expires_at }) : json({ authenticated: false }, 401);
 
     if (request.method === "POST" && path === "/logout") {
