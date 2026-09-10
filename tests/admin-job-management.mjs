@@ -77,7 +77,7 @@ for (const capability of [
   'Create job', 'Edit job', 'Preview', 'Publish', 'Unpublish', 'Close', 'Archive',
   'Restore', 'Duplicate', 'Category', 'Location', 'Work model', 'Employment type',
   'Experience', 'Technologies', 'Description', 'Responsibilities', 'Qualifications',
-  'Benefits', 'Opening date &amp; time', 'Closing date &amp; time'
+  'Benefits', 'Opening date & time', 'Closing date & time'
 ]) assert.ok(ui.includes(capability), `Admin UI capability missing: ${capability}`);
 assert.ok(ui.includes('repeat(auto-fit,minmax('), 'Phase 11 editor must retain responsive adaptive form grids.');
 assert.ok(ui.includes('mobile-nav'));
