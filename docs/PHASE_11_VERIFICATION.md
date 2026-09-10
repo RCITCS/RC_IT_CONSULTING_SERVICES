@@ -113,15 +113,11 @@ Phase 11 uses a truthful pre-application SEO boundary:
 
 ## QA / CI verification
 
-Exact-head PR CI immediately before the first verification-record commit:
-
-- CI run: #227 (`34514712236`);
-- head: `5e4d631b7b0a56e88170970a1f79c0ec8993008f`;
-- Architecture, test and production build: **SUCCESS**.
+The implementation head before this release-record-only sequence was `5e4d631b7b0a56e88170970a1f79c0ec8993008f`. CI run #227 (`34514712236`) passed the complete Architecture, test and production build job on that exact implementation head.
 
 That run passed source architecture, backend, persistence, authentication, Phase 10 dashboard, visual delivery, Phase 11 CMS/content/seed/spec/public-Careers, route rendering, design system, performance routing, SEO/SEO-preview, production build, production performance budgets, prerendered SEO checks and Cloudflare configuration.
 
-A new exact-head CI run is required after this final verification-document revision before merge.
+The commits after `5e4d631b...` are documentation-only revisions to this verification record. A final exact-head CI run is still required before merge so the merge gate remains SHA-specific.
 
 ## Pull-request review closure
 
