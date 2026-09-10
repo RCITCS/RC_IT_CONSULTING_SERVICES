@@ -99,8 +99,10 @@ export function bindCareerRoleBrowser() {
       const url = new URL(link.href, location.origin);
       const slug = slugFromPath(url.pathname);
       if (!slug) return;
-      event.preventDefault();
-      selectRole(slug);
+      // Only suppress native navigation if the legacy in-page selector actually handled
+      // the role. Phase 11 runtime-rendered vacancies are not in the static catalog, so
+      // they must retain normal browser navigation to their canonical server route.
+      if (selectRole(slug)) event.preventDefault();
     });
   });
 
