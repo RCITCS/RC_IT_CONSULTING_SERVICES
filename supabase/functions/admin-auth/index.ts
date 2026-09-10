@@ -177,10 +177,33 @@ async function recovery(request: Request): Promise<any | null> {
 async function requestTooLarge(request: Request, path: string): Promise<boolean> {
   if (request.method !== "POST") return false;
   const limit = path.startsWith("/jobs") ? 131072 : 32768;
-  const declared = Number(request.headers.get("content-length") || "0");
-  if (Number.isFinite(declared) && declared > limit) return true;
-  if (!declared) return (await request.clone().arrayBuffer()).byteLength > limit;
-  return false;
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const declared = Number(contentLength);
+    return !Number.isFinite(declared) || declared < 0 || declared > limit;
+  }
+
+  const body = request.clone().body;
+  if (!body) return false;
+  const reader = body.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return false;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel();
+        return true;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // The reader may already be released after cancellation.
+    }
+  }
 }
 
 Deno.serve(async (request: Request) => {
