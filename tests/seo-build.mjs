@@ -66,26 +66,24 @@ assert(notFound.includes('Page Not Found | RC IT Services'), 'Custom 404 title m
 assert(notFound.includes('noindex,nofollow'), 'Custom 404 is not noindex.');
 assert(notFound.includes('Page not found'), 'Custom 404 user-facing content missing.');
 
-const firstJob = getPublishedJobs()[0];
-assert(firstJob, 'At least one published job is required for gated job-route build verification.');
-const jobPath = `/careers/jobs/${firstJob.slug}`;
-const jobHtml = await readFile(outputPath(jobPath), 'utf8');
-assert(jobHtml.includes('noindex,nofollow'), 'Job HTML must remain noindex until application submission is available.');
-assert(jobHtml.includes(`rel="canonical" href="${SITE_ORIGIN}${jobPath}"`), 'Job HTML lost its self canonical.');
-assert(!jobHtml.includes('"@type":"JobPosting"'), 'Ineligible job HTML must not emit JobPosting structured data.');
-assert(!sitemap.includes(`${SITE_ORIGIN}${jobPath}</loc>`), 'Ineligible job leaked into generated sitemap.');
+const staticJobs = getPublishedJobs();
+assert(staticJobs.length === 0, 'Phase 11 must not prerender legacy source-code job records.');
+assert(!prerenderRoutes.some((route) => route.startsWith('/careers/jobs/')), 'Database-backed job routes must not be frozen into the static build.');
+assert(!sitemap.includes('/careers/jobs/'), 'Phase 11 job routes must remain outside the static sitemap while application indexing eligibility is disabled.');
 
-const applicationHtml = await readFile(outputPath(`${jobPath}/apply`), 'utf8');
-assert(applicationHtml.includes('noindex,nofollow'), 'Application HTML lost its noindex directive.');
-assert(applicationHtml.includes(`rel="canonical" href="${SITE_ORIGIN}${jobPath}/apply"`), 'Application HTML lost its self canonical.');
+const careersHtml = await readFile(outputPath('/careers'), 'utf8');
+assert(careersHtml.includes('No roles are currently published.'), 'Static Careers baseline must truthfully render no openings before runtime data is loaded.');
 
 const serviceHtml = await readFile(outputPath('/services/it/cyber-security'), 'utf8');
 assert(serviceHtml.includes('"@type":"Service"'), 'Service page HTML is missing Service structured data.');
 assert(serviceHtml.includes('BreadcrumbList'), 'Service page HTML is missing BreadcrumbList structured data.');
+
+const wrangler = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
+assert(wrangler.includes('"/careers"') && wrangler.includes('"/careers/jobs/*"'), 'Cloudflare must route Careers and dynamic job paths through the Phase 11 runtime.');
 
 const vercelConfig = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'));
 const fallbackHeaders = vercelConfig.headers?.find((entry) => entry.source === '/(.*)')?.headers || [];
 const fallbackRobots = fallbackHeaders.find((header) => header.key.toLowerCase() === 'x-robots-tag')?.value;
 assert(fallbackRobots === 'noindex, nofollow', 'Secondary Vercel fallback lost its global noindex response header.');
 
-console.log(`PASS: ${prerenderRoutes.length} prerendered HTML routes, ${sitemapLocations.length} currently eligible sitemap URLs, crawl/noindex directives, redirects, structured data, fallback isolation and real 404 output verified.`);
+console.log(`PASS: ${prerenderRoutes.length} static HTML routes, ${sitemapLocations.length} eligible sitemap URLs, runtime-owned job routes, crawl/noindex directives, redirects, structured data, fallback isolation and real 404 output verified.`);
