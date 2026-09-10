@@ -1,7 +1,5 @@
 import { createPublicJobsRepository } from '../repositories/public-jobs-repository.js';
 
-const SITE_ORIGIN = 'https://rcitcs.com';
-
 function esc(value = '') {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -76,9 +74,8 @@ function emptyOpenings() {
   </div>`;
 }
 
-function openingsBrowser(jobs, selectedSlug = '') {
-  if (!jobs.length) return emptyOpenings();
-  const selected = jobs.find((job) => job.slug === selectedSlug) || jobs[0];
+function openingsBrowser(jobs, selected = null) {
+  if (!jobs.length || !selected) return emptyOpenings();
   return `<div class="career-browser">
     <aside class="career-role-list" aria-label="Current openings">
       <div class="career-role-list__head"><span class="eyebrow">Current openings</span><strong>${jobs.length} ${jobs.length === 1 ? 'role' : 'roles'}</strong></div>
@@ -135,8 +132,17 @@ function replaceMetaContent(html, selector, content) {
   return pattern.test(html) ? html.replace(pattern, `$1${esc(content)}$2`) : html;
 }
 
-function runtimeSeo(html, pathName, { title, description, application = false, notFound = false } = {}) {
-  const canonical = `${SITE_ORIGIN}${pathName}`;
+function siteOriginFromHtml(html, requestUrl) {
+  const match = html.match(/<link rel="canonical" href="([^"]+)"\s*\/?>/i);
+  try {
+    return new URL(match?.[1] || requestUrl).origin;
+  } catch {
+    return new URL(requestUrl).origin;
+  }
+}
+
+function runtimeSeo(html, pathName, siteOrigin, { title, description, application = false, notFound = false } = {}) {
+  const canonical = `${siteOrigin}${pathName}`;
   let output = html
     .replace(/<title>[^<]*<\/title>/i, `<title>${esc(title)}</title>`)
     .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${esc(canonical)}" />`)
@@ -189,31 +195,34 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
 
   const url = new URL(request.url);
   const pathName = url.pathname;
+  const applicationMatch = pathName.match(/^\/careers\/jobs\/([^/]+)\/apply$/);
+  const detailMatch = pathName.match(/^\/careers\/jobs\/([^/]+)$/);
+  const slug = applicationMatch?.[1] || detailMatch?.[1] || '';
   const { response: assetResponse, html: baseHtml } = await careersAsset(request, env);
+  const siteOrigin = siteOriginFromHtml(baseHtml, request.url);
   const repository = createPublicJobsRepository({ env, fetchImpl });
 
-  let jobs;
+  let context;
   try {
-    jobs = await repository.listPublishedJobs();
+    context = await repository.getCareersContext(slug);
   } catch {
-    const html = runtimeSeo(replaceMain(baseHtml, unavailableMain()), pathName, {
+    const html = runtimeSeo(replaceMain(baseHtml, unavailableMain()), pathName, siteOrigin, {
       title: 'Careers temporarily unavailable | RC IT Services',
       description: 'RC IT Services recruitment information is temporarily unavailable.'
     });
     return new Response(request.method === 'HEAD' ? null : html, { status: 503, headers: publicHeaders(assetResponse.headers, 503) });
   }
 
+  const jobs = context.jobs;
+  const selected = context.selected;
+
   if (pathName === '/careers') {
-    const html = replaceOpenings(baseHtml, openingsBrowser(jobs));
+    const html = replaceOpenings(baseHtml, openingsBrowser(jobs, selected));
     return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
   }
 
-  const applicationMatch = pathName.match(/^\/careers\/jobs\/([^/]+)\/apply$/);
-  const detailMatch = pathName.match(/^\/careers\/jobs\/([^/]+)$/);
-  const slug = applicationMatch?.[1] || detailMatch?.[1] || '';
-  const job = jobs.find((candidate) => candidate.slug === slug);
-  if (!job) {
-    const html = runtimeSeo(replaceMain(baseHtml, notFoundMain()), pathName, {
+  if (!selected || selected.slug !== slug) {
+    const html = runtimeSeo(replaceMain(baseHtml, notFoundMain()), pathName, siteOrigin, {
       title: 'Career role not found | RC IT Services',
       description: 'The requested RC IT Services vacancy is not currently published.',
       notFound: true
@@ -222,18 +231,18 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   }
 
   if (applicationMatch) {
-    const description = `Application route for the published ${job.title} vacancy at RC IT Services.`;
-    const html = runtimeSeo(replaceMain(baseHtml, applicationMain(job)), pathName, {
-      title: `Apply for ${job.title} | RC IT Services`,
+    const description = `Application route for the published ${selected.title} vacancy at RC IT Services.`;
+    const html = runtimeSeo(replaceMain(baseHtml, applicationMain(selected)), pathName, siteOrigin, {
+      title: `Apply for ${selected.title} | RC IT Services`,
       description,
       application: true
     });
     return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
   }
 
-  const description = job.summary || `Review the published ${job.title} vacancy at RC IT Services.`;
-  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, slug)), pathName, {
-    title: `${job.title} | Careers | RC IT Services`,
+  const description = selected.summary || `Review the published ${selected.title} vacancy at RC IT Services.`;
+  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
+    title: `${selected.title} | Careers | RC IT Services`,
     description
   });
   return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
