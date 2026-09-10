@@ -64,7 +64,7 @@ function roleDetail(job) {
   return `<article class="career-role-detail" id="role-detail">
     <div class="career-role-detail__head">
       <div><span class="eyebrow">${esc(job.category || 'Current opening')}</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p>${job.code ? `<span class="career-role-card__code">${esc(job.code)}</span>` : ''}</div>
-      <a class="btn btn--primary career-apply-cta" href="/careers/jobs/${esc(job.slug)}/apply">Apply for this role <span aria-hidden="true">→</span></a>
+      <span class="btn btn--secondary career-apply-cta" aria-disabled="true">Applications opening soon</span>
     </div>
     <div class="career-role-facts" aria-label="Role facts">
       ${fact('Location', job.location)}
@@ -86,7 +86,7 @@ function roleDetail(job) {
     ${detailList('Benefits & employment terms', job.benefits)}
     ${detailList('Nature of working style', job.workingStyleDetails)}
     ${job.locationDetails ? `<section class="career-role-section"><h3>Location</h3><p>${esc(job.locationDetails)}</p></section>` : ''}
-    <div class="career-role-detail__footer"><a class="btn btn--primary" href="/careers/jobs/${esc(job.slug)}/apply">Apply now <span aria-hidden="true">→</span></a><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
+    <div class="career-role-detail__footer"><span class="btn btn--secondary" aria-disabled="true">Applications opening soon</span><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
   </article>`;
 }
 
@@ -94,8 +94,8 @@ function emptyOpenings() {
   return `<div class="career-no-openings">
     <span class="eyebrow">Current openings</span>
     <h2>No roles are currently published.</h2>
-    <p>RC only publishes approved vacancies with a defined role purpose, responsibilities, qualifications, working model and application route. We do not display placeholder jobs or collect speculative CVs through a separate resume page.</p>
-    <p>When a role becomes available, it will appear here with the complete job description and a dedicated application journey.</p>
+    <p>RC only publishes approved vacancies with a defined role purpose, responsibilities, qualifications and working model. We do not display placeholder jobs or collect speculative CVs.</p>
+    <p>When a role becomes available, it will appear here with the complete job description.</p>
   </div>`;
 }
 
@@ -121,8 +121,8 @@ function applicationMain(job) {
         <a href="/careers/jobs/${esc(job.slug)}">Review full job description <span aria-hidden="true">→</span></a>
       </aside>
       <div class="career-application-form-shell">
-        <span class="eyebrow">Application</span><h2>Application submission is not enabled yet</h2><p>This vacancy is published and available for review. Candidate document submission remains deliberately disabled until the Phase 12 private application workflow is completed and verified.</p>
-        <div class="career-storage-notice" role="status"><strong>No application has been submitted.</strong><p>RC does not show a success state or collect documents until the approved persistence and notification workflow is active.</p></div>
+        <span class="eyebrow">Application</span><h2>Applications are not open yet</h2><p>This vacancy is published for review, but candidate submission remains deliberately disabled until the private Phase 12 application workflow is completed and verified.</p>
+        <div class="career-storage-notice" role="status"><strong>No application has been submitted.</strong><p>RC does not collect candidate data or documents until the approved persistence workflow is active.</p></div>
         <div class="form-actions"><a class="btn btn--secondary" href="/careers/jobs/${esc(job.slug)}">Back to job description</a></div>
       </div>
     </section>
@@ -178,60 +178,6 @@ function runtimeSeo(html, pathName, siteOrigin, { title, description, robots = '
   output = setMetaContent(output, 'name="twitter:description"', description);
   if (notFound) output = output.replace(/<link rel="canonical"[^>]*>/i, '');
   return output;
-}
-
-function employmentSchema(value) {
-  return ({ full_time: 'FULL_TIME', part_time: 'PART_TIME', contract: 'CONTRACTOR', temporary: 'TEMPORARY', internship: 'INTERN' })[value] || null;
-}
-
-function locationSchema(job) {
-  const location = String(job.location || '').trim();
-  const isUk = /\bUK\b|United Kingdom|London/i.test(location);
-  if (!isUk) return null;
-  if (job.workplaceType === 'remote') {
-    return {
-      jobLocationType: 'TELECOMMUTE',
-      applicantLocationRequirements: { '@type': 'Country', name: 'United Kingdom' }
-    };
-  }
-  const locality = location.split(',')[0]?.trim();
-  if (!locality) return null;
-  return {
-    jobLocation: {
-      '@type': 'Place',
-      address: { '@type': 'PostalAddress', addressLocality: locality, addressCountry: 'GB' }
-    }
-  };
-}
-
-function jobPostingJsonLd(job) {
-  if (!job?.code || !job?.title || !job?.publishedAt) return null;
-  const location = locationSchema(job);
-  if (!location) return null;
-  const description = [job.summary, job.description, ...(job.responsibilities || []), ...(job.qualifications || [])].filter(Boolean).join('\n\n');
-  if (!description) return null;
-  const document = {
-    '@context': 'https://schema.org',
-    '@type': 'JobPosting',
-    title: job.title,
-    description,
-    identifier: { '@type': 'PropertyValue', name: 'RC IT Services', value: job.code },
-    datePosted: new Date(job.publishedAt).toISOString().slice(0, 10),
-    hiringOrganization: { '@type': 'Organization', name: 'RC IT Services', sameAs: 'https://rcitcs.com' },
-    directApply: false,
-    ...location
-  };
-  const employmentType = employmentSchema(job.employmentType);
-  if (employmentType) document.employmentType = employmentType;
-  if (job.closesAt) document.validThrough = new Date(job.closesAt).toISOString();
-  return document;
-}
-
-function injectJobPosting(html, job) {
-  const data = jobPostingJsonLd(job);
-  if (!data) return html;
-  const json = JSON.stringify(data).replace(/</g, '\\u003c');
-  return html.replace('</head>', `<script type="application/ld+json" data-rcitcs-job-posting>${json}</script></head>`);
 }
 
 async function careersAsset(request, env) {
@@ -316,11 +262,10 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   }
 
   const description = selected.summary || `Review the published ${selected.title} vacancy at RC IT Services.`;
-  let html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
+  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
     title: `${selected.title} | Careers | RC IT Services`,
     description,
     robots: 'index,follow'
   });
-  html = injectJobPosting(html, selected);
   return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
 }
