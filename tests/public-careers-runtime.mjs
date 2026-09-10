@@ -102,14 +102,14 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.deepEqual(calls[0].body, { p_slug: 'platform-engineer' });
   assert.ok(html.includes('<title>Platform Engineer | Careers | RC IT Services</title>'));
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers/jobs/platform-engineer"'));
-  assert.ok(html.includes('name="robots" content="index,follow"'), 'Published canonical job pages must be indexable.');
+  assert.ok(html.includes('name="robots" content="index,follow"'), 'Published canonical job pages must remain crawlable.');
   assert.match(html, /Key responsibilities/);
   assert.match(html, /Required skills/);
   assert.match(html, /Preferred skills/);
   assert.match(html, /Application response window/);
-  assert.ok(html.includes('data-rcitcs-job-posting'), 'Eligible published UK jobs must expose JobPosting structured data.');
-  assert.ok(html.includes('RC-ENG-26-HYB-A1B2C3'), 'JobPosting/candidate view must use the immutable corporate identifier.');
-  assert.ok(html.includes('"directApply":false'), 'Phase 11 must not claim direct apply before Phase 12 is live.');
+  assert.ok(html.includes('Applications opening soon'), 'Phase 11 must show a truthful disabled application state.');
+  assert.equal(html.includes('href="/careers/jobs/platform-engineer/apply"'), false, 'Phase 11 must not advertise a working apply CTA before intake is live.');
+  assert.equal(html.includes('data-rcitcs-job-posting'), false, 'Phase 11 must not claim Google JobPosting eligibility before a working application method exists.');
 }
 
 {
@@ -120,7 +120,7 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   const html = await response.text();
   assert.equal(response.status, 200);
   assert.equal(calls.length, 1);
-  assert.ok(html.includes('Application submission is not enabled yet'));
+  assert.ok(html.includes('Applications are not open yet'));
   assert.ok(html.includes('No application has been submitted.'));
   assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
   assert.equal(html.includes('type="file"'), false, 'Phase 11 must not expose an enabled Phase 12 document form.');
@@ -167,4 +167,4 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 11 public Careers uses one canonical DB content contract, renders locked candidate fields, keeps published jobs indexable, emits truthful JobPosting data, fails closed, keeps Phase 12 disabled, and handles 404/405/HEAD correctly.');
+console.log('PASS: Phase 11 public Careers uses one canonical DB content contract, renders locked candidate fields, keeps published jobs crawlable, truthfully defers application/JobPosting eligibility to Phase 12, fails closed, and handles 404/405/HEAD correctly.');
