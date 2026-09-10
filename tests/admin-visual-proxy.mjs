@@ -65,74 +65,21 @@ const sameOriginNavigation = {
   'sec-fetch-user': '?1'
 };
 
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: stagingLoginUrl.origin }), stagingLoginUrl),
-  true,
-  'explicit staging same-origin POST must be accepted'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin }), productionLoginUrl),
-  true,
-  'explicit production same-origin POST must be accepted'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation }), stagingLoginUrl),
-  true,
-  'privacy-reduced same-origin browser form POST with Origin: null must be accepted'
-);
-assert.equal(
-  adminOriginAllowed(requestWith(sameOriginNavigation), stagingLoginUrl),
-  true,
-  'same-origin browser form POST with an omitted Origin header must be accepted'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin, ...sameOriginNavigation }), stagingLoginUrl),
-  false,
-  'an explicit different origin must not be accepted by the staging host'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...sameOriginNavigation }), stagingLoginUrl),
-  false,
-  'an explicit hostile origin must take precedence over fetch metadata and be rejected'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'cross-site' }), stagingLoginUrl),
-  false,
-  'Origin: null from a cross-site request must be rejected'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'same-site' }), stagingLoginUrl),
-  false,
-  'Origin: null from a same-site but cross-origin request must be rejected'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-dest': 'empty' }), stagingLoginUrl),
-  false,
-  'Origin: null must only be accepted for a document navigation'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({
-    origin: 'null',
-    'sec-fetch-site': 'same-origin',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-dest': 'document'
-  }), stagingLoginUrl),
-  false,
-  'Origin: null navigation without user activation must be rejected'
-);
-assert.equal(
-  adminOriginAllowed(requestWith({ origin: 'not a url', ...sameOriginNavigation }), stagingLoginUrl),
-  false,
-  'malformed explicit Origin must fail closed'
-);
+assert.equal(adminOriginAllowed(requestWith({ origin: stagingLoginUrl.origin }), stagingLoginUrl), true, 'explicit staging same-origin POST must be accepted');
+assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin }), productionLoginUrl), true, 'explicit production same-origin POST must be accepted');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation }), stagingLoginUrl), true, 'privacy-reduced same-origin browser form POST with Origin: null must be accepted');
+assert.equal(adminOriginAllowed(requestWith(sameOriginNavigation), stagingLoginUrl), true, 'same-origin browser form POST with an omitted Origin header must be accepted');
+assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin, ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit different origin must not be accepted by the staging host');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit hostile origin must take precedence over fetch metadata and be rejected');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'cross-site' }), stagingLoginUrl), false, 'Origin: null from a cross-site request must be rejected');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'same-site' }), stagingLoginUrl), false, 'Origin: null from a same-site but cross-origin request must be rejected');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-dest': 'empty' }), stagingLoginUrl), false, 'Origin: null must only be accepted for a document navigation');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }), stagingLoginUrl), false, 'Origin: null navigation without user activation must be rejected');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'not a url', ...sameOriginNavigation }), stagingLoginUrl), false, 'malformed explicit Origin must fail closed');
 
 const browserPost = new Request(stagingLoginUrl, {
   method: 'POST',
-  headers: {
-    origin: 'null',
-    ...sameOriginNavigation,
-    'content-type': 'application/x-www-form-urlencoded'
-  },
+  headers: { origin: 'null', ...sameOriginNavigation, 'content-type': 'application/x-www-form-urlencoded' },
   body: 'email=admin%40example.invalid&password=placeholder'
 });
 const upstreamUrl = new URL('https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth/login');
@@ -150,7 +97,8 @@ assert.equal(upstreamRequest.headers.get('content-length'), null, 'client Conten
 assert.equal(await upstreamRequest.text(), 'email=admin%40example.invalid&password=placeholder', 'form body must be preserved exactly');
 
 assert.ok(workerSource.includes("'cache-control': 'no-store, no-transform, max-age=0, must-revalidate'"));
-assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive"));
+assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex'"));
+assert.ok(workerSource.includes("headers.set('x-robots-tag', 'noindex, nofollow, noarchive')"));
 assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
 assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
 assert.ok(workerSource.includes("upstreamRequest.headers.delete('content-length')"));
@@ -162,17 +110,16 @@ assert.ok(wranglerSource.includes('"/admin"'));
 assert.ok(wranglerSource.includes('"/admin/*"'));
 assert.ok(wranglerSource.includes('"run_worker_first"'));
 
-assert.ok(workflowSource.includes('Verify live Phase 10 visual admin delivery'));
+assert.ok(workflowSource.includes('Verify live Phase 11 private admin runtime'));
+assert.ok(workflowSource.includes('Verify live Phase 11 visual admin delivery'));
+assert.ok(workflowSource.includes('"jobs":true'));
+assert.ok(workflowSource.includes('"design":"phase11-job-management-cms"'));
 assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"));
 assert.ok(workflowSource.includes('content-type:.*text/html'));
 assert.ok(workflowSource.includes('${ADMIN}/session'));
 
-for (const forbidden of [
-  'SUPABASE_SERVICE_ROLE_KEY',
-  'SUPABASE_SECRET_KEYS',
-  'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER'
-]) {
+for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: Phase 10 admin delivery validates the browser POST at the public gateway, preserves Origin and Fetch Metadata through the Cloudflare proxy for independent upstream validation, preserves the form body, rejects hostile origins, and keeps private admin delivery controls intact.');
+console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 11 live release gate verifies the CMS-aware private runtime and visual admin delivery.');

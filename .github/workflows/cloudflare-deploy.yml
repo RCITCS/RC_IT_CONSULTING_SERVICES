@@ -157,7 +157,7 @@ jobs:
             sleep 5
           done
 
-      - name: Verify production SEO, redirects and 404 behaviour
+      - name: Verify Phase 11 production SEO, redirects and 404 behaviour
         shell: bash
         run: |
           set -euo pipefail
@@ -174,8 +174,15 @@ jobs:
 
           curl -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
           grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
-          grep -q 'name="robots" content="noindex,nofollow"' /tmp/job.html
+          grep -q 'name="robots" content="index,follow"' /tmp/job.html
+          grep -q 'Applications opening soon' /tmp/job.html
+          ! grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
           ! grep -q '"@type":"JobPosting"' /tmp/job.html
+
+          curl -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
+          grep -q 'Applications are not open yet' /tmp/apply.html
+          grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
+          ! grep -q 'type="file"' /tmp/apply.html
 
           curl -sS "${BASE}/login" -o /tmp/login.html
           grep -q 'name="robots" content="noindex,nofollow"' /tmp/login.html
@@ -185,7 +192,6 @@ jobs:
           grep -q "${BASE}/services/it/cyber-security" /tmp/sitemap.xml
           ! grep -q "${BASE}/login" /tmp/sitemap.xml
           ! grep -q '/apply</loc>' /tmp/sitemap.xml
-          ! grep -q "${BASE}/careers/jobs/senior-data-engineer</loc>" /tmp/sitemap.xml
 
           curl -sS "${BASE}/robots.txt" -o /tmp/robots.txt
           ! grep -q 'Disallow: /login' /tmp/robots.txt
@@ -203,7 +209,7 @@ jobs:
           [[ "$alias_code" == '301' || "$alias_code" == '308' ]]
           curl -sSI "${BASE}/careers/job-opportunities" | tr -d '\r' | grep -qi '^location:.*\/careers'
 
-          echo 'Production metadata, eligibility gating, schema, sitemap, robots, redirects and real 404 behaviour verified.'
+          echo 'Phase 11 production metadata, application gating, sitemap, robots, redirects and 404 behaviour verified.'
 
       - name: Verify production cache policy and split assets
         shell: bash
@@ -247,7 +253,7 @@ jobs:
           }
           echo 'Cloudflare prerendered HTML revalidation and immutable split-asset caching verified.'
 
-      - name: Verify live Phase 10 private admin runtime
+      - name: Verify live Phase 11 private admin runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -257,15 +263,13 @@ jobs:
           test "$health_code" = '200'
           grep -q '"ok":true' /tmp/admin-health.json
           grep -q '"dashboard":true' /tmp/admin-health.json
-          grep -q '"design":"phase10-enterprise-workspace"' /tmp/admin-health.json
+          grep -q '"jobs":true' /tmp/admin-health.json
+          grep -q '"design":"phase11-job-management-cms"' /tmp/admin-health.json
 
           root_code=$(curl -sS -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
           test "$root_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-root.html
           grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
-          ! grep -q 'Operations Console' /tmp/admin-root.html
-          ! grep -q 'Operational command view' /tmp/admin-root.html
-          ! grep -q 'Operational ledger' /tmp/admin-root.html
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^cache-control:.*no-store'
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-robots-tag:.*noindex'
           tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-frame-options: *DENY'
@@ -277,9 +281,9 @@ jobs:
           grep -q '"authenticated":false' /tmp/admin-session.json
           tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
 
-          echo 'Phase 10 live private admin backend runtime, unauthenticated session and defensive headers verified.'
+          echo 'Phase 11 live private admin backend runtime, unauthenticated session and defensive headers verified.'
 
-      - name: Verify live Phase 10 visual admin delivery
+      - name: Verify live Phase 11 visual admin delivery
         shell: bash
         run: |
           set -euo pipefail
@@ -309,7 +313,7 @@ jobs:
           test "$rejected_code" = '403'
           grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-          echo 'Phase 10 visual admin HTML delivery, rewritten routes, private headers, session proxy and same-origin POST guard verified.'
+          echo 'Phase 11 visual admin HTML delivery, rewritten routes, private headers, session proxy and same-origin POST guard verified.'
 
       - name: Verify Vercel fallback routes remain reachable
         shell: bash
@@ -326,6 +330,6 @@ jobs:
       - name: Deployment ownership
         run: |
           echo 'CI and live-route verification passed.'
-          echo 'Cloudflare Workers Builds is the primary CD path from main and owns the visual Phase 10 admin delivery.'
-          echo 'Supabase admin-auth remains the private Phase 10 administration backend runtime.'
+          echo 'Cloudflare Workers Builds is the primary CD path from main and owns the visual Phase 11 admin delivery.'
+          echo 'Supabase admin-auth remains the private Phase 11 administration backend runtime.'
           echo 'Vercel is retained as a secondary live fallback.'
