@@ -6,13 +6,14 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime] = await Promise.all([
+const [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions] = await Promise.all([
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
   read('supabase/functions/admin-auth/jobs.ts'),
   read('supabase/functions/admin-auth/ui.ts'),
   read('supabase/functions/admin-auth/security.ts'),
   read('src/backend/repositories/public-jobs-repository.js'),
-  read('src/backend/runtime/public-careers.js')
+  read('src/backend/runtime/public-careers.js'),
+  read('src/frontend/app/interactions-careers.js')
 ]);
 
 for (const field of ['required_skills', 'preferred_skills', 'application_response_window']) {
@@ -61,10 +62,14 @@ assert.ok(publicRuntime.includes('Applications opening soon'), 'Published Phase 
 assert.ok(!publicRuntime.includes('data-rcitcs-job-posting'), 'Phase 11 must not emit Google JobPosting markup until a working application method is live.');
 assert.ok(!publicRuntime.includes('directApply:'), 'Phase 11 must not assert direct-apply semantics before Phase 12.');
 
-for (const source of [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime]) {
+const runtimeNavigationGuard = 'if (selectRole(slug)) event.preventDefault();';
+assert.ok(careerInteractions.includes(runtimeNavigationGuard), 'Runtime-rendered vacancy links must retain native browser navigation when the legacy static selector cannot handle the role.');
+assert.ok(!careerInteractions.includes('event.preventDefault();\n      selectRole(slug);'), 'Legacy Careers JavaScript must not suppress runtime job navigation unconditionally.');
+
+for (const source of [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions]) {
   for (const secretPattern of ['ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'SUPABASE_SERVICE_ROLE_KEY=', 'sb_secret_']) {
     assert.ok(!source.includes(secretPattern), `Secret-like value leaked into Phase 11 convergence source: ${secretPattern}`);
   }
 }
 
-console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, crawlable job pages and truthful pre-application SEO boundaries.');
+console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, runtime-link navigation, crawlable job pages and truthful pre-application SEO boundaries.');
