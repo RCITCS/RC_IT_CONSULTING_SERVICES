@@ -74,6 +74,11 @@ assert.ok(index.includes('jobs: true'));
 assert.ok(index.includes('phase11-job-management-cms'));
 assert.ok(index.includes('path.startsWith("/jobs") ? 131072 : 32768'), 'Admin payload ceilings must remain route scoped.');
 assert.ok(index.includes('originOk(request, url)'), 'Phase 9 same-origin protection must remain ahead of Phase 11 mutations.');
+assert.ok(index.includes('request.clone().body'), 'Chunked admin requests must be inspected as a bounded stream.');
+assert.ok(index.includes('body.getReader()'), 'Chunked admin request limits must use streaming reads.');
+assert.ok(index.includes('total > limit'), 'Streamed request inspection must stop at the configured route limit.');
+assert.ok(index.includes('reader.cancel()'), 'Oversized streamed requests must stop reading once the limit is exceeded.');
+assert.ok(!index.includes('request.clone().arrayBuffer()'), 'Chunked admin request validation must not buffer an unbounded body before rejection.');
 
 for (const route of [
   '/jobs/create', '"edit"', '"preview"', '"delete"', '"update"', '"transition"', '"duplicate"'
@@ -115,4 +120,4 @@ for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=', 'ADMIN_BOOTSTRAP_PASS
   assert.ok(!ui.includes(secretPattern) && !routes.includes(secretPattern), `Secret-like value leaked into Phase 11 presentation: ${secretPattern}`);
 }
 
-console.log('PASS: Phase 11 job CMS authority, transitions, concurrency, audit/deletion policy, CSRF/RBAC, responsive workflow, optimized DB access and single-source public Careers runtime contracts verified.');
+console.log('PASS: Phase 11 job CMS authority, transitions, concurrency, audit/deletion policy, CSRF/RBAC, bounded streamed input, responsive workflow, optimized DB access and single-source public Careers runtime contracts verified.');
