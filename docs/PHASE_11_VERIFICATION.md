@@ -89,7 +89,7 @@ Production Supabase Edge Function:
 - `verify_jwt=false` retained intentionally because the established application implements its own hardened administrator/session boundary;
 - deployment contains the Phase 11 Jobs routes, CMS fields, bounded request handling and updated authenticated navigation.
 
-The v15 deployment source is semantically aligned with the tested Phase 11 admin source but was compacted during deployment; this record does **not** claim byte-for-byte source identity. Public-runtime, test and migration-only commits made after v15 do not modify the Supabase Edge Function files.
+The v15 deployment source is semantically aligned with the tested Phase 11 admin source but was compacted during deployment; this record does **not** claim byte-for-byte source identity. Later Phase 11 commits after the v15 deployment modify public Careers JavaScript, tests, migrations and this verification document only, not the Supabase Edge Function source files.
 
 ## Frontend and end-user verification
 
