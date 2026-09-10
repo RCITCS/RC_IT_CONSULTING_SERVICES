@@ -19,34 +19,24 @@ for (const field of ['required_skills', 'preferred_skills', 'application_respons
 }
 
 for (const requirement of [
-  'job_code_registry',
-  'jobs_assign_job_code',
-  'jobs_preserve_job_code',
-  'jobs_corporate_code_format_check',
-  'alter table public.jobs alter column code set not null',
-  'get_job_content_document',
-  'server_generated',
-  'draft_deleted'
+  'job_code_registry', 'jobs_assign_job_code', 'jobs_preserve_job_code',
+  'jobs_corporate_code_format_check', 'alter table public.jobs alter column code set not null',
+  'get_job_content_document', 'server_generated', 'draft_deleted'
 ]) assert.ok(migration.includes(requirement), `Job identifier/content authority missing: ${requirement}`);
 
 assert.ok(migration.includes("code ~ '^RC-[A-Z0-9]{2,5}-[0-9]{2}-[A-Z0-9]{3}-[A-Z0-9]{6}$'"));
 assert.ok(migration.includes("metadata = metadata || jsonb_build_object('retired_reason', 'draft_deleted')"), 'Deleted identifiers must remain permanently reserved.');
 assert.ok(!/p_payload\s*->>\s*'code'/.test(migration), 'Client payload must not control the immutable job identifier.');
-assert.ok(!/name=\\?"code\\?"/.test(adminUi), 'Admin form must not expose an editable job-code input.');
-assert.ok(!/form\.get\(\\?"code\\?"\)/.test(adminUi), 'Admin form parser must not accept a client-supplied job code.');
+assert.ok(!adminUi.includes('name="code"'), 'Admin form must not expose an editable job-code input.');
+assert.ok(!adminUi.includes('form.get("code")'), 'Admin form parser must not accept a client-supplied job code.');
 assert.ok(adminUi.includes('Generated automatically'));
 assert.ok(adminUi.includes('Server generated · immutable · never reused.'));
 assert.ok(adminUi.includes('Canonical candidate-content preview'));
 
 for (const candidateLabel of [
-  'Required programming languages / technologies',
-  'Required skills',
-  'Preferred skills',
-  'Application response window',
-  'Industry context',
-  'Preferred qualifications',
-  'Nature of working style',
-  'Location details'
+  'Required programming languages / technologies', 'Required skills', 'Preferred skills',
+  'Application response window', 'Industry context', 'Preferred qualifications',
+  'Nature of working style', 'Location details'
 ]) assert.ok(adminUi.includes(candidateLabel), `Admin editor/preview omitted locked candidate field: ${candidateLabel}`);
 
 for (const mapping of ['requiredSkills', 'preferredSkills', 'applicationResponseWindow']) {
@@ -59,7 +49,7 @@ for (const label of ['Required skills', 'Preferred skills', 'Application respons
 assert.ok(publicRuntime.includes("robots = 'index,follow'"), 'Published public job pages must default to indexable SEO state.');
 assert.ok(publicRuntime.includes("robots: 'noindex,nofollow'"), 'Application/error surfaces must remain noindex.');
 assert.ok(publicRuntime.includes('data-rcitcs-job-posting'), 'Published eligible jobs must receive JobPosting structured data.');
-assert.ok(publicRuntime.includes("directApply: false"), 'Phase 11 must not claim direct apply before Phase 12.');
+assert.ok(publicRuntime.includes('directApply: false'), 'Phase 11 must not claim direct apply before Phase 12.');
 assert.ok(publicRuntime.includes('identifier:'), 'Structured data must use the immutable hiring identifier.');
 
 for (const source of [migration, adminUi, publicRepository, publicRuntime]) {
