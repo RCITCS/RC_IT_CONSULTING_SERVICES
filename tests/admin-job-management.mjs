@@ -6,14 +6,17 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [migration, db, index, routes, ui, worker, catalog] = await Promise.all([
+const [migration, hardening, db, index, routes, ui, worker, catalog, publicRepository, publicRuntime] = await Promise.all([
   read('supabase/migrations/20260910152000_phase_11_job_management_cms.sql'),
+  read('supabase/migrations/20260910161000_phase_11_job_management_hardening.sql'),
   read('supabase/functions/admin-auth/db.ts'),
   read('supabase/functions/admin-auth/index.ts'),
   read('supabase/functions/admin-auth/job-routes.ts'),
   read('supabase/functions/admin-auth/jobs.ts'),
   read('src/backend/runtime/worker.js'),
-  read('src/frontend/app/career-job-catalog.js')
+  read('src/frontend/app/career-job-catalog.js'),
+  read('src/backend/repositories/public-jobs-repository.js'),
+  read('src/backend/runtime/public-careers.js')
 ]);
 
 for (const column of [
@@ -49,6 +52,15 @@ assert.ok(/security invoker/gi.test(migration));
 assert.ok(!/security\s+definer/i.test(migration), 'Phase 11 RPCs must not bypass RLS via SECURITY DEFINER.');
 assert.ok(!/grant\s+execute[\s\S]{0,180}\bto\s+(?:anon|authenticated)\b/i.test(migration), 'Browser roles must not execute private/public job database RPCs directly.');
 for (const role of ['public, anon, authenticated', 'service_role']) assert.ok(migration.includes(role));
+
+assert.ok(hardening.includes('drop constraint if exists jobs_check'), 'Obsolete published_at/close-date constraint must be retired.');
+assert.ok(hardening.includes('get_public_careers_context'), 'Public Careers must have a one-round-trip context RPC.');
+assert.ok(hardening.includes('select ap.job_id, count(*)::bigint as application_count'), 'Admin job list must aggregate application counts in one set operation.');
+assert.ok(!hardening.includes("'application_count', (select count(*)"), 'Admin job list must not reintroduce per-job count subqueries.');
+assert.ok(hardening.includes("left(v_job.code, 18) || '-COPY-'"), 'Duplicated job codes must remain within the 32-character CMS contract.');
+assert.ok(/security invoker/gi.test(hardening));
+assert.ok(!/security\s+definer/i.test(hardening));
+assert.ok(!/grant\s+execute[\s\S]{0,180}\bto\s+(?:anon|authenticated)\b/i.test(hardening));
 
 for (const adapter of ['jobManagementContext', 'saveJob', 'transitionJob', 'duplicateJob', 'deleteJob']) {
   assert.ok(db.includes(`function ${adapter}`), `Edge database adapter missing: ${adapter}`);
@@ -92,9 +104,15 @@ assert.ok(!catalog.includes('career-jobs.js'));
 assert.ok(!catalog.includes('career-jobs-data-expansion.js'));
 assert.ok(!catalog.includes('career-jobs-services-expansion.js'));
 assert.ok(catalog.includes('server-authoritative in PostgreSQL'));
+assert.ok(publicRepository.includes('rpc/get_public_careers_context'));
+assert.ok(publicRepository.includes('getCareersContext'));
+assert.ok(!publicRepository.includes('rpc/get_public_jobs'), 'Public runtime should not download full content for every list item.');
+assert.ok(publicRuntime.includes('siteOriginFromHtml'));
+assert.ok(!publicRuntime.includes("const SITE_ORIGIN = 'https://rcitcs.com'"), 'Runtime SEO must not diverge from the build-approved canonical origin.');
+assert.ok(publicRuntime.includes('getCareersContext(slug)'));
 
 for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'sb_secret_']) {
   assert.ok(!ui.includes(secretPattern) && !routes.includes(secretPattern), `Secret-like value leaked into Phase 11 presentation: ${secretPattern}`);
 }
 
-console.log('PASS: Phase 11 job CMS authority, state transitions, optimistic concurrency, audit trail, deletion policy, CSRF/RBAC boundaries, responsive admin workflow and runtime ownership contracts verified.');
+console.log('PASS: Phase 11 job CMS authority, transitions, concurrency, audit/deletion policy, CSRF/RBAC, responsive workflow, optimized DB access and single-source public Careers runtime contracts verified.');
