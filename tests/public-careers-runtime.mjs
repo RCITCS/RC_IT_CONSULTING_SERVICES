@@ -48,8 +48,7 @@ const selectedJob = {
 
 function env() {
   return {
-    SUPABASE_URL: 'https://example.supabase.co',
-    SUPABASE_SECRET_KEY: 'sb_secret_test_only_not_a_real_secret',
+    PUBLIC_CAREERS_API_URL: 'https://example.supabase.co/functions/v1/public-careers',
     ASSETS: {
       async fetch() {
         return new Response(baseHtml, {
@@ -64,7 +63,12 @@ function env() {
 function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   return async (url, init = {}) => {
     calls.push({ url: String(url), init, body: init.body ? JSON.parse(init.body) : null });
-    assert.equal(String(url), 'https://example.supabase.co/rest/v1/rpc/get_public_careers_context');
+    assert.equal(String(url), 'https://example.supabase.co/functions/v1/public-careers');
+    assert.equal(init.method, 'POST');
+    const headers = new Headers(init.headers);
+    assert.equal(headers.get('apikey'), null, 'Cloudflare public Careers must not receive a Supabase database credential.');
+    assert.equal(headers.get('authorization'), null, 'Cloudflare public Careers must not receive a bearer credential.');
+    assert.match(headers.get('content-type') || '', /application\/json/i);
     return new Response(JSON.stringify({ jobs, selected }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
 }
@@ -76,8 +80,8 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   });
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.equal(calls.length, 1, 'Careers root must use one database round trip.');
-  assert.deepEqual(calls[0].body, { p_slug: null });
+  assert.equal(calls.length, 1, 'Careers root must use one public-provider round trip.');
+  assert.deepEqual(calls[0].body, { slug: null });
   for (const expected of [
     'Platform Engineer', 'Build dependable platform capabilities.', 'Azure', 'Industry context',
     'Banking &amp; Finance', 'Required skills', 'Production incident diagnosis', 'Preferred skills',
@@ -98,8 +102,8 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   });
   const html = await response.text();
   assert.equal(response.status, 200);
-  assert.equal(calls.length, 1, 'Job detail must not perform duplicate list/detail database requests.');
-  assert.deepEqual(calls[0].body, { p_slug: 'platform-engineer' });
+  assert.equal(calls.length, 1, 'Job detail must not perform duplicate list/detail provider requests.');
+  assert.deepEqual(calls[0].body, { slug: 'platform-engineer' });
   assert.ok(html.includes('<title>Platform Engineer | Careers | RC IT Services</title>'));
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers/jobs/platform-engineer"'));
   assert.ok(html.includes('name="robots" content="index,follow"'), 'Published canonical job pages must remain crawlable.');
@@ -141,7 +145,7 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
 
 {
   const response = await handlePublicCareersRequest(new Request('https://preview.example/careers'), env(), {
-    fetchImpl: async () => new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 })
+    fetchImpl: async () => new Response(JSON.stringify({ ok: false, code: 'SERVICE_UNAVAILABLE' }), { status: 503 })
   });
   const html = await response.text();
   assert.equal(response.status, 503);
@@ -167,4 +171,4 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 11 public Careers uses one canonical DB content contract, renders locked candidate fields, keeps published jobs crawlable, truthfully defers application/JobPosting eligibility to Phase 12, fails closed, and handles 404/405/HEAD correctly.');
+console.log('PASS: Phase 11 public Careers uses the narrow secretless Edge provider, preserves canonical content/SEO, fails closed, and handles 404/405/HEAD correctly.');
