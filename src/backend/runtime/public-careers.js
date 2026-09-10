@@ -10,13 +10,22 @@ function esc(value = '') {
 }
 
 function enumLabel(value = '') {
-  return String(value || '')
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+  return String(value || '').replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function paragraphs(value = '') {
   return String(value || '').split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+}
+
+function publicDate(value) {
+  if (!value) return '';
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London', year: 'numeric', month: 'short', day: '2-digit'
+    }).format(new Date(value));
+  } catch {
+    return '';
+  }
 }
 
 function jobMeta(job) {
@@ -43,20 +52,32 @@ function tagGroup(title, items = []) {
   return `<section class="career-role-section career-role-section--tags"><h3>${esc(title)}</h3><div class="career-role-tags">${items.map((item) => `<span>${esc(item)}</span>`).join('')}</div></section>`;
 }
 
+function fact(label, value) {
+  if (value == null || String(value).trim() === '') return '';
+  return `<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
+}
+
 function roleDetail(job) {
   const description = paragraphs(job.description);
+  const posted = publicDate(job.publishedAt);
+  const closes = publicDate(job.closesAt);
   return `<article class="career-role-detail" id="role-detail">
     <div class="career-role-detail__head">
-      <div><span class="eyebrow">${esc(job.category || 'Current opening')}</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p></div>
+      <div><span class="eyebrow">${esc(job.category || 'Current opening')}</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p>${job.code ? `<span class="career-role-card__code">${esc(job.code)}</span>` : ''}</div>
       <a class="btn btn--primary career-apply-cta" href="/careers/jobs/${esc(job.slug)}/apply">Apply for this role <span aria-hidden="true">→</span></a>
     </div>
     <div class="career-role-facts" aria-label="Role facts">
-      ${job.location ? `<div><span>Location</span><strong>${esc(job.location)}</strong></div>` : ''}
-      ${job.workplaceType ? `<div><span>Working style</span><strong>${esc(enumLabel(job.workplaceType))}</strong></div>` : ''}
-      ${job.employmentType ? `<div><span>Employment type</span><strong>${esc(enumLabel(job.employmentType))}</strong></div>` : ''}
-      ${job.experience ? `<div><span>Experience</span><strong>${esc(job.experience)}</strong></div>` : ''}
+      ${fact('Location', job.location)}
+      ${fact('Working style', job.workplaceType ? enumLabel(job.workplaceType) : '')}
+      ${fact('Employment type', job.employmentType ? enumLabel(job.employmentType) : '')}
+      ${fact('Experience', job.experience)}
+      ${fact('Application response window', job.applicationResponseWindow)}
+      ${fact('Posted', posted)}
+      ${fact('Closing date', closes)}
     </div>
     ${tagGroup('Technology environment', job.technologies)}
+    ${detailList('Required skills', job.requiredSkills)}
+    ${detailList('Preferred skills', job.preferredSkills)}
     ${tagGroup('Industry context', job.industries)}
     ${description.length ? `<section class="career-role-section"><h3>Job description</h3>${description.map((paragraph) => `<p>${esc(paragraph)}</p>`).join('')}</section>` : ''}
     ${detailList('Key responsibilities', job.responsibilities)}
@@ -95,12 +116,7 @@ function applicationMain(job) {
     <section class="section"><div class="container career-application-layout">
       <aside class="career-application-summary">
         <span class="eyebrow">Role summary</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p>
-        <dl>
-          ${job.location ? `<div><dt>Location</dt><dd>${esc(job.location)}</dd></div>` : ''}
-          ${job.workplaceType ? `<div><dt>Working style</dt><dd>${esc(enumLabel(job.workplaceType))}</dd></div>` : ''}
-          ${job.employmentType ? `<div><dt>Employment type</dt><dd>${esc(enumLabel(job.employmentType))}</dd></div>` : ''}
-          ${job.experience ? `<div><dt>Experience</dt><dd>${esc(job.experience)}</dd></div>` : ''}
-        </dl>
+        <dl>${job.location ? `<div><dt>Location</dt><dd>${esc(job.location)}</dd></div>` : ''}${job.workplaceType ? `<div><dt>Working style</dt><dd>${esc(enumLabel(job.workplaceType))}</dd></div>` : ''}${job.employmentType ? `<div><dt>Employment type</dt><dd>${esc(enumLabel(job.employmentType))}</dd></div>` : ''}${job.experience ? `<div><dt>Experience</dt><dd>${esc(job.experience)}</dd></div>` : ''}${job.applicationResponseWindow ? `<div><dt>Response window</dt><dd>${esc(job.applicationResponseWindow)}</dd></div>` : ''}</dl>
         ${job.technologies?.length ? `<div class="career-application-tech"><strong>Core technologies</strong><div class="career-role-tags career-role-tags--compact">${job.technologies.slice(0, 6).map((item) => `<span>${esc(item)}</span>`).join('')}</div></div>` : ''}
         <a href="/careers/jobs/${esc(job.slug)}">Review full job description <span aria-hidden="true">→</span></a>
       </aside>
@@ -131,9 +147,10 @@ function replaceOpenings(html, content) {
   return html.replace(marker, content);
 }
 
-function replaceMetaContent(html, selector, content) {
+function setMetaContent(html, selector, content) {
   const pattern = new RegExp(`(<meta ${selector} content=")[^"]*("\\s*\\/?>)`, 'i');
-  return pattern.test(html) ? html.replace(pattern, `$1${esc(content)}$2`) : html;
+  if (pattern.test(html)) return html.replace(pattern, `$1${esc(content)}$2`);
+  return html.replace('</head>', `<meta ${selector} content="${esc(content)}" /></head>`);
 }
 
 function siteOriginFromHtml(html, requestUrl) {
@@ -145,24 +162,76 @@ function siteOriginFromHtml(html, requestUrl) {
   }
 }
 
-function runtimeSeo(html, pathName, siteOrigin, { title, description, application = false, notFound = false } = {}) {
+function runtimeSeo(html, pathName, siteOrigin, { title, description, robots = 'index,follow', notFound = false } = {}) {
   const canonical = `${siteOrigin}${pathName}`;
   let output = html
     .replace(/<title>[^<]*<\/title>/i, `<title>${esc(title)}</title>`)
     .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${esc(canonical)}" />`)
     .replace(/data-prerendered-path="[^"]*"/, `data-prerendered-path="${esc(pathName)}"`);
 
-  output = replaceMetaContent(output, 'name="description"', description);
-  output = replaceMetaContent(output, 'name="robots"', 'noindex,nofollow');
-  output = replaceMetaContent(output, 'property="og:title"', title);
-  output = replaceMetaContent(output, 'property="og:description"', description);
-  output = replaceMetaContent(output, 'property="og:url"', canonical);
-  output = replaceMetaContent(output, 'name="twitter:title"', title);
-  output = replaceMetaContent(output, 'name="twitter:description"', description);
-
+  output = setMetaContent(output, 'name="description"', description);
+  output = setMetaContent(output, 'name="robots"', robots);
+  output = setMetaContent(output, 'property="og:title"', title);
+  output = setMetaContent(output, 'property="og:description"', description);
+  output = setMetaContent(output, 'property="og:url"', canonical);
+  output = setMetaContent(output, 'name="twitter:title"', title);
+  output = setMetaContent(output, 'name="twitter:description"', description);
   if (notFound) output = output.replace(/<link rel="canonical"[^>]*>/i, '');
-  if (application) output = output.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/i, '');
   return output;
+}
+
+function employmentSchema(value) {
+  return ({ full_time: 'FULL_TIME', part_time: 'PART_TIME', contract: 'CONTRACTOR', temporary: 'TEMPORARY', internship: 'INTERN' })[value] || null;
+}
+
+function locationSchema(job) {
+  const location = String(job.location || '').trim();
+  const isUk = /\bUK\b|United Kingdom|London/i.test(location);
+  if (!isUk) return null;
+  if (job.workplaceType === 'remote') {
+    return {
+      jobLocationType: 'TELECOMMUTE',
+      applicantLocationRequirements: { '@type': 'Country', name: 'United Kingdom' }
+    };
+  }
+  const locality = location.split(',')[0]?.trim();
+  if (!locality) return null;
+  return {
+    jobLocation: {
+      '@type': 'Place',
+      address: { '@type': 'PostalAddress', addressLocality: locality, addressCountry: 'GB' }
+    }
+  };
+}
+
+function jobPostingJsonLd(job) {
+  if (!job?.code || !job?.title || !job?.publishedAt) return null;
+  const location = locationSchema(job);
+  if (!location) return null;
+  const description = [job.summary, job.description, ...(job.responsibilities || []), ...(job.qualifications || [])].filter(Boolean).join('\n\n');
+  if (!description) return null;
+  const document = {
+    '@context': 'https://schema.org',
+    '@type': 'JobPosting',
+    title: job.title,
+    description,
+    identifier: { '@type': 'PropertyValue', name: 'RC IT Services', value: job.code },
+    datePosted: new Date(job.publishedAt).toISOString().slice(0, 10),
+    hiringOrganization: { '@type': 'Organization', name: 'RC IT Services', sameAs: 'https://rcitcs.com' },
+    directApply: false,
+    ...location
+  };
+  const employmentType = employmentSchema(job.employmentType);
+  if (employmentType) document.employmentType = employmentType;
+  if (job.closesAt) document.validThrough = new Date(job.closesAt).toISOString();
+  return document;
+}
+
+function injectJobPosting(html, job) {
+  const data = jobPostingJsonLd(job);
+  if (!data) return html;
+  const json = JSON.stringify(data).replace(/</g, '\\u003c');
+  return html.replace('</head>', `<script type="application/ld+json" data-rcitcs-job-posting>${json}</script></head>`);
 }
 
 async function careersAsset(request, env) {
@@ -212,7 +281,8 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   } catch {
     const html = runtimeSeo(replaceMain(baseHtml, unavailableMain()), pathName, siteOrigin, {
       title: 'Careers temporarily unavailable | RC IT Services',
-      description: 'RC IT Services recruitment information is temporarily unavailable.'
+      description: 'RC IT Services recruitment information is temporarily unavailable.',
+      robots: 'noindex,nofollow'
     });
     return new Response(request.method === 'HEAD' ? null : html, { status: 503, headers: publicHeaders(assetResponse.headers, 503) });
   }
@@ -221,7 +291,7 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   const selected = context.selected;
 
   if (pathName === '/careers') {
-    const html = replaceOpenings(baseHtml, openingsBrowser(jobs, selected));
+    const html = setMetaContent(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), 'name="robots"', 'index,follow');
     return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
   }
 
@@ -229,6 +299,7 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
     const html = runtimeSeo(replaceMain(baseHtml, notFoundMain()), pathName, siteOrigin, {
       title: 'Career role not found | RC IT Services',
       description: 'The requested RC IT Services vacancy is not currently published.',
+      robots: 'noindex,nofollow',
       notFound: true
     });
     return new Response(request.method === 'HEAD' ? null : html, { status: 404, headers: publicHeaders(assetResponse.headers, 404) });
@@ -239,15 +310,17 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
     const html = runtimeSeo(replaceMain(baseHtml, applicationMain(selected)), pathName, siteOrigin, {
       title: `Apply for ${selected.title} | RC IT Services`,
       description,
-      application: true
+      robots: 'noindex,nofollow'
     });
     return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
   }
 
   const description = selected.summary || `Review the published ${selected.title} vacancy at RC IT Services.`;
-  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
+  let html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
     title: `${selected.title} | Careers | RC IT Services`,
-    description
+    description,
+    robots: 'index,follow'
   });
+  html = injectJobPosting(html, selected);
   return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
 }
