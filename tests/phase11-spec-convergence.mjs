@@ -55,11 +55,11 @@ for (const label of ['Required skills', 'Preferred skills', 'Application respons
   assert.ok(publicRuntime.includes(label), `Public candidate renderer omitted canonical field: ${label}`);
 }
 
-assert.ok(publicRuntime.includes("robots = 'index,follow'"), 'Published public job pages must default to indexable SEO state.');
+assert.ok(publicRuntime.includes("robots = 'index,follow'"), 'Published public job pages must default to crawlable SEO state.');
 assert.ok(publicRuntime.includes("robots: 'noindex,nofollow'"), 'Application/error surfaces must remain noindex.');
-assert.ok(publicRuntime.includes('data-rcitcs-job-posting'), 'Published eligible jobs must receive JobPosting structured data.');
-assert.ok(publicRuntime.includes('directApply: false'), 'Phase 11 must not claim direct apply before Phase 12.');
-assert.ok(publicRuntime.includes('identifier:'), 'Structured data must use the immutable hiring identifier.');
+assert.ok(publicRuntime.includes('Applications opening soon'), 'Published Phase 11 job pages must expose a truthful disabled application state.');
+assert.ok(!publicRuntime.includes('data-rcitcs-job-posting'), 'Phase 11 must not emit Google JobPosting markup until a working application method is live.');
+assert.ok(!publicRuntime.includes('directApply:'), 'Phase 11 must not assert direct-apply semantics before Phase 12.');
 
 for (const source of [migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime]) {
   for (const secretPattern of ['ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'SUPABASE_SERVICE_ROLE_KEY=', 'sb_secret_']) {
@@ -67,4 +67,4 @@ for (const source of [migration, adminUi, overviewUi, securityUi, publicReposito
   }
 }
 
-console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority and correct public/private SEO boundaries.');
+console.log('PASS: Phase 11 locked CMS spec converges on server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, crawlable job pages and truthful pre-application SEO boundaries.');
