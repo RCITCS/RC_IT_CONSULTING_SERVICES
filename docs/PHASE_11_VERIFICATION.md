@@ -2,130 +2,194 @@
 
 ## Release state
 
-**Pre-merge acceptance: PASSED.**
+**COMPLETED & VERIFIED.**
 
-Phase 11 may be marked `COMPLETED & VERIFIED` only after PR #28 is merged and the resulting exact `main` SHA passes the post-merge CI/deployment/mirror/live-route gates.
+Phase 11 is closed. Phase 12 may start only from the verified Phase 11 `main` state recorded below.
 
-## Authority and scope
+## Final production authority
 
-- Baseline `main`: `07efc473aa872bf5e2f921b8922fc5a54b6431ff` (Phase 10 closure).
-- Working branch: `phase-11-job-management-cms`.
-- Pull request: #28.
-- Phase 11 owns the server-authoritative Job Management CMS and database-backed public Careers vacancy runtime.
-- Phase 12 candidate application persistence/submission is deliberately excluded from Phase 11.
+- Phase 10 baseline: `07efc473aa872bf5e2f921b8922fc5a54b6431ff`.
+- Phase 11 implementation PR: **#28 — Job-management CMS**.
+- Post-merge production-gate correction: **#29 — align post-merge production verification**.
+- Public Careers provider repair: **#30 — restore public Careers provider**.
+- Verified Phase 11 production `main`: `14410719c72f88ed597670e568f0f398d11ea0b8` before this documentation-only closeout.
+- Mirror repository `RCITCS/RC_IT_CONSULTING_SERVICES` verified on the exact same SHA.
 
 ## Product Owner acceptance
 
-The Phase 11 CMS supports create draft, authoritative edit, private preview, publish/unpublish, close, archive/restore, duplicate, guarded permanent deletion of never-published drafts with zero applications, categories, role metadata, publication windows and database-backed public vacancy rendering.
+The Phase 11 CMS supports:
 
-The locked recruitment specification was reconciled before merge:
+- create draft;
+- edit authoritative vacancy content;
+- private preview;
+- publish and unpublish;
+- close;
+- archive and restore;
+- duplicate to a new draft;
+- guarded permanent deletion only for never-published drafts with zero applications;
+- category, employment, location and publication-window management;
+- database-backed public Careers vacancy rendering.
+
+The locked recruitment specification was reconciled before closure:
 
 - job identifiers are generated server-side;
 - identifiers are opaque corporate codes, unique, immutable and never reused;
+- the administrator cannot edit the generated job identifier;
 - required programming languages/technologies, required skills, preferred skills, industry context, preferred qualifications, working-style detail, location detail and application response window are persisted;
-- admin preview and public vacancy pages consume the same canonical job-content authority;
-- the administrator cannot edit the generated job identifier.
+- Admin Preview and the public vacancy page consume the same canonical job-content authority.
 
 ## Architecture and data ownership
 
 - PostgreSQL is the production vacancy source of truth.
-- Client/UI state does not authorize publication or role access.
-- Active `super_admin` authority is required server-side.
-- Optimistic concurrency uses record versions and rejects stale mutations visibly.
-- Status changes are separate audited transitions.
-- Public vacancy eligibility is computed from authoritative status/opening/closing state.
-- The legacy static catalogue no longer owns production vacancy state.
-- A forward-only idempotent prerequisite migration converges the checked-in Phase 8 schema (`work_model`/`sort_order`/missing `published_at`) before Phase 11 migrations consume `workplace_type`/`display_order`/`published_at`.
+- Browser/client state does not authorize publication or role access.
+- Active `super_admin` authority is enforced server-side.
+- Optimistic concurrency rejects stale mutations visibly.
+- Publication/closure/archive actions are separate audited transitions.
+- Public eligibility is computed from authoritative status/opening/closing state.
+- The legacy static job catalogue no longer owns production vacancy state.
+- A forward-only idempotent prerequisite migration converges the checked-in Phase 8 schema before Phase 11 migrations consume the newer field names and publication state.
+- Cloudflare does not receive a privileged database credential. Public Careers uses a narrow Supabase-owned provider that returns only the public vacancy projection.
 
 ## Security verification
 
-Verified in production for `get_admin_job_management_context`, `admin_save_job`, `admin_transition_job`, `admin_duplicate_job`, `admin_delete_job`, `get_job_content_document` and `get_public_careers_context`.
+Production verification covered `get_admin_job_management_context`, `admin_save_job`, `admin_transition_job`, `admin_duplicate_job`, `admin_delete_job`, `get_job_content_document` and `get_public_careers_context`.
 
-All verified functions are `SECURITY INVOKER`, not executable by `anon` or `authenticated`, and executable by `service_role` at the database API boundary.
+All verified database functions remain `SECURITY INVOKER`, are not executable by `anon` or `authenticated`, and are callable through the trusted server boundary only.
 
-Additional verified controls include job-code registry RLS/browser deny, server-backed CSRF, same-origin protection before mutations, route-scoped request ceilings, bounded streamed handling when `Content-Length` is absent, no-cache/no-index private admin responses, and **0 Supabase Security Advisor findings** after Phase 11 DDL changes.
+Additional verified controls:
+
+- job-code registry RLS/browser deny;
+- server-backed CSRF;
+- same-origin and Fetch Metadata protections before admin mutations;
+- route-scoped request ceilings;
+- bounded streamed handling for requests without `Content-Length`;
+- private admin responses remain `no-store` and `noindex`;
+- no privileged Supabase credential is exposed to Cloudflare/public browser code;
+- public Careers provider has a bounded/whitelisted response contract and fails closed on provider failure;
+- Supabase Security Advisor: **0 findings** after Phase 11 database changes.
 
 ## Production invariants
 
-- 46 jobs;
-- 46 published jobs;
-- 18 categories;
-- 0 null job codes;
-- 0 malformed or duplicate corporate job codes;
-- 46 active generated identifiers and 46 permanently retired legacy identifiers;
-- allocation and immutable-code triggers active;
-- `jobs.code` remains `NOT NULL`.
+Final production check:
+
+- jobs: **46**;
+- published jobs: **46**;
+- categories: **18**;
+- null job codes: **0**;
+- malformed job codes: **0**;
+- duplicate job codes: **0**;
+- Phase 11 verification jobs remaining: **0**;
+- active generated identifier registry rows: **46**;
+- permanently retired legacy identifier rows: **46**;
+- server code-allocation trigger: active;
+- immutable-code trigger: active.
 
 ## Production integration verification
 
-A rollback-contained production lifecycle test verified unauthorized fail-closed behavior, server-generated codes, locked-field persistence, stale-save rejection, code immutability, publish/public projection, stale-transition rejection, published-history delete protection, duplicate with a distinct generated code, safe draft deletion with code retirement, close/public removal, archive/restore and audit creation.
+Rollback-contained production testing verified:
 
-A separate residue check after rollback confirmed 46 production jobs, 18 categories, zero verification jobs, zero verification audit rows, 46 active registry entries and 46 retired entries.
+1. unauthorized admin context fails closed;
+2. a client cannot control the generated job code;
+3. create assigns a valid registered corporate identifier;
+4. locked candidate fields persist;
+5. stale save is rejected;
+6. attempted identifier modification is rejected/preserved;
+7. publish succeeds;
+8. public context exposes the canonical published content;
+9. stale status transition is rejected;
+10. a published/history-bearing vacancy cannot be permanently deleted;
+11. duplicate receives a distinct generated identifier and preserves canonical content;
+12. a never-published duplicate can be permanently deleted and its identifier is retired;
+13. close removes public eligibility;
+14. archive and restore succeed;
+15. audit history is created.
 
-## Edge Function verification
+The verification transaction was rolled back. A separate residue check confirmed no synthetic verification vacancy or verification audit record remained.
 
-Production `admin-auth` is ACTIVE at version **15**, function id `d3464fc6-eeb5-4f51-b341-f19f9aabb7b8`, deployment hash `f810052a342306b14c05ee488e84c8e19aadc0b25e86e7547d44466390debb99`, with the established custom-auth `verify_jwt=false` boundary preserved.
+## Runtime verification
 
-The v15 deployment contains Phase 11 Jobs routes, CMS fields, bounded request handling and updated authenticated navigation. Its source is semantically aligned with the tested admin source but was compacted during deployment; this record does **not** claim byte-for-byte source identity. Later Phase 11 commits modify public Careers JavaScript, tests, migrations and verification documentation only, not the Supabase Edge Function source files.
+Supabase Edge Functions:
+
+- `admin-auth`: **ACTIVE**, version **15**;
+- `public-careers`: **ACTIVE**, version **1**.
+
+`admin-auth` retains the existing custom administrator/session boundary with `verify_jwt=false` by design. The public Careers provider is intentionally narrow and contains no privileged browser/database authorization path.
 
 ## Frontend and end-user verification
 
 - Jobs is discoverable from Overview, Jobs and Security in desktop and mobile administration navigation.
 - Overview remains read-only.
-- Job editor uses adaptive form grids and existing responsive admin shell behavior.
+- Job editor uses the existing adaptive admin workspace layout.
 - Generated job code is displayed read-only.
-- Private preview renders the canonical candidate-facing fields.
-- Explicit empty/filter/stale/error/delete-blocked states are used instead of fake success.
-- Runtime PostgreSQL vacancy cards retain native browser navigation when the legacy static selector cannot handle the role.
+- Private preview renders the canonical candidate-facing content.
+- Empty, filter, stale, validation, deletion-block and provider-failure states are explicit.
+- Runtime PostgreSQL vacancy cards retain normal browser navigation when the old static in-page selector cannot handle the role.
+- Published Careers and canonical vacancy routes were verified in the live Cloudflare production runtime.
 
 ## SEO verification
 
-- `/careers` and published canonical vacancy pages remain crawlable (`index,follow`).
-- unavailable/error/application-placeholder routes are `noindex,nofollow`.
-- job title remains separate from the immutable job identifier.
-- Phase 11 does **not** emit Google `JobPosting` structured data or claim direct-apply semantics while candidate submission is disabled.
-- `JobPosting` eligibility is deferred to Phase 12 and may be enabled only when the real application method is live and verified.
+Phase 11 closes with the truthful pre-application SEO boundary:
 
-## QA / CI verification
+- `/careers` and published canonical vacancy pages are crawlable (`index,follow`);
+- unavailable/error/application-placeholder routes are `noindex,nofollow`;
+- the job title remains separate from the immutable corporate identifier;
+- Phase 11 does **not** emit Google `JobPosting` structured data or claim direct-apply semantics while candidate submission is disabled;
+- `/apply` is not included in the sitemap;
+- `JobPosting` eligibility is deferred to Phase 12 and may be enabled only when the real candidate application method is live and verified.
 
-The last implementation head before verification-document-only revisions was `5e4d631b7b0a56e88170970a1f79c0ec8993008f`. CI #227 (`34514712236`) passed the complete Architecture, test and production build job on that exact implementation head, including source architecture, backend, persistence, authentication, Phase 10 dashboard, visual delivery, Phase 11 CMS/content/seed/spec/public-Careers, route rendering, design system, performance routing, SEO/SEO-preview, production build, performance budgets, prerendered SEO and Cloudflare configuration.
+## CI, deployment and mirror closure
 
-The subsequent commits are documentation-only revisions to this verification record. A final exact-head CI run is required before merge so the merge gate remains SHA-specific.
+Final verified Phase 11 production state before this documentation-only closeout:
 
-## Pull-request review closure
+- `main`: `14410719c72f88ed597670e568f0f398d11ea0b8`;
+- RC IT Services CI run **#240**, run id `34518094661`, attempt **2**: **SUCCESS**;
+- Architecture, tests and production build: **SUCCESS**;
+- live production routes: **SUCCESS**;
+- Phase 11 production SEO/application gating: **SUCCESS**;
+- Cloudflare cache/split-asset checks: **SUCCESS**;
+- live Phase 11 private admin runtime: **SUCCESS**;
+- live Phase 11 visual admin delivery: **SUCCESS**;
+- Vercel fallback route checks: **SUCCESS**;
+- mirror workflow run **#20**: **SUCCESS**;
+- mirror repository `main`: exact SHA parity with primary repository.
 
-Four P1 review threads were independently re-evaluated and fixed before resolution:
+The first attempt of CI #240 correctly failed during the live production smoke while the newly deployed public Careers provider had not yet reached the expected production state. The failed job was re-run on the **same commit**, and attempt 2 passed every live check. No test was weakened or bypassed to obtain the pass.
 
-- Phase 8 -> Phase 11 schema convergence;
-- nullable draft constraints;
-- runtime-loaded vacancy card navigation;
-- raw-source versus HTML-escaped date-label assertion.
+## Review closure
 
-All four were replied to with evidence and resolved only after implementation and re-verification.
+The following post-implementation findings were fixed before closure:
+
+- legacy Phase 8 -> Phase 11 schema convergence;
+- draft nullability/schema compatibility;
+- unbounded request handling without `Content-Length`;
+- generated/immutable/non-reusable corporate job identifiers;
+- missing required/preferred skills and response-window fields;
+- Admin Preview/public content parity;
+- authenticated Jobs navigation discoverability;
+- runtime vacancy-link interception by legacy JavaScript;
+- stale Phase 10 production smoke expectations;
+- unavailable public Careers provider in the production Cloudflare boundary;
+- premature `JobPosting`/direct-apply SEO claims.
 
 ## Role sign-off
 
 | Review role | Result | Acceptance basis |
 | --- | --- | --- |
-| Product Owner | PASS | Locked CMS fields/workflows and truthful Phase 12 boundary satisfied |
-| Solution / Software Architect | PASS | PostgreSQL authority, canonical content contract, forward-only migrations, versioned workflows |
-| Senior Frontend | PASS | Discoverable admin navigation, adaptive editor, truthful candidate/UI states, runtime-link fix |
-| Backend | PASS | Server-owned validation/RBAC/transitions, canonical RPCs, explicit errors and concurrency |
-| QA | PASS | Regression suite plus rollback-contained production lifecycle verification |
-| Security | PASS | Server authority, CSRF/origin/input limits, RLS/grants, Security Advisor 0 findings |
-| SEO | PASS | Crawlable canonical vacancy pages; no premature JobPosting/direct-apply claim |
-| Performance | PASS | CI performance budgets and set-based public/admin database reads |
-| Accessibility / Responsive | PASS | Existing admin shell accessibility/responsive contracts preserved; Jobs navigation available on mobile |
-| Admin end user | PASS | Full CMS workflow reachable from authenticated workspace with explicit states/actions |
-| Candidate end user | PASS | Approved vacancy content is database-backed and navigable; application state is explicitly not yet open |
+| Product Owner | PASS | Locked CMS workflows/content and truthful Phase 12 boundary satisfied |
+| Solution / Software Architect | PASS | PostgreSQL authority, narrow provider boundary, canonical content contract, forward-only migrations |
+| Senior Frontend | PASS | Discoverable admin workflow, adaptive layout, explicit states, candidate navigation fix |
+| Backend | PASS | Server-owned RBAC/validation/transitions/concurrency and provider fail-closed behavior |
+| Database | PASS | Production migrations/invariants, generated-code registry and service-only RPC authority verified |
+| QA | PASS | Full regression suite plus rollback-contained production lifecycle and live-route verification |
+| Security | PASS | CSRF/origin/input limits, RLS/grants, no privileged public credential, Security Advisor clean |
+| SEO | PASS | Crawlable canonical vacancies with no premature JobPosting/direct-apply claim |
+| Performance | PASS | CI performance budgets, set-based database reads and immutable asset/cache checks passed |
+| Accessibility / Responsive | PASS | Existing accessible responsive admin shell preserved and Jobs navigation available on mobile |
+| Admin end user | PASS | CMS workflow is reachable with explicit status/error/destructive-action states |
+| Candidate end user | PASS | Approved vacancy content is live and navigable; application intake is truthfully deferred to Phase 12 |
 
-## Remaining closure gate
+## Closure
 
-Do not mark Phase 11 `COMPLETED & VERIFIED` until all of the following pass on the resulting merge SHA:
+**Phase 11 — COMPLETED & VERIFIED.**
 
-1. final exact-head PR CI;
-2. PR #28 merge using an expected-head SHA guard;
-3. exact merged `main` SHA CI/deployment verification;
-4. live Cloudflare route verification;
-5. mirror repository exact-SHA verification;
-6. final production Supabase invariant and Edge Function status check.
+No unresolved Phase 11 implementation, migration, database, RBAC, security, SEO, performance, responsive, persistence, public-runtime, CI, deployment or mirror blocker remains at this closure checkpoint.
