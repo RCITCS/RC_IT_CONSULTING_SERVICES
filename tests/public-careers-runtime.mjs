@@ -16,7 +16,7 @@ const baseHtml = `<!doctype html><html><head>
 
 const listJob = {
   id: '11111111-1111-4111-8111-111111111111',
-  code: 'RC-TEST-001',
+  code: 'RC-ENG-26-HYB-A1B2C3',
   slug: 'platform-engineer',
   title: 'Platform Engineer',
   category: 'Engineering',
@@ -30,6 +30,8 @@ const selectedJob = {
   summary: 'Build dependable platform capabilities.',
   description: 'Own platform delivery.\n\nImprove reliability.',
   technologies: ['Azure', 'Terraform'],
+  required_skills: ['Production incident diagnosis'],
+  preferred_skills: ['FinOps awareness'],
   industries: ['Banking & Finance'],
   responsibilities: ['Build reliable platforms'],
   qualifications: ['Production platform experience'],
@@ -37,6 +39,7 @@ const selectedJob = {
   benefits: ['Offer terms confirmed in writing'],
   working_style_details: ['Hybrid attendance is engagement-aligned.'],
   location_details: 'Primary employment location is London.',
+  application_response_window: 'Expected review timeline: 5-7 business days',
   opens_at: '2026-09-10T00:00:00Z',
   published_at: '2026-09-10T00:00:00Z',
   closes_at: null,
@@ -75,17 +78,15 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(response.status, 200);
   assert.equal(calls.length, 1, 'Careers root must use one database round trip.');
   assert.deepEqual(calls[0].body, { p_slug: null });
-  assert.match(html, /Platform Engineer/);
-  assert.match(html, /Build dependable platform capabilities\./);
-  assert.match(html, /Azure/);
-  assert.match(html, /Industry context/);
-  assert.match(html, /Banking &amp; Finance/);
-  assert.match(html, /Preferred qualifications/);
-  assert.match(html, /Kubernetes experience/);
-  assert.match(html, /Nature of working style/);
-  assert.match(html, /Hybrid attendance is engagement-aligned/);
-  assert.match(html, /Primary employment location is London/);
+  for (const expected of [
+    'Platform Engineer', 'Build dependable platform capabilities.', 'Azure', 'Industry context',
+    'Banking &amp; Finance', 'Required skills', 'Production incident diagnosis', 'Preferred skills',
+    'FinOps awareness', 'Application response window', '5-7 business days', 'Preferred qualifications',
+    'Kubernetes experience', 'Nature of working style', 'Hybrid attendance is engagement-aligned',
+    'Primary employment location is London'
+  ]) assert.ok(html.includes(expected), `Careers root omitted canonical candidate content: ${expected}`);
   assert.match(html, /href="\/careers\/jobs\/platform-engineer#role-detail"/);
+  assert.ok(html.includes('name="robots" content="index,follow"'));
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers"'), 'Runtime must preserve the build-approved canonical origin.');
   assert.equal(html.includes('Base empty state.'), false);
 }
@@ -101,12 +102,14 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.deepEqual(calls[0].body, { p_slug: 'platform-engineer' });
   assert.ok(html.includes('<title>Platform Engineer | Careers | RC IT Services</title>'));
   assert.ok(html.includes('rel="canonical" href="https://production.example/careers/jobs/platform-engineer"'));
-  assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
+  assert.ok(html.includes('name="robots" content="index,follow"'), 'Published canonical job pages must be indexable.');
   assert.match(html, /Key responsibilities/);
-  assert.match(html, /Industry context/);
-  assert.match(html, /Preferred qualifications/);
-  assert.match(html, /Nature of working style/);
-  assert.match(html, /Primary employment location is London/);
+  assert.match(html, /Required skills/);
+  assert.match(html, /Preferred skills/);
+  assert.match(html, /Application response window/);
+  assert.ok(html.includes('data-rcitcs-job-posting'), 'Eligible published UK jobs must expose JobPosting structured data.');
+  assert.ok(html.includes('RC-ENG-26-HYB-A1B2C3'), 'JobPosting/candidate view must use the immutable corporate identifier.');
+  assert.ok(html.includes('"directApply":false'), 'Phase 11 must not claim direct apply before Phase 12 is live.');
 }
 
 {
@@ -119,8 +122,9 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(calls.length, 1);
   assert.ok(html.includes('Application submission is not enabled yet'));
   assert.ok(html.includes('No application has been submitted.'));
+  assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
   assert.equal(html.includes('type="file"'), false, 'Phase 11 must not expose an enabled Phase 12 document form.');
-  assert.equal(html.includes('application/ld+json'), false, 'Application runtime must not inherit unrelated Careers JSON-LD.');
+  assert.equal(html.includes('data-rcitcs-job-posting'), false, 'Application routes must not claim to be canonical JobPosting pages.');
 }
 
 {
@@ -131,6 +135,7 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   const html = await response.text();
   assert.equal(response.status, 404);
   assert.match(html, /not currently published/);
+  assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
   assert.equal(/rel="canonical"/.test(html), false, 'Unavailable job routes must not claim a canonical vacancy URL.');
 }
 
@@ -141,6 +146,7 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   const html = await response.text();
   assert.equal(response.status, 503);
   assert.match(html, /temporarily unavailable/);
+  assert.ok(html.includes('name="robots" content="noindex,nofollow"'));
   assert.equal(html.includes('Platform Engineer'), false, 'Provider failure must not fabricate or fall back to stale job data.');
   assert.match(response.headers.get('cache-control') || '', /no-store/);
 }
@@ -161,4 +167,4 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 11 public Careers uses one authoritative DB context request, preserves canonical-origin and approved vacancy content, fails closed, keeps Phase 12 disabled, and handles 404/405/HEAD correctly.');
+console.log('PASS: Phase 11 public Careers uses one canonical DB content contract, renders locked candidate fields, keeps published jobs indexable, emits truthful JobPosting data, fails closed, keeps Phase 12 disabled, and handles 404/405/HEAD correctly.');
