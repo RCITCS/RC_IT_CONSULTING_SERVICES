@@ -22,9 +22,10 @@ for (const contract of [
 
 const config = JSON.parse(wrangler);
 assert.ok(Array.isArray(config.assets?.run_worker_first));
-assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets at admin-host root.');
-assert.equal(config.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*')?.zone_name, 'rcitcs.com', 'Known-good staging transition route must remain deployable until isolated staging provisioning is complete.');
-assert.equal(config.routes?.find((route) => route.pattern === 'admin.rcitcs.com')?.custom_domain, true, 'Production admin custom domain remains authoritative during the cutover transition.');
+assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets for dynamic Careers/API/internal admin-probe routing.');
+assert.equal(config.workers_dev, true, 'Primary application Worker remains a workers.dev deployment.');
+assert.equal(Object.hasOwn(config, 'route'), false, 'Primary Worker must not reconcile dashboard-managed admin routes.');
+assert.equal(Object.hasOwn(config, 'routes'), false, 'Primary Worker must not reconcile dashboard-managed admin domains during the isolated-Worker cutover.');
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
@@ -37,4 +38,4 @@ for (const expected of [
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: admin.rcitcs.com is the authoritative private portal, staging/public-apex provisioning is diagnosed without weakening production security, and Applications navigation remains first-class.');
+console.log('PASS: primary Worker deployment cannot overwrite admin-domain ownership; admin.rcitcs.com remains the authoritative private portal and Applications navigation stays first-class.');

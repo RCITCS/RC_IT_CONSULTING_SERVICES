@@ -65,12 +65,11 @@ assert.equal(proxied.headers.get('content-length'), null);
 assert.equal(await proxied.text(), 'email=admin%40example.invalid&password=placeholder');
 
 assert.equal(primaryConfig.main, './worker/index.js');
+assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 application Worker must remain reachable on its workers.dev production origin.');
+assert.equal(Object.hasOwn(primaryConfig, 'route'), false, 'Primary Worker route reconciliation is intentionally detached during the admin Worker cutover.');
+assert.equal(Object.hasOwn(primaryConfig, 'routes'), false, 'Primary Worker must not overwrite externally managed admin-domain bindings during the cutover.');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
-const transitionalStagingBinding = primaryConfig.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
-assert.equal(transitionalStagingBinding?.zone_name, 'rcitcs.com', 'The last-known-good staging route must remain on the current Worker until the isolated staging Worker is actually provisioned and cut over.');
-const temporaryProductionBinding = primaryConfig.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
-assert.equal(temporaryProductionBinding?.custom_domain, true, 'Production admin must remain live on the current Worker until the isolated production Worker is created and cut over.');
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
@@ -105,4 +104,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: admin proxy security is preserved, last-known-good transitional bindings stay deployable, and isolated admin Worker cutover configurations remain source-controlled.');
+console.log('PASS: Phase 12 public Worker deployment is detached from admin-route reconciliation while admin proxy security, live-domain verification and isolated admin Worker cutover configs remain intact.');
