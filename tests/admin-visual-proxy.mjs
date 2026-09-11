@@ -110,11 +110,13 @@ assert.ok(wranglerSource.includes('"/admin"'));
 assert.ok(wranglerSource.includes('"/admin/*"'));
 assert.ok(wranglerSource.includes('"run_worker_first"'));
 
-assert.ok(workflowSource.includes('Verify live Phase 11 private admin runtime'));
-assert.ok(workflowSource.includes('Verify live Phase 11 visual admin delivery'));
+assert.ok(workflowSource.includes('Verify live Phase 12 private application runtimes'));
+assert.ok(workflowSource.includes('Verify live Phase 12 visual admin delivery'));
 assert.ok(workflowSource.includes('"jobs":true'));
-assert.ok(workflowSource.includes('"design":"phase11-job-management-cms"'));
+assert.ok(workflowSource.includes('"applications":true'));
+assert.ok(workflowSource.includes('"design":"phase12-candidate-application-workflow"'));
 assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"));
+assert.ok(workflowSource.includes('${ADMIN}/applications'));
 assert.ok(workflowSource.includes('content-type:.*text/html'));
 assert.ok(workflowSource.includes('${ADMIN}/session'));
 
@@ -122,4 +124,4 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'A
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 11 live release gate verifies the CMS-aware private runtime and visual admin delivery.');
+console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 12 release gate verifies private Applications runtime and visual admin delivery.');
