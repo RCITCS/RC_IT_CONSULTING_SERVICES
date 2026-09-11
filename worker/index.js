@@ -3,7 +3,7 @@ import { createCandidateApplicationGateway } from '../src/backend/providers/cand
 
 const DEDICATED_ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 
-function legacyAdminRedirect(request) {
+export function legacyAdminRedirect(request) {
   const url = new URL(request.url);
   if (!DEDICATED_ADMIN_HOSTS.has(url.hostname.toLowerCase())) return null;
   if (url.pathname !== '/admin' && !url.pathname.startsWith('/admin/')) return null;
