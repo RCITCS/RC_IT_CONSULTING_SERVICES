@@ -78,8 +78,13 @@ const serviceHtml = await readFile(outputPath('/services/it/cyber-security'), 'u
 assert(serviceHtml.includes('"@type":"Service"'), 'Service page HTML is missing Service structured data.');
 assert(serviceHtml.includes('BreadcrumbList'), 'Service page HTML is missing BreadcrumbList structured data.');
 
-const wrangler = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
-assert(wrangler.includes('"/careers"') && wrangler.includes('"/careers/jobs/*"'), 'Cloudflare must route Careers and dynamic job paths through the Phase 11 runtime.');
+const wrangler = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
+assert(
+  Array.isArray(wrangler.assets?.run_worker_first)
+    && wrangler.assets.run_worker_first.length === 1
+    && wrangler.assets.run_worker_first[0] === '/*',
+  'Cloudflare must run the Worker before assets for every path so Careers and dynamic job routes remain runtime-owned without redundant Wrangler rules.'
+);
 
 const vercelConfig = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'));
 const fallbackHeaders = vercelConfig.headers?.find((entry) => entry.source === '/(.*)')?.headers || [];
