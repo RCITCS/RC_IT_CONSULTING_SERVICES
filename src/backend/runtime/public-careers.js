@@ -1,5 +1,6 @@
 import { createPublicJobsRepository } from '../repositories/public-jobs-repository.js';
 import { CANDIDATE_CONSENT_VERSION } from '../../../supabase/functions/_shared/candidate-application-contract.js';
+import { appendRuntimeJobPosting, createRuntimeJobPosting } from './job-posting.js';
 
 function esc(value = '') {
   return String(value ?? '')
@@ -182,14 +183,19 @@ function siteOriginFromHtml(html, requestUrl) {
   catch { return new URL(requestUrl).origin; }
 }
 
+function effectiveRobots(html, requested) {
+  return /<meta\s+name="robots"\s+content="[^"]*noindex/i.test(html) ? 'noindex,nofollow' : requested;
+}
+
 function runtimeSeo(html, pathName, siteOrigin, { title, description, robots = 'index,follow', notFound = false } = {}) {
   const canonical = `${siteOrigin}${pathName}`;
+  const finalRobots = effectiveRobots(html, robots);
   let output = html
     .replace(/<title>[^<]*<\/title>/i, `<title>${esc(title)}</title>`)
     .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${esc(canonical)}" />`)
     .replace(/data-prerendered-path="[^"]*"/, `data-prerendered-path="${esc(pathName)}"`);
   output = setMetaContent(output, 'name="description"', description);
-  output = setMetaContent(output, 'name="robots"', robots);
+  output = setMetaContent(output, 'name="robots"', finalRobots);
   output = setMetaContent(output, 'property="og:title"', title);
   output = setMetaContent(output, 'property="og:description"', description);
   output = setMetaContent(output, 'property="og:url"', canonical);
@@ -255,7 +261,7 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   const selected = context.selected;
 
   if (pathName === '/careers') {
-    const html = setMetaContent(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), 'name="robots"', 'index,follow');
+    const html = setMetaContent(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), 'name="robots"', effectiveRobots(baseHtml, 'index,follow'));
     return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
   }
 
@@ -280,10 +286,11 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   }
 
   const description = selected.summary || `Review the published ${selected.title} vacancy at RC IT Services.`;
-  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
+  let html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
     title: `${selected.title} | Careers | RC IT Services`,
     description,
     robots: 'index,follow'
   });
+  html = appendRuntimeJobPosting(html, createRuntimeJobPosting(selected, siteOrigin, pathName));
   return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
 }

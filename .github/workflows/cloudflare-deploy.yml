@@ -183,7 +183,10 @@ jobs:
           grep -q 'Apply for this role' /tmp/job.html
           grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
           ! grep -q 'Applications opening soon' /tmp/job.html
-          ! grep -q '"@type":"JobPosting"' /tmp/job.html
+          grep -q 'data-runtime-job-posting' /tmp/job.html
+          grep -q '"@type":"JobPosting"' /tmp/job.html
+          grep -q '"directApply":true' /tmp/job.html
+          grep -q '"addressCountry":"GB"' /tmp/job.html
 
           curl -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
           grep -q 'data-career-application' /tmp/apply.html
@@ -193,6 +196,7 @@ jobs:
           grep -q 'name="coverLetterText"' /tmp/apply.html
           grep -q 'name="consent" type="checkbox" required' /tmp/apply.html
           grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
+          ! grep -q 'data-runtime-job-posting' /tmp/apply.html
           ! grep -q 'SUPABASE_SECRET_KEY' /tmp/apply.html
           ! grep -q 'sb_secret_' /tmp/apply.html
 
@@ -228,7 +232,7 @@ jobs:
           [[ "$alias_code" == '301' || "$alias_code" == '308' ]]
           curl -sSI "${BASE}/careers/job-opportunities" | tr -d '\r' | grep -qi '^location:.*\/careers'
 
-          echo 'Phase 12 production Careers, protected application boundary, sitemap, robots, redirects and 404 behaviour verified.'
+          echo 'Phase 12 production Careers, JobPosting, protected application boundary, sitemap, robots, redirects and 404 behaviour verified.'
 
       - name: Verify production cache policy and split assets
         shell: bash
