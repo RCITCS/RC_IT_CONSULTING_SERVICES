@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Phase 6 converts the public website from a client-rendered SPA shell into a build-time prerendered public site while retaining the existing client-side components and interactions. Search engines and non-JavaScript clients must receive route-specific HTML content, metadata and semantics directly in the initial response.
+Phase 6 converted the public website from a client-rendered SPA shell into a prerendered public site while retaining the existing client-side components and interactions. Phase 11 moved vacancy authority into PostgreSQL and Phase 12 activated the real candidate application journey. Search engines and non-JavaScript clients must receive route-specific HTML content, metadata and semantics directly in the initial response, while runtime-owned vacancies remain consistent with the database authority.
 
 ## Source of truth
 
@@ -14,47 +14,58 @@ Phase 6 converts the public website from a client-rendered SPA shell into a buil
 - the deployment search-indexing gate
 - the explicit job-search eligibility gate
 
-`src/frontend/seo/seo-model.js` owns:
+`src/frontend/seo/seo-model.js` owns the static SEO model:
 
 - canonical URL generation
 - service/industry metadata derived from route data
 - service-detail metadata
-- job-route metadata
 - index/noindex policy
 - Open Graph and social metadata
-- Organization, WebSite, WebPage, Service, BreadcrumbList and eligible JobPosting JSON-LD
-- sitemap route selection and XML rendering
+- Organization, WebSite, WebPage, Service and BreadcrumbList JSON-LD
+- static sitemap route selection and XML rendering
 - robots rules
 - redirect output
+
+`src/backend/runtime/public-careers.js` and `src/backend/runtime/job-posting.js` own database-backed vacancy SEO at request time:
+
+- canonical single-job metadata
+- runtime index/noindex preservation
+- eligible `JobPosting` JSON-LD derived from the same public vacancy content shown to candidates
+- application-route `noindex,nofollow`
+- preview-indexing isolation
+
+`src/backend/runtime/public-sitemap.js` augments the production static sitemap with the currently published DB-backed vacancy URLs from the same narrow public Careers projection. It never adds application URLs.
 
 The current canonical origin defaults to the active Cloudflare production hostname. Phase 17 must set `PUBLIC_ORIGIN` to the approved custom production domain when that domain is configured. Canonicals must not point to an unconfigured future domain.
 
 ## Production indexability policy
 
-Indexable on the primary production build now:
+Indexable on the primary production deployment now:
 
 - canonical public marketing pages
 - service pages
 - service capability detail pages
 - industry pages
 - Careers landing page
+- genuine currently published job-detail pages with the operational Phase 12 application journey
 - legal/public information pages
 
 Noindex now:
 
 - Login
-- individual job detail routes while application submission is unavailable
 - job application form routes
 - future private/admin routes
 - 404 responses
+- runtime error/degraded vacancy responses
+- every non-main Cloudflare branch-preview route
 
-Login, job-detail and job-application URLs remain crawlable while carrying `noindex` in the prerendered HTML. They are deliberately **not** disallowed in `robots.txt`; a crawler must be able to fetch a page to observe its `noindex` rule. These routes are excluded from the sitemap while they are not search-eligible. Future private/admin data must be protected by authentication/authorization rather than relying on robots directives as a security boundary.
+Login and job-application URLs remain crawlable while carrying `noindex`; they are deliberately **not** disallowed in `robots.txt`. Future private/admin data must be protected by authentication/authorization rather than relying on robots directives as a security boundary.
 
 Compatibility aliases are redirects and never sitemap entries.
 
 ## Deployment search-indexing gate
 
-Cloudflare Workers Builds exposes `WORKERS_CI_BRANCH`. Phase 6 uses that build-time branch identity to distinguish the primary `main` deployment from non-main branch previews.
+Cloudflare Workers Builds exposes `WORKERS_CI_BRANCH`. The build-time policy distinguishes the primary `main` deployment from non-main branch previews.
 
 `DEPLOYMENT_SEARCH_INDEXING_ENABLED` is true only when:
 
@@ -63,52 +74,61 @@ Cloudflare Workers Builds exposes `WORKERS_CI_BRANCH`. Phase 6 uses that build-t
 
 For a non-main Cloudflare branch preview:
 
-- the full route set is still prerendered for QA;
-- every route descriptor is `noindex`;
+- the full static route set is still prerendered for QA;
+- every static route descriptor is `noindex`;
 - every prerendered HTML route contains `noindex,nofollow`;
 - `getIndexableRoutes()` returns zero routes;
-- `sitemap.xml` contains no URL entries;
+- the static `sitemap.xml` contains no URL entries;
+- the runtime sitemap handler recognizes that zero-entry sitemap as the preview sentinel and does not query or append database-backed job URLs;
+- runtime Careers/job rendering preserves the base preview `noindex` directive;
+- runtime job pages do not emit `JobPosting` on previews;
 - `robots.txt` does not advertise a sitemap;
-- `robots.txt` allows crawling so a crawler can observe the page-level `noindex` directive;
 - canonical URLs continue to reference the approved primary production origin rather than the preview hostname.
 
 This prevents branch-preview URLs from becoming an alternate searchable copy without creating the contradictory `robots.txt` + `noindex` combination.
 
-The Vercel deployment is retained only as a secondary live fallback. Its configuration applies `X-Robots-Tag: noindex, nofollow` globally so it does not compete with Cloudflare as a second indexable origin. Automatic Vercel Git deployment remains disabled; a live Vercel deployment must not be reported as carrying the new header until that configuration is actually deployed and verified.
+The Vercel deployment is retained only as a secondary live fallback. Its configuration applies `X-Robots-Tag: noindex, nofollow` globally so it does not compete with Cloudflare as a second indexable origin. Automatic Vercel Git deployment remains disabled; a live Vercel deployment must not be reported as carrying a new header until that configuration is actually deployed and verified.
 
 ## Job-search eligibility gate
 
-The repository currently contains role profiles marked `published` for the Careers UI, but the real candidate application workflow is intentionally disabled until the approved backend/private storage work is implemented in Phase 12. A visible catalogue status is therefore **not** sufficient evidence that a route is eligible for Google Job Search.
+A visible catalogue status is not sufficient evidence that a route is eligible for Google Job Search. `JOB_SEARCH_INDEXING_ENABLED` may be true only when both of these conditions are proven:
 
-`JOB_SEARCH_INDEXING_ENABLED` remains `false` until both of these conditions are true:
-
-1. the vacancy is confirmed as a genuine, currently open position; and
+1. the vacancy is a genuine, currently open published position; and
 2. candidates have a real working way to apply, with submission persisted or visibly failed rather than silently accepted.
 
-While the gate is false:
+Phase 12 satisfies the application-path requirement. Production database state remains the vacancy authority. Therefore the gate is now enabled for published/open runtime vacancies.
 
-- job-detail pages remain directly reachable and prerendered;
-- job-detail pages are `noindex,nofollow`;
-- job-detail pages are excluded from `sitemap.xml`;
-- production HTML does **not** emit `JobPosting` structured data;
-- application pages remain `noindex,nofollow`;
-- `robots.txt` does not block either route family.
+When the gate is enabled and the deployment itself is search-eligible:
 
-The pure JobPosting builder remains implemented and tested so Phase 12 can enable the production output only after the application and vacancy-state acceptance criteria are proven. Enabling the flag without those proofs is a policy violation, not a launch shortcut.
+- the canonical single-job page is `index,follow`;
+- the page contains `JobPosting` generated from the same authoritative vacancy content shown to candidates;
+- the job URL is added to the runtime production sitemap;
+- the real Apply link leads to the Phase 12 application form;
+- application pages remain `noindex,nofollow` and never emit `JobPosting`;
+- `robots.txt` continues to allow crawling of both job and application route families so page-level directives can be observed.
+
+If the deployment is a branch preview, or if a job is not returned by the published public vacancy projection, the runtime must not create an indexable JobPosting surface.
 
 ## Structured data policy
 
-Every prerendered route receives Organization, WebSite and WebPage structured data. Service routes additionally receive Service schema. Nested public routes receive BreadcrumbList where applicable.
+Every prerendered static route receives Organization, WebSite and WebPage structured data. Service routes additionally receive Service schema. Nested public routes receive BreadcrumbList where applicable.
 
 Organization legal identity and registered-address data are derived from the existing centralized company configuration rather than being duplicated inside the SEO model.
 
-The candidate JobPosting model is derived only from the approved job catalog. Its description is generated as structured HTML from the visible job summary, department, location, working arrangement, employment type, experience, technologies, industry context, responsibilities, qualifications, working-style detail and employment terms so it represents the same vacancy users can read on the page. Salary, sponsorship, credentials or other facts are never invented.
+Runtime `JobPosting` is derived only from the approved published vacancy projection. Its description is generated as structured HTML from the visible job summary, department, location, working arrangement, employment type, experience, technologies, required/preferred skills, industry context, responsibilities, qualifications, working-style detail, response window and employment terms. Salary, sponsorship, credentials or other facts are never invented.
 
-Job application forms never receive JobPosting schema. Once the eligibility gate is legitimately enabled, JobPosting may exist only on the canonical single-job description route.
+Job application forms never receive JobPosting schema. JobPosting may exist only on the canonical, indexable single-job description route.
 
 ## Sitemap policy
 
-The generated production sitemap contains only routes whose centralized SEO descriptor is explicitly indexable. Legacy aliases, Login, gated job routes, application forms and unknown routes are excluded. Non-main Cloudflare preview builds deliberately produce a valid sitemap document with zero URL entries.
+The production `/sitemap.xml` response consists of:
+
+1. the build-generated static sitemap containing static routes whose centralized SEO descriptor is explicitly indexable; plus
+2. currently published runtime vacancy URLs returned by the same public Careers boundary used to render candidate-facing jobs.
+
+Legacy aliases, Login, application forms and unknown routes are excluded. The runtime sitemap does not invent job URLs and does not depend on a browser database credential. If the public vacancy projection is temporarily unavailable, the static marketing sitemap remains available and job discovery continues through the Careers page until the dependency recovers.
+
+Non-main Cloudflare preview builds deliberately produce a valid zero-entry static sitemap. The runtime handler preserves that zero-entry document without querying or appending database-backed vacancies.
 
 ## Redirect and 404 policy
 
@@ -116,8 +136,8 @@ Historical compatibility URLs use permanent redirects to their canonical destina
 
 ## Internal-link policy
 
-Automated tests render every public route and reject links that point to legacy aliases or paths outside the known prerender route set.
+Automated tests render every static public route and reject links that point to legacy aliases or paths outside the known prerender route set. Runtime Careers tests separately verify database-backed navigation, application links, canonical vacancy content, preview isolation and fail-closed behaviour.
 
 ## Phase boundary
 
-This phase establishes public crawlability and SEO architecture only. Backend persistence, authentication, job CMS authority, candidate application persistence, CMS/database-driven SEO management and the final custom-domain cutover remain later phases.
+Phase 6 established the public SEO architecture. Phase 11 established PostgreSQL vacancy authority. Phase 12 now owns the real application journey and the resulting activation of eligible runtime job indexing, runtime JobPosting, and DB-backed sitemap augmentation. The final custom-domain cutover remains Phase 17 work.
