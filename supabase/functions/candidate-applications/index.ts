@@ -98,9 +98,27 @@ function normalizeOrigin(value: string | null): string {
   try { return new URL(value).origin; } catch { return ""; }
 }
 
-function requestBoundary(request: Request): { ok: true; proxy: string; origin: string; clientIp: string } | { ok: false } {
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
+  return difference === 0;
+}
+
+function bearerCredential(request: Request): string {
+  const authorization = String(request.headers.get("authorization") ?? "").trim();
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  return match ? match[1].trim() : "";
+}
+
+function requestBoundary(request: Request, serviceKey: string): { ok: true; proxy: string; origin: string; clientIp: string } | { ok: false } {
+  const presented = bearerCredential(request);
+  if (!serviceKey || !presented || !constantTimeEqual(presented, serviceKey)) return { ok: false };
+
   const proxy = String(request.headers.get("x-rcitcs-application-proxy") ?? "").trim().toLowerCase();
-  const origin = normalizeOrigin(request.headers.get("x-rcitcs-original-origin") || request.headers.get("origin"));
+  const origin = normalizeOrigin(request.headers.get("x-rcitcs-original-origin"));
   const clientIp = String(request.headers.get("x-rcitcs-client-ip") ?? "").split(",")[0].trim();
   if (!ALLOWED_PROXIES.has(proxy) || !ALLOWED_ORIGINS.has(origin) || !clientIp || clientIp.length > 64) return { ok: false };
   return { ok: true, proxy, origin, clientIp };
@@ -436,7 +454,12 @@ Deno.serve(async (request: Request) => {
   }
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405, { allow: "POST" });
 
-  const boundary = requestBoundary(request);
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  const serviceKey = serviceCredential();
+  const storageApiKey = publicStorageKey();
+  if (!supabaseUrl || !serviceKey || !storageApiKey) return json({ ok: false, code: "SERVICE_UNAVAILABLE" }, 503);
+
+  const boundary = requestBoundary(request, serviceKey);
   if (!boundary.ok) return json({ ok: false, code: "REQUEST_REJECTED" }, 403);
 
   let body: Record<string, unknown>;
@@ -448,11 +471,6 @@ Deno.serve(async (request: Request) => {
 
   const action = String(body.action ?? "").trim().toLowerCase();
   if (!["start", "finalize", "cancel"].includes(action)) return json({ ok: false, code: "INVALID_ACTION" }, 400);
-
-  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
-  const serviceKey = serviceCredential();
-  const storageApiKey = publicStorageKey();
-  if (!supabaseUrl || !serviceKey || !storageApiKey) return json({ ok: false, code: "SERVICE_UNAVAILABLE" }, 503);
 
   try {
     if (action === "start") return await startApplication({ body, boundary, request, supabaseUrl, serviceKey, storageApiKey });
