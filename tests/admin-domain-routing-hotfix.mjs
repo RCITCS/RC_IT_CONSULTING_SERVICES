@@ -29,7 +29,11 @@ assert.equal(existingAdminPath?.pathname, '/admin/jobs');
 assert.equal(mapDedicatedAdminUrl('https://rcitcs.com/'), null, 'public corporate host must not be remapped into admin');
 
 assert.equal(wrangler.main, './worker/admin-domain-entry.js');
-assert.ok(wrangler.assets?.run_worker_first?.includes('/*'), 'root requests must execute the Worker before static assets');
+assert.deepEqual(
+  wrangler.assets?.run_worker_first,
+  ['/*'],
+  'A single catch-all Worker-first rule must own hostname routing; narrower rules are invalid/redundant in Wrangler 4.'
+);
 
 const stagingRoute = wrangler.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
 assert.equal(stagingRoute?.zone_name, 'rcitcs.com', 'staging admin hostname must be explicitly routed through the Worker');
@@ -42,4 +46,4 @@ assert.ok(entrySource.includes("'admin-staging.rcitcs.com'"));
 assert.ok(entrySource.includes("url.pathname === '/' ? '/admin'"));
 assert.ok(entrySource.includes('return applicationWorker.fetch(mappedRequest, env, ctx)'));
 
-console.log('PASS: dedicated RC IT admin hostnames cannot fall through to the public static homepage and Cloudflare domain bindings are explicit.');
+console.log('PASS: dedicated RC IT admin hostnames cannot fall through to the public static homepage; Cloudflare domain bindings and the single Worker-first catch-all are explicit.');
