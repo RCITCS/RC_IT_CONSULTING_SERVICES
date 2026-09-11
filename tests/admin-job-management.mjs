@@ -78,7 +78,8 @@ for (const rpc of ['rpc/get_admin_job_management_context', 'rpc/admin_save_job',
 
 assert.ok(index.includes('handleJobRoute'));
 assert.ok(index.includes('jobs: true'));
-assert.ok(index.includes('phase11-job-management-cms'));
+assert.ok(index.includes('applications: true'), 'Phase 12 must extend, not remove, the Phase 11 admin runtime health contract.');
+assert.ok(index.includes('phase12-candidate-application-workflow'));
 assert.ok(index.includes('path.startsWith("/jobs") ? 131072 : 32768'), 'Admin payload ceilings must remain route scoped.');
 assert.ok(index.includes('originOk(request, url)'), 'Phase 9 same-origin protection must remain ahead of Phase 11 mutations.');
 assert.ok(index.includes('request.clone().body'), 'Chunked admin requests must be inspected as a bounded stream.');
@@ -130,12 +131,12 @@ assert.ok(publicRuntime.includes('siteOriginFromHtml'));
 assert.ok(!publicRuntime.includes("const SITE_ORIGIN = 'https://rcitcs.com'"), 'Runtime SEO must not diverge from the build-approved canonical origin.');
 assert.ok(publicRuntime.includes('getCareersContext(slug)'));
 assert.ok(publicRuntime.includes("robots = 'index,follow'"));
-assert.ok(publicRuntime.includes('Applications opening soon'));
-assert.ok(!publicRuntime.includes('data-rcitcs-job-posting'), 'Google JobPosting markup must wait until Phase 12 provides a real application method.');
-assert.ok(!publicRuntime.includes('directApply:'), 'Direct-apply semantics must not be claimed before Phase 12.');
+assert.ok(publicRuntime.includes('Apply for this role'), 'Phase 12 must activate the real application journey without weakening Phase 11 vacancy authority.');
+assert.ok(publicRuntime.includes('/apply'));
+assert.ok(publicRuntime.includes("robots: 'noindex,nofollow'"), 'Application/error surfaces must remain noindex.');
 
 for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=', 'sb_secret_']) {
   assert.ok(!ui.includes(secretPattern) && !routes.includes(secretPattern), `Secret-like value leaked into Phase 11 presentation: ${secretPattern}`);
 }
 
-console.log('PASS: Phase 11 job CMS authority, locked content contract, generated identifiers, transitions, concurrency, audit/deletion policy, CSRF/RBAC, bounded input, responsive workflow, optimized DB access and truthful pre-application Careers SEO contracts verified.');
+console.log('PASS: Phase 11 job CMS authority, locked content contract, generated identifiers, transitions, concurrency, audit/deletion policy, CSRF/RBAC, bounded input, responsive workflow and optimized DB access remain verified after Phase 12 activates the real application journey.');

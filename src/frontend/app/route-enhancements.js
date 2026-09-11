@@ -2,6 +2,10 @@ function isCareersShell(pathName) {
   return pathName === '/careers' || pathName === '/careers/job-opportunities' || pathName === '/careers/upload-your-resume';
 }
 
+function isCareerApplication(pathName) {
+  return /^\/careers\/jobs\/[a-z0-9]+(?:-[a-z0-9]+)*\/apply$/.test(pathName);
+}
+
 export async function bindRouteEnhancements(pathName) {
   const work = [];
 
@@ -12,6 +16,10 @@ export async function bindRouteEnhancements(pathName) {
   if (isCareersShell(pathName)) {
     work.push(import('./interactions-careers.js').then(({ bindCareerRoleBrowser }) => bindCareerRoleBrowser()));
     work.push(import('./interactions-career-filters.js').then(({ bindCareerFilters }) => bindCareerFilters()));
+  }
+
+  if (isCareerApplication(pathName)) {
+    work.push(import('./interactions-career-application.js').then(({ bindCareerApplication }) => bindCareerApplication()));
   }
 
   if (document.querySelector('form[data-api-form], [data-request-demo]')) {

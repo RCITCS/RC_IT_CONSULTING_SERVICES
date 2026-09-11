@@ -78,13 +78,9 @@ const serviceHtml = await readFile(outputPath('/services/it/cyber-security'), 'u
 assert(serviceHtml.includes('"@type":"Service"'), 'Service page HTML is missing Service structured data.');
 assert(serviceHtml.includes('BreadcrumbList'), 'Service page HTML is missing BreadcrumbList structured data.');
 
-const wrangler = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
-assert(
-  Array.isArray(wrangler.assets?.run_worker_first)
-    && wrangler.assets.run_worker_first.length === 1
-    && wrangler.assets.run_worker_first[0] === '/*',
-  'Cloudflare must run the Worker before assets for every path so Careers and dynamic job routes remain runtime-owned without redundant Wrangler rules.'
-);
+const wranglerConfig = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
+const workerFirst = wranglerConfig.assets?.run_worker_first;
+assert(Array.isArray(workerFirst) && workerFirst.length === 1 && workerFirst[0] === '/*', 'Cloudflare catch-all Worker ownership must cover Careers and dynamic job paths without redundant Wrangler rules.');
 
 const vercelConfig = JSON.parse(await readFile(path.join(root, 'vercel.json'), 'utf8'));
 const fallbackHeaders = vercelConfig.headers?.find((entry) => entry.source === '/(.*)')?.headers || [];

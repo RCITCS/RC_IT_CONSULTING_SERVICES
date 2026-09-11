@@ -11,3 +11,6 @@ allowed_mime_types = ["application/pdf", "application/msword", "application/vnd.
 
 [functions.admin-auth]
 verify_jwt = false
+
+[functions.candidate-applications]
+verify_jwt = false

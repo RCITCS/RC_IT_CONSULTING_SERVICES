@@ -7,7 +7,8 @@ const required = [
   'src/backend/config/persistence.js', 'src/backend/providers/supabase-http.js', 'src/backend/providers/database-provider.js',
   'src/backend/providers/storage-provider.js', 'src/backend/repositories/submission-repository.js', 'supabase/config.toml',
   'supabase/migrations/20260908183500_phase_8_schema.sql', 'scripts/provision-supabase-storage.mjs',
-  'tests/persistence-storage.mjs', 'docs/DATABASE_STORAGE_ARCHITECTURE.md'
+  'tests/persistence-storage.mjs', 'docs/DATABASE_STORAGE_ARCHITECTURE.md',
+  'supabase/functions/_shared/candidate-document-contract.js'
 ];
 for (const relative of required) await access(path.join(root, relative));
 
@@ -30,9 +31,24 @@ const persistenceConfig = await readFile(path.join(root, 'src/backend/config/per
 for (const contract of ["key.startsWith('sb_secret_')","key.startsWith('sb_publishable_')","jwtRole(key) === 'service_role'"]) if (!persistenceConfig.includes(contract)) throw new Error(`Server key validation missing Phase 8 contract: ${contract}`);
 const supabaseHttp = await readFile(path.join(root, 'src/backend/providers/supabase-http.js'), 'utf8');
 if (!supabaseHttp.includes("String(secretKey).startsWith('sb_secret_') ? {} : { authorization")) throw new Error('New Supabase secret keys must use apikey without being treated as Bearer JWTs.');
+
 const storageProvider = await readFile(path.join(root, 'src/backend/providers/storage-provider.js'), 'utf8');
-for (const contract of ['MAX_CANDIDATE_DOCUMENT_BYTES = 20 * 1024 * 1024','createSignedDownloadUrl','buildCandidateDocumentPath','signatureMatches',"includesAscii(bytes, '[Content_Types].xml')","includesAscii(bytes, 'word/')",'validateCandidateDocument({ fileName: objectPath']) if (!storageProvider.includes(contract)) throw new Error(`Storage provider missing Phase 8 contract: ${contract}`);
+for (const contract of ['MAX_CANDIDATE_DOCUMENT_BYTES','createSignedDownloadUrl','buildCandidateDocumentPath','inspectCandidateDocument','validateCandidateDocument({ fileName: objectPath']) {
+  if (!storageProvider.includes(contract)) throw new Error(`Storage provider missing Phase 8 integration contract: ${contract}`);
+}
 if (storageProvider.includes('/object/public/')) throw new Error('Phase 8 candidate storage must never expose public-object URLs.');
+
+const documentContract = await readFile(path.join(root, 'supabase/functions/_shared/candidate-document-contract.js'), 'utf8');
+for (const contract of [
+  'MAX_CANDIDATE_DOCUMENT_BYTES = 20 * 1024 * 1024',
+  'buildCandidateDocumentPath',
+  'signatureMatches',
+  "includesAscii(bytes, '[Content_Types].xml')",
+  "includesAscii(bytes, 'word/')"
+]) {
+  if (!documentContract.includes(contract)) throw new Error(`Shared candidate-document contract missing Phase 8 security rule: ${contract}`);
+}
+
 const databaseProvider = await readFile(path.join(root, 'src/backend/providers/database-provider.js'), 'utf8');
 if (!databaseProvider.includes('/rest/v1/${table}?select=id') || !databaseProvider.includes("prefer: 'return=representation'")) throw new Error('Database writes must request confirmed persisted IDs.');
 const application = await readFile(path.join(root, 'src/backend/application.js'), 'utf8');
