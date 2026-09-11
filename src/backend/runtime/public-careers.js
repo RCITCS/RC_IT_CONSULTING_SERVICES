@@ -1,4 +1,5 @@
 import { createPublicJobsRepository } from '../repositories/public-jobs-repository.js';
+import { CANDIDATE_CONSENT_VERSION } from '../../../supabase/functions/_shared/candidate-application-contract.js';
 
 function esc(value = '') {
   return String(value ?? '')
@@ -61,10 +62,11 @@ function roleDetail(job) {
   const description = paragraphs(job.description);
   const posted = publicDate(job.publishedAt);
   const closes = publicDate(job.closesAt);
+  const applyHref = `/careers/jobs/${esc(job.slug)}/apply`;
   return `<article class="career-role-detail" id="role-detail">
     <div class="career-role-detail__head">
       <div><span class="eyebrow">${esc(job.category || 'Current opening')}</span><h2>${esc(job.title)}</h2><p>${esc(job.summary || '')}</p>${job.code ? `<span class="career-role-card__code">${esc(job.code)}</span>` : ''}</div>
-      <span class="btn btn--secondary career-apply-cta" aria-disabled="true">Applications opening soon</span>
+      <a class="btn btn--primary career-apply-cta" href="${applyHref}">Apply for this role</a>
     </div>
     <div class="career-role-facts" aria-label="Role facts">
       ${fact('Location', job.location)}
@@ -86,7 +88,7 @@ function roleDetail(job) {
     ${detailList('Benefits & employment terms', job.benefits)}
     ${detailList('Nature of working style', job.workingStyleDetails)}
     ${job.locationDetails ? `<section class="career-role-section"><h3>Location</h3><p>${esc(job.locationDetails)}</p></section>` : ''}
-    <div class="career-role-detail__footer"><span class="btn btn--secondary" aria-disabled="true">Applications opening soon</span><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
+    <div class="career-role-detail__footer"><a class="btn btn--primary" href="${applyHref}">Apply now</a><a class="btn btn--secondary" href="/careers">Back to all openings</a></div>
   </article>`;
 }
 
@@ -121,9 +123,30 @@ function applicationMain(job) {
         <a href="/careers/jobs/${esc(job.slug)}">Review full job description <span aria-hidden="true">→</span></a>
       </aside>
       <div class="career-application-form-shell">
-        <span class="eyebrow">Application</span><h2>Applications are not open yet</h2><p>This vacancy is published for review, but candidate submission remains deliberately disabled until the private Phase 12 application workflow is completed and verified.</p>
-        <div class="career-storage-notice" role="status"><strong>No application has been submitted.</strong><p>RC does not collect candidate data or documents until the approved persistence workflow is active.</p></div>
-        <div class="form-actions"><a class="btn btn--secondary" href="/careers/jobs/${esc(job.slug)}">Back to job description</a></div>
+        <span class="eyebrow">Candidate application</span>
+        <h2>Submit your application</h2>
+        <p>Complete the candidate details below and attach your resume. Add a cover-letter message or attach a separate cover-letter document.</p>
+        <form class="career-application-form" data-career-application data-job-slug="${esc(job.slug)}" data-consent-version="${esc(CANDIDATE_CONSENT_VERSION)}" method="post" action="/api/career-application">
+          <div class="career-application-grid">
+            <div class="form-field"><label for="candidate-first-name">First name *</label><input id="candidate-first-name" name="firstName" type="text" autocomplete="given-name" maxlength="80" required></div>
+            <div class="form-field"><label for="candidate-last-name">Last name *</label><input id="candidate-last-name" name="lastName" type="text" autocomplete="family-name" maxlength="80" required></div>
+            <div class="form-field"><label for="candidate-email">Email *</label><input id="candidate-email" name="email" type="email" autocomplete="email" maxlength="254" required></div>
+            <div class="form-field"><label for="candidate-phone">Phone *</label><input id="candidate-phone" name="phone" type="tel" autocomplete="tel" maxlength="30" pattern="[+()0-9.\\-\\s]{7,30}" required></div>
+            <div class="form-field"><label for="candidate-location">Location</label><input id="candidate-location" name="location" type="text" autocomplete="address-level2" maxlength="200"></div>
+            <div class="form-field"><label for="candidate-linkedin">LinkedIn profile</label><input id="candidate-linkedin" name="linkedinUrl" type="url" inputmode="url" maxlength="500" placeholder="https://www.linkedin.com/in/..."></div>
+            <div class="form-field career-application-grid__wide"><label for="candidate-portfolio">Portfolio / professional website</label><input id="candidate-portfolio" name="portfolioUrl" type="url" inputmode="url" maxlength="500" placeholder="https://..."></div>
+          </div>
+          <div class="form-field"><label for="candidate-cover-message">Cover-letter message</label><textarea id="candidate-cover-message" name="coverLetterText" maxlength="10000" rows="8" aria-describedby="cover-letter-help"></textarea><small id="cover-letter-help">Required unless you attach a separate cover-letter document below.</small></div>
+          <div class="career-application-grid career-application-files">
+            <div class="form-field career-file-field"><label for="candidate-resume">Resume / CV *</label><input id="candidate-resume" name="resume" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required><small>PDF, DOC or DOCX · maximum 20 MB · private storage.</small></div>
+            <div class="form-field career-file-field"><label for="candidate-cover-file">Cover-letter document</label><input id="candidate-cover-file" name="coverLetter" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"><small>Optional if you entered a cover-letter message · maximum 20 MB.</small></div>
+          </div>
+          <div class="career-honeypot" aria-hidden="true"><label for="candidate-website">Website</label><input id="candidate-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <label class="career-consent"><input name="consent" type="checkbox" required> <span>I consent to RC IT Services processing the information and private documents in this application for recruitment purposes. <a href="/privacy" target="_blank" rel="noopener">Privacy notice</a>.</span></label>
+          <div class="career-storage-notice"><strong>Private document handling</strong><p>Your resume and optional cover-letter file are uploaded to private storage using a time-limited upload authorization. They are not published as public URLs.</p></div>
+          <div class="career-application-status" data-application-status role="status" aria-live="polite" hidden></div>
+          <div class="form-actions"><button class="btn btn--primary" type="submit">Submit application</button><a class="btn btn--secondary" href="/careers/jobs/${esc(job.slug)}">Back to job description</a></div>
+        </form>
       </div>
     </section>
   </main>`;
@@ -155,11 +178,8 @@ function setMetaContent(html, selector, content) {
 
 function siteOriginFromHtml(html, requestUrl) {
   const match = html.match(/<link rel="canonical" href="([^"]+)"\s*\/?>/i);
-  try {
-    return new URL(match?.[1] || requestUrl).origin;
-  } catch {
-    return new URL(requestUrl).origin;
-  }
+  try { return new URL(match?.[1] || requestUrl).origin; }
+  catch { return new URL(requestUrl).origin; }
 }
 
 function runtimeSeo(html, pathName, siteOrigin, { title, description, robots = 'index,follow', notFound = false } = {}) {
@@ -168,7 +188,6 @@ function runtimeSeo(html, pathName, siteOrigin, { title, description, robots = '
     .replace(/<title>[^<]*<\/title>/i, `<title>${esc(title)}</title>`)
     .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${esc(canonical)}" />`)
     .replace(/data-prerendered-path="[^"]*"/, `data-prerendered-path="${esc(pathName)}"`);
-
   output = setMetaContent(output, 'name="description"', description);
   output = setMetaContent(output, 'name="robots"', robots);
   output = setMetaContent(output, 'property="og:title"', title);
@@ -222,9 +241,8 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   const repository = createPublicJobsRepository({ env, fetchImpl });
 
   let context;
-  try {
-    context = await repository.getCareersContext(slug);
-  } catch {
+  try { context = await repository.getCareersContext(slug); }
+  catch {
     const html = runtimeSeo(replaceMain(baseHtml, unavailableMain()), pathName, siteOrigin, {
       title: 'Careers temporarily unavailable | RC IT Services',
       description: 'RC IT Services recruitment information is temporarily unavailable.',
@@ -252,7 +270,7 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   }
 
   if (applicationMatch) {
-    const description = `Application route for the published ${selected.title} vacancy at RC IT Services.`;
+    const description = `Secure application form for the published ${selected.title} vacancy at RC IT Services.`;
     const html = runtimeSeo(replaceMain(baseHtml, applicationMain(selected)), pathName, siteOrigin, {
       title: `Apply for ${selected.title} | RC IT Services`,
       description,
