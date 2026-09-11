@@ -1,8 +1,18 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "rcitcservices",
-  "main": "./worker/index.js",
+  "main": "./worker/admin-domain-entry.js",
   "compatibility_date": "2026-09-08",
+  "routes": [
+    {
+      "pattern": "admin-staging.rcitcs.com/*",
+      "zone_name": "rcitcs.com"
+    },
+    {
+      "pattern": "admin.rcitcs.com",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "PUBLIC_CAREERS_API_URL": "https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers"
   },
@@ -11,6 +21,6 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "drop-trailing-slash",
-    "run_worker_first": ["/api/*", "/admin", "/admin/*", "/careers", "/careers/jobs/*"]
+    "run_worker_first": ["/*", "/api/*", "/admin", "/admin/*", "/careers", "/careers/jobs/*"]
   }
 }
