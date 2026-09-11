@@ -11,6 +11,10 @@ function paragraphs(value = '') {
   return String(value || '').split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
+function enumLabel(value = '') {
+  return String(value || '').replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function listSection(label, items = []) {
   const values = Array.isArray(items) ? items.filter(Boolean) : [];
   if (!values.length) return '';
@@ -33,8 +37,8 @@ function jobDescriptionHtml(job) {
     ...paragraphs(job.description).map((paragraph) => `<p>${escHtml(paragraph)}</p>`),
     job.category ? `<p>Department: ${escHtml(job.category)}</p>` : '',
     job.location ? `<p>Location: ${escHtml(job.location)}</p>` : '',
-    job.workplaceType ? `<p>Working arrangement: ${escHtml(job.workplaceType)}</p>` : '',
-    job.employmentType ? `<p>Employment type: ${escHtml(job.employmentType)}</p>` : '',
+    job.workplaceType ? `<p>Working arrangement: ${escHtml(enumLabel(job.workplaceType))}</p>` : '',
+    job.employmentType ? `<p>Employment type: ${escHtml(enumLabel(job.employmentType))}</p>` : '',
     job.experience ? `<p>Experience: ${escHtml(job.experience)}</p>` : '',
     job.applicationResponseWindow ? `<p>Application response window: ${escHtml(job.applicationResponseWindow)}</p>` : '',
     listSection('Technology and skills', job.technologies),
@@ -103,6 +107,7 @@ export function createRuntimeJobPosting(job, siteOrigin, pathName) {
 }
 
 export function appendRuntimeJobPosting(html, schema) {
+  if (!html.includes('name="robots" content="index,follow"')) return html;
   const json = JSON.stringify(schema).replaceAll('<', '\\u003c');
   return html.replace('</head>', `<script type="application/ld+json" data-runtime-job-posting>${json}</script></head>`);
 }
