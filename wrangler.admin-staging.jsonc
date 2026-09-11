@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rcitcs-admin-staging",
+  "main": "./worker/admin-only.js",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "admin-staging.rcitcs.com",
+      "custom_domain": true
+    }
+  ]
+}

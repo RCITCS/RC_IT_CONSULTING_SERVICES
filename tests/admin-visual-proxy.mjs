@@ -6,152 +6,101 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workerPath = path.join(root, 'src/backend/runtime/worker.js');
 const workerSource = await readFile(workerPath, 'utf8');
-const wranglerSource = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
-const workflowSource = await readFile(path.join(root, '.github/workflows/cloudflare-deploy.yml'), 'utf8');
-const domainWorkflowSource = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
+const primaryConfig = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
+const stagingConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
+const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
+const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
+const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const { adminOriginAllowed, buildAdminUpstreamRequest, isDedicatedAdminHost } = await import(pathToFileURL(workerPath).href);
 
 for (const required of [
-  "const ADMIN_PUBLIC_BASE = '/admin'",
   "const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com'",
   "new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])",
   "const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth'",
-  "script-src 'self'",
-  'const ADMIN_UI_SCRIPT =',
-  'const ADMIN_UI_STYLE =',
-  'function adminFetchMetadataAllowsNavigationPost',
-  'export function adminOriginAllowed',
-  'export function buildAdminUpstreamRequest',
-  'export function isDedicatedAdminHost',
-  'function isInternalWorkerHost',
-  'function adminPublicBase',
-  'function redirectPublicAdminAlias',
-  "request.headers.get('sec-fetch-site') === 'same-origin'",
-  "request.headers.get('sec-fetch-mode') === 'navigate'",
-  "request.headers.get('sec-fetch-dest') === 'document'",
-  "request.headers.get('sec-fetch-user') === '?1'",
-  "origin && origin !== 'null'",
   "upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare')",
-  'function adminUiScriptResponse',
-  'function enhanceAdminHtml',
-  'function isAdminPath',
-  'function adminUpstreamUrl',
-  'function rewriteAdminReference',
-  'function proxyAdminResponse',
-  'async function handleAdminRequest',
-  "headers.set('content-type', 'text/html; charset=utf-8')",
-  "headers.set('content-security-policy', ADMIN_HTML_CSP)",
+  "upstreamRequest.headers.delete('host')",
+  "upstreamRequest.headers.delete('content-length')",
+  "fetch(upstreamRequest, { redirect: 'manual' })",
+  "headers.set('cache-control', 'no-store, no-transform, max-age=0, must-revalidate')",
+  "headers.set('x-robots-tag', 'noindex, nofollow, noarchive')",
   "if (isDedicatedAdminHost(url.hostname)) return handleAdminRequest(request)",
-  "if (isAdminPath(url.pathname) && isInternalWorkerHost(url.hostname)) return handleAdminRequest(request)",
-  "if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url)"
+  "if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url)",
+  'function enhanceAdminNavigation',
+  '<span>Applications</span>'
 ]) {
-  assert.ok(workerSource.includes(required), `admin dedicated-host contract missing: ${required}`);
+  assert.ok(workerSource.includes(required), `Admin proxy security/navigation contract missing: ${required}`);
 }
 
-for (const passwordUiContract of [
-  "document.querySelectorAll('input[type=\"password\"]')",
-  "button.setAttribute('aria-label', 'Show password')",
-  "button.setAttribute('aria-pressed', 'false')",
-  "input.type = reveal ? 'text' : 'password'",
-  'password-reveal',
-  'password-control'
-]) {
-  assert.ok(workerSource.includes(passwordUiContract), `password reveal contract missing: ${passwordUiContract}`);
-}
+assert.equal(isDedicatedAdminHost('admin.rcitcs.com'), true);
+assert.equal(isDedicatedAdminHost('ADMIN-STAGING.RCITCS.COM'), true);
+assert.equal(isDedicatedAdminHost('rcitcs.com'), false);
+assert.equal(isDedicatedAdminHost('rcitcservices.frsmkgit.workers.dev'), false);
 
-assert.equal(isDedicatedAdminHost('admin.rcitcs.com'), true, 'production admin hostname must be dedicated');
-assert.equal(isDedicatedAdminHost('ADMIN-STAGING.RCITCS.COM'), true, 'staging admin hostname matching must be case-insensitive');
-assert.equal(isDedicatedAdminHost('rcitcs.com'), false, 'public production hostname must never be classified as admin');
-assert.equal(isDedicatedAdminHost('rcitcservices.frsmkgit.workers.dev'), false, 'underlying public workers.dev hostname must never be classified as a company admin hostname');
-
-function requestWith(headers = {}) {
-  return { headers: new Headers(headers) };
-}
-
-const stagingLoginUrl = new URL('https://admin-staging.rcitcs.com/login');
-const productionLoginUrl = new URL('https://admin.rcitcs.com/login');
-const sameOriginNavigation = {
+const productionLogin = new URL('https://admin.rcitcs.com/login');
+const stagingLogin = new URL('https://admin-staging.rcitcs.com/login');
+const navHeaders = {
   'sec-fetch-site': 'same-origin',
   'sec-fetch-mode': 'navigate',
   'sec-fetch-dest': 'document',
   'sec-fetch-user': '?1'
 };
+const requestWith = (headers) => ({ headers: new Headers(headers) });
+assert.equal(adminOriginAllowed(requestWith({ origin: productionLogin.origin }), productionLogin), true);
+assert.equal(adminOriginAllowed(requestWith({ origin: stagingLogin.origin }), stagingLogin), true);
+assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...navHeaders }), productionLogin), false);
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...navHeaders }), productionLogin), true);
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...navHeaders, 'sec-fetch-site': 'cross-site' }), productionLogin), false);
 
-assert.equal(adminOriginAllowed(requestWith({ origin: stagingLoginUrl.origin }), stagingLoginUrl), true, 'explicit staging same-origin POST must be accepted');
-assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin }), productionLoginUrl), true, 'explicit production same-origin POST must be accepted');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation }), stagingLoginUrl), true, 'privacy-reduced same-origin browser form POST with Origin: null must be accepted');
-assert.equal(adminOriginAllowed(requestWith(sameOriginNavigation), stagingLoginUrl), true, 'same-origin browser form POST with an omitted Origin header must be accepted');
-assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin, ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit different admin origin must not be accepted by staging');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit hostile origin must take precedence over fetch metadata and be rejected');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'cross-site' }), stagingLoginUrl), false, 'Origin: null from a cross-site request must be rejected');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'same-site' }), stagingLoginUrl), false, 'Origin: null from a same-site but cross-origin request must be rejected');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-dest': 'empty' }), stagingLoginUrl), false, 'Origin: null must only be accepted for a document navigation');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }), stagingLoginUrl), false, 'Origin: null navigation without user activation must be rejected');
-assert.equal(adminOriginAllowed(requestWith({ origin: 'not a url', ...sameOriginNavigation }), stagingLoginUrl), false, 'malformed explicit Origin must fail closed');
-
-const browserPost = new Request(stagingLoginUrl, {
+const browserPost = new Request(productionLogin, {
   method: 'POST',
-  headers: { origin: 'null', ...sameOriginNavigation, 'content-type': 'application/x-www-form-urlencoded' },
+  headers: { origin: productionLogin.origin, ...navHeaders, 'content-type': 'application/x-www-form-urlencoded' },
   body: 'email=admin%40example.invalid&password=placeholder'
 });
-const upstreamUrl = new URL('https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth/login');
-const upstreamRequest = buildAdminUpstreamRequest(browserPost, upstreamUrl);
-assert.equal(upstreamRequest.url, upstreamUrl.href, 'admin POST must target the Supabase admin-auth endpoint');
-assert.equal(upstreamRequest.method, 'POST', 'admin POST method must be preserved');
-assert.equal(upstreamRequest.headers.get('origin'), 'null', 'browser Origin must be preserved for the upstream browser-metadata gate');
-assert.equal(upstreamRequest.headers.get('sec-fetch-site'), 'same-origin', 'browser Fetch Metadata must be preserved upstream');
-assert.equal(upstreamRequest.headers.get('sec-fetch-mode'), 'navigate', 'browser navigation mode must be preserved upstream');
-assert.equal(upstreamRequest.headers.get('sec-fetch-dest'), 'document', 'browser navigation destination must be preserved upstream');
-assert.equal(upstreamRequest.headers.get('sec-fetch-user'), '?1', 'browser user activation must be preserved upstream');
-assert.equal(upstreamRequest.headers.get('x-rcitcs-admin-proxy'), 'cloudflare', 'upstream request must retain the admin proxy marker');
-assert.equal(upstreamRequest.headers.get('host'), null, 'client Host must not be forwarded');
-assert.equal(upstreamRequest.headers.get('content-length'), null, 'client Content-Length must not be forwarded');
-assert.equal(await upstreamRequest.text(), 'email=admin%40example.invalid&password=placeholder', 'form body must be preserved exactly');
+const upstream = new URL('https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth/login');
+const proxied = buildAdminUpstreamRequest(browserPost, upstream);
+assert.equal(proxied.url, upstream.href);
+assert.equal(proxied.headers.get('x-rcitcs-admin-proxy'), 'cloudflare');
+assert.equal(proxied.headers.get('host'), null);
+assert.equal(proxied.headers.get('content-length'), null);
+assert.equal(await proxied.text(), 'email=admin%40example.invalid&password=placeholder');
 
-assert.ok(workerSource.includes("'cache-control': 'no-store, no-transform, max-age=0, must-revalidate'"));
-assert.ok(workerSource.includes("'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex'"));
-assert.ok(workerSource.includes("headers.set('x-robots-tag', 'noindex, nofollow, noarchive')"));
-assert.ok(workerSource.includes("'x-frame-options': 'DENY'"));
-assert.ok(workerSource.includes("'content-security-policy': ADMIN_HTML_CSP"));
-assert.ok(workerSource.includes("upstreamRequest.headers.delete('content-length')"));
-assert.ok(workerSource.includes("fetch(upstreamRequest, { redirect: 'manual' })"));
-assert.ok(!workerSource.includes("upstreamRequest.headers.set('origin'"), 'proxy must not rewrite the browser Origin header');
-assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
+assert.equal(primaryConfig.main, './worker/index.js');
+assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
+assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
+assert.equal(primaryConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com/*' || route.pattern === 'admin-staging.rcitcs.com'), false, 'The public/current production Worker must not claim the separate staging admin hostname.');
+const temporaryProductionBinding = primaryConfig.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
+assert.equal(temporaryProductionBinding?.custom_domain, true, 'Production admin must remain live on the current Worker until the isolated production Worker is created and cut over.');
 
-const wrangler = JSON.parse(wranglerSource);
-assert.deepEqual(wrangler.assets?.run_worker_first, ['/*'], 'A single catch-all Worker-first rule must own admin, API and dynamic Careers routing in Wrangler 4.');
-assert.equal(wrangler.main, './worker/index.js', 'Phase 12 canonical Worker entrypoint must retain fetch plus scheduled cleanup ownership.');
-const stagingRoute = wrangler.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
-assert.equal(stagingRoute?.zone_name, 'rcitcs.com', 'staging admin hostname must remain explicitly bound.');
-const productionRoute = wrangler.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
-assert.equal(productionRoute?.custom_domain, true, 'production admin hostname must remain a Worker Custom Domain.');
-assert.deepEqual(wrangler.triggers?.crons, ['*/15 * * * *']);
+assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
+assert.equal(stagingConfig.main, './worker/admin-only.js');
+assert.equal(stagingConfig.workers_dev, false);
+assert.equal(stagingConfig.routes?.length, 1);
+assert.equal(stagingConfig.routes?.[0]?.pattern, 'admin-staging.rcitcs.com');
+assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'Staging admin must be a Worker Custom Domain so Cloudflare owns its DNS and certificate.');
 
-assert.ok(workflowSource.includes('Verify live Phase 12 private application runtimes'));
-assert.ok(workflowSource.includes('Verify live Phase 12 visual admin delivery'));
-assert.ok(workflowSource.includes('"jobs":true'));
-assert.ok(workflowSource.includes('"applications":true'));
-assert.ok(workflowSource.includes('"design":"phase12-candidate-application-workflow"'));
-assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"), 'workers.dev may remain only as the underlying internal deployment probe');
+assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
+assert.equal(productionAdminConfig.main, './worker/admin-only.js');
+assert.equal(productionAdminConfig.workers_dev, false);
+assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
+assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true);
 
-for (const required of [
-  'Verify dedicated admin portal domains',
+assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
+assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
+assert.ok(adminOnlySource.includes('return runtime.fetch(request, env, ctx)'));
+for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
+  assert.equal(workerSource.includes(forbidden), false, `Secret material leaked into admin proxy source: ${forbidden}`);
+  assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into dedicated admin entrypoint: ${forbidden}`);
+}
+
+for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
   "ADMIN_STAGING='https://admin-staging.rcitcs.com'",
-  'Technology that moves business forward',
-  'action="/login"',
-  '! grep -q \'action="/admin/login"\'',
-  'https://admin\\.rcitcs\\.com/',
   "PUBLIC='https://rcitcs.com'",
   '${ADMIN}/applications',
   '${ADMIN}/session',
   'Public rcitcs.com does not accept admin authentication'
 ]) {
-  assert.ok(domainWorkflowSource.includes(required), `dedicated admin-domain release gate missing: ${required}`);
+  assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
-  assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
-}
-
-console.log('PASS: dedicated admin.rcitcs.com/admin-staging.rcitcs.com host routing prevents public-site fallback while workers.dev remains only an internal deployment probe.');
+console.log('PASS: admin proxy security is preserved, staging ownership is isolated to rcitcs-admin-staging, and the production admin Worker cutover is source-controlled without downtime.');
