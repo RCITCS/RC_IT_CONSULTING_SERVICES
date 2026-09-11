@@ -27,6 +27,7 @@ import {
   privateHeaders
 } from "./ui.ts";
 import { handleJobRoute } from "./job-routes.ts";
+import { handleApplicationRoute } from "./applications.ts";
 import { securityPage } from "./security.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
@@ -94,24 +95,18 @@ function browserNavigationPostOk(request: Request): boolean {
 }
 
 function normalizedOrigin(value: string): string | null {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
+  try { return new URL(value).origin; } catch { return null; }
 }
 
 function originOk(request: Request, url: URL): boolean {
   const origin = request.headers.get("origin");
   const proxied = request.headers.get(ADMIN_PROXY_HEADER) === ADMIN_PROXY_VALUE;
-
   if (proxied) {
     if (!browserNavigationPostOk(request)) return false;
     if (!origin || origin === "null") return true;
     const parsedOrigin = normalizedOrigin(origin);
     return parsedOrigin !== null && ADMIN_PUBLIC_ORIGINS.has(parsedOrigin);
   }
-
   if (!origin || origin === "null") return false;
   const parsedOrigin = normalizedOrigin(origin);
   return parsedOrigin === `${url.protocol}//${url.host}`;
@@ -129,19 +124,13 @@ function strong(value: string): boolean {
 function sessionCookie(request: Request): { token: string; csrf: string } | null {
   const cookies = parseCookies(request);
   if (!cookies.rcitcs_admin_session) return null;
-  return {
-    token: cookies.rcitcs_admin_session,
-    csrf: cookies.rcitcs_admin_csrf ?? ""
-  };
+  return { token: cookies.rcitcs_admin_session, csrf: cookies.rcitcs_admin_csrf ?? "" };
 }
 
 async function session(request: Request): Promise<any | null> {
   const cookie = sessionCookie(request);
   if (!cookie) return null;
-  const row = await sessionContextByHash(
-    await shaHex(cookie.token),
-    new Date(Date.now() - IDLE_TTL * 1000).toISOString()
-  );
+  const row = await sessionContextByHash(await shaHex(cookie.token), new Date(Date.now() - IDLE_TTL * 1000).toISOString());
   if (!row || !row.admin) return null;
   return { ...row, csrf: cookie.csrf };
 }
@@ -149,15 +138,9 @@ async function session(request: Request): Promise<any | null> {
 async function dashboardContext(request: Request): Promise<{ session: any; snapshot: any } | null> {
   const cookie = sessionCookie(request);
   if (!cookie) return null;
-  const context = await dashboardPageContextByHash(
-    await shaHex(cookie.token),
-    new Date(Date.now() - IDLE_TTL * 1000).toISOString()
-  );
+  const context = await dashboardPageContextByHash(await shaHex(cookie.token), new Date(Date.now() - IDLE_TTL * 1000).toISOString());
   if (!context?.session?.admin || !context.snapshot) return null;
-  return {
-    session: { ...context.session, csrf: cookie.csrf },
-    snapshot: context.snapshot
-  };
+  return { session: { ...context.session, csrf: cookie.csrf }, snapshot: context.snapshot };
 }
 
 async function csrfOk(state: any, submitted: string): Promise<boolean> {
@@ -182,7 +165,6 @@ async function requestTooLarge(request: Request, path: string): Promise<boolean>
     const declared = Number(contentLength);
     return !Number.isFinite(declared) || declared < 0 || declared > limit;
   }
-
   const body = request.clone().body;
   if (!body) return false;
   const reader = body.getReader();
@@ -198,11 +180,7 @@ async function requestTooLarge(request: Request, path: string): Promise<boolean>
       }
     }
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // The reader may already be released after cancellation.
-    }
+    try { reader.releaseLock(); } catch { /* reader may already be released */ }
   }
 }
 
@@ -214,7 +192,7 @@ Deno.serve(async (request: Request) => {
   const clientHash = await ipHash(request);
 
   try {
-    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, design: "phase11-job-management-cms" });
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, applications: true, design: "phase12-candidate-application-workflow" });
 
     if (!["GET", "POST"].includes(request.method)) {
       const headers = privateHeaders();
@@ -325,6 +303,8 @@ Deno.serve(async (request: Request) => {
     const authState = await session(request);
     const jobResponse = await handleJobRoute({ request, url, path, basePath, authState, clientHash, userAgent });
     if (jobResponse) return jobResponse;
+    const applicationResponse = await handleApplicationRoute({ request, url, path, basePath, authState, clientHash, userAgent });
+    if (applicationResponse) return applicationResponse;
 
     if (request.method === "GET" && path === "/session") return authState ? json({ authenticated: true, email: authState.admin.email, role: authState.admin.role, expires_at: authState.expires_at }) : json({ authenticated: false }, 401);
 
