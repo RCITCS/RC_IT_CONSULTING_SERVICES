@@ -1,0 +1,75 @@
+name: Admin Domain Live Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-it-services-admin-domain-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-admin-domains:
+    name: Verify dedicated admin hostnames
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Verify staging and production admin domains
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          verify_admin() {
+            local admin="$1"
+            local label="$2"
+            local body="/tmp/${label}-admin.html"
+            local headers="/tmp/${label}-admin.headers"
+
+            for attempt in $(seq 1 36); do
+              code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$admin/" || true)
+
+              if [[ "$code" == '200' ]] \
+                && grep -q 'Administrator sign in' "$body" \
+                && grep -q 'Private administration for controlled operational work.' "$body" \
+                && ! grep -q 'Technology that' "$body" \
+                && ! grep -q 'data-prerendered-path="/"' "$body"; then
+                echo "${label} dedicated admin portal verified on attempt ${attempt}."
+                break
+              fi
+
+              if [[ "$attempt" == '36' ]]; then
+                echo "${label} admin domain failed dedicated-portal verification; status=${code}." >&2
+                sed -n '1,40p' "$body" >&2 || true
+                exit 1
+              fi
+
+              sleep 5
+            done
+
+            tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store'
+            tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex'
+            tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY'
+
+            session_code=$(curl -sS -D "/tmp/${label}-session.headers" -o "/tmp/${label}-session.json" -w '%{http_code}' "$admin/session" || true)
+            test "$session_code" = '401'
+            grep -q '"authenticated":false' "/tmp/${label}-session.json"
+          }
+
+          verify_admin 'https://admin-staging.rcitcs.com' 'staging'
+          verify_admin 'https://admin.rcitcs.com' 'production'
+
+      - name: Verify public corporate site remains public
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLIC='https://rcitcs.com'
+          code=$(curl -L -sS -o /tmp/public.html -w '%{http_code}' "${PUBLIC}/")
+          test "$code" = '200'
+          grep -q 'Technology that' /tmp/public.html
+          ! grep -q 'Administrator sign in' /tmp/public.html
+          echo 'Public and dedicated-admin hostname separation verified.'
