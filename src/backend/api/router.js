@@ -9,7 +9,7 @@ const routes = Object.freeze({
   chat: { methods: ['POST'], handler: 'submission', submissionType: 'chat', body: true },
   login: { methods: ['POST'], handler: 'login' },
   resume: { methods: ['POST'], handler: 'recruitment' },
-  'career-application': { methods: ['POST'], handler: 'recruitment' }
+  'career-application': { methods: ['POST'], handler: 'candidateApplication', body: true }
 });
 
 function actionForPath(pathname) {
@@ -24,7 +24,7 @@ export function routeNeedsJsonBody(pathname, method) {
 }
 
 export function createApiRouter({ handlers, logger, now = () => Date.now() } = {}) {
-  return async function handleApi({ method, pathname, body, context }) {
+  return async function handleApi({ method, pathname, headers, body, context }) {
     const started = now();
     let response;
     try {
@@ -34,7 +34,7 @@ export function createApiRouter({ handlers, logger, now = () => Date.now() } = {
       if (!route.methods.includes(context.method)) throw methodNotAllowed(route.methods);
       if (route.body && (!body || typeof body !== 'object' || Array.isArray(body))) throw badRequest();
       const handler = handlers[route.handler];
-      response = await handler({ context, body, submissionType: route.submissionType });
+      response = await handler({ context, headers, body, submissionType: route.submissionType });
     } catch (error) {
       const normalized = normalizeBackendError(error);
       if (normalized.status >= 500) {
