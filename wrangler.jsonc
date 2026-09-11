@@ -14,13 +14,15 @@
     }
   ],
   "vars": {
-    "PUBLIC_CAREERS_API_URL": "https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers"
+    "PUBLIC_CAREERS_API_URL": "https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers",
+    "ADMIN_PROXY_BASE": "/admin",
+    "ADMIN_PROXY_WILDCARD": "/admin/*"
   },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "drop-trailing-slash",
-    "run_worker_first": ["/*", "/api/*", "/admin", "/admin/*", "/careers", "/careers/jobs/*"]
+    "run_worker_first": ["/*"]
   }
 }

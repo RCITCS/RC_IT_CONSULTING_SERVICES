@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workerPath = path.join(root, 'src/backend/runtime/worker.js');
 const workerSource = await readFile(workerPath, 'utf8');
 const wranglerSource = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
+const wrangler = JSON.parse(wranglerSource);
 const workflowSource = await readFile(path.join(root, '.github/workflows/cloudflare-deploy.yml'), 'utf8');
 const { adminOriginAllowed, buildAdminUpstreamRequest } = await import(pathToFileURL(workerPath).href);
 
@@ -106,9 +107,11 @@ assert.ok(workerSource.includes("fetch(upstreamRequest, { redirect: 'manual' })"
 assert.ok(!workerSource.includes("upstreamRequest.headers.set('origin'"), 'proxy must not rewrite the browser Origin header');
 assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
 
-assert.ok(wranglerSource.includes('"/admin"'));
-assert.ok(wranglerSource.includes('"/admin/*"'));
-assert.ok(wranglerSource.includes('"run_worker_first"'));
+assert.deepEqual(wrangler.assets?.run_worker_first, ['/*'], 'Cloudflare must run the Worker first for every asset path so hostname routing cannot be bypassed.');
+const stagingRoute = wrangler.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
+assert.equal(stagingRoute?.zone_name, 'rcitcs.com');
+const productionRoute = wrangler.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
+assert.equal(productionRoute?.custom_domain, true);
 
 assert.ok(workflowSource.includes('Verify live Phase 11 private admin runtime'));
 assert.ok(workflowSource.includes('Verify live Phase 11 visual admin delivery'));
@@ -122,4 +125,4 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'A
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 11 live release gate verifies the CMS-aware private runtime and visual admin delivery.');
+console.log('PASS: inherited Phase 10 admin proxy security remains intact while valid catch-all Cloudflare routing owns the dedicated admin hostnames and Phase 11 live release checks remain protected.');
