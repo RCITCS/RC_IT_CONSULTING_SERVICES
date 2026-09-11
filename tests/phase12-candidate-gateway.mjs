@@ -3,7 +3,8 @@ import { createCandidateApplicationGateway } from '../src/backend/providers/cand
 
 const env = {
   SUPABASE_URL: 'https://example.supabase.co',
-  SUPABASE_SECRET_KEY: 'sb_secret_phase12_test_only'
+  SUPABASE_SECRET_KEY: 'sb_secret_phase12_test_only',
+  SUPABASE_STORAGE_BUCKET: 'candidate-documents'
 };
 
 {
@@ -82,6 +83,47 @@ const env = {
 }
 
 {
+  const calls = [];
+  const tokenHash = 'a'.repeat(64);
+  const gateway = createCandidateApplicationGateway({
+    env,
+    runtime: 'cloudflare-workers',
+    fetchImpl: async (url, init) => {
+      const current = { url: String(url), method: init?.method || 'GET', body: init?.body ? JSON.parse(init.body) : null };
+      calls.push(current);
+      if (current.url.endsWith('/rest/v1/rpc/claim_expired_candidate_intakes')) {
+        return new Response(JSON.stringify({
+          ok: true,
+          claims: [{
+            intake_id: '11111111-1111-4111-8111-111111111111',
+            token_hash: tokenHash,
+            documents: [{ object_path: 'applications/11111111-1111-4111-8111-111111111111/documents/22222222-2222-4222-8222-222222222222.pdf' }]
+          }]
+        }), { status: 200 });
+      }
+      if (current.url.includes('/storage/v1/object/candidate-documents')) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (current.url.endsWith('/rest/v1/rpc/complete_expired_candidate_intake_cleanup')) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      throw new Error(`Unexpected cleanup request: ${current.url}`);
+    }
+  });
+
+  const result = await gateway.cleanupExpired({ limit: 25 });
+  assert.deepEqual(result, { claimed: 1, cleaned: 1, failed: 0 });
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0].body.p_limit, 25);
+  assert.equal(calls[1].method, 'DELETE');
+  assert.deepEqual(calls[1].body.prefixes, ['applications/11111111-1111-4111-8111-111111111111/documents/22222222-2222-4222-8222-222222222222.pdf']);
+  assert.deepEqual(calls[2].body, {
+    p_intake_id: '11111111-1111-4111-8111-111111111111',
+    p_token_hash: tokenHash
+  });
+}
+
+{
   const gateway = createCandidateApplicationGateway({
     env: { SUPABASE_URL: 'https://example.supabase.co' },
     runtime: 'cloudflare-workers',
@@ -94,4 +136,4 @@ const env = {
   );
 }
 
-console.log('PASS: Phase 12 candidate application gateway uses a server credential, trusted ingress IP metadata and same-origin verification without exposing browser authority.');
+console.log('PASS: Phase 12 candidate gateway authenticates intake, uses trusted ingress metadata, rejects spoofed authority and performs retry-safe scheduled private-upload cleanup.');
