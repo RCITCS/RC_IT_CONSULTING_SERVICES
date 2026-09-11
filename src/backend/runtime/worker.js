@@ -2,6 +2,7 @@ import { routeNeedsJsonBody } from '../api/router.js';
 import { createBackendApplication } from '../application.js';
 import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '../core/payload.js';
 import { handlePublicCareersRequest, isPublicCareersRuntimePath } from './public-careers.js';
+import { handlePublicSitemapRequest } from './public-sitemap.js';
 
 const ADMIN_PUBLIC_BASE = '/admin';
 const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com';
@@ -277,6 +278,7 @@ export default {
     if (url.pathname.startsWith('/api/')) return handleApiRequest(request, env);
     if (isAdminPath(url.pathname) && isInternalWorkerHost(url.hostname)) return handleAdminRequest(request);
     if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url);
+    if (url.pathname === '/sitemap.xml') return handlePublicSitemapRequest(request, env);
     if (isPublicCareersRuntimePath(url.pathname)) return handlePublicCareersRequest(request, env);
     return serveApplication(request, env);
   }
