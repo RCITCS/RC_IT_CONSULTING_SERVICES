@@ -18,7 +18,7 @@ const SERVICE = "candidate-applications";
 const CONTRACT = "phase12-candidate-intake-v1";
 const ALLOWED_PROXIES = new Set(["cloudflare", "vercel"]);
 const ALLOWED_ORIGINS = new Set([
-  "https://rcitcservices.frsmkgit.workers.dev",
+  "https://rc-it-consulting-services.rcitcservices.workers.dev",
   "https://rc-it-services.vercel.app",
   "https://www.rcitcs.com",
   "https://rcitcs.com",
