@@ -41,6 +41,7 @@ const ADMIN_UI_SCRIPT = `(() => {
 const ADMIN_UI_STYLE = `<style>
 .password-control{position:relative}.password-control input{padding-right:48px}.password-reveal{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:3px;background:transparent;color:#667085;cursor:pointer}.password-reveal:hover{background:#f4f6f8;color:#263244}.password-reveal:focus-visible{outline:3px solid rgba(47,91,211,.22);outline-offset:1px}.password-reveal svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 </style>`;
+const ADMIN_APPLICATIONS_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h8l4 4v14H7zM15 3v5h5M10 12h6M10 16h6"/></svg>';
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -161,8 +162,28 @@ function adminUiScriptTag(publicBase) {
   return `<script src="${publicBase}/ui.js" defer></script>`;
 }
 
+function applicationsHref(publicBase) {
+  return `${publicBase}/applications` || '/applications';
+}
+
+function enhanceAdminNavigation(body, publicBase) {
+  if (body.includes('href="/applications"') || body.includes('href="/admin/applications"')) return body;
+  const applications = applicationsHref(publicBase);
+  const primarySecurity = `<a href="${publicBase}/change-password">`;
+  const mobileSecurity = `<a href="${publicBase}/change-password"`;
+  let enhanced = body;
+  if (enhanced.includes(primarySecurity)) {
+    enhanced = enhanced.replace(primarySecurity, `<a href="${applications}">${ADMIN_APPLICATIONS_ICON}<span>Applications</span></a>${primarySecurity}`);
+  }
+  if (enhanced.includes(mobileSecurity)) {
+    enhanced = enhanced.replace(mobileSecurity, `<a href="${applications}">Applications</a>${mobileSecurity}`);
+  }
+  return enhanced;
+}
+
 function enhanceAdminHtml(body, publicBase) {
   let enhanced = rewriteAdminReference(body, publicBase);
+  enhanced = enhanceAdminNavigation(enhanced, publicBase);
   if (enhanced.includes('</head>')) enhanced = enhanced.replace('</head>', `${ADMIN_UI_STYLE}</head>`);
   if (enhanced.includes('</body>')) enhanced = enhanced.replace('</body>', `${adminUiScriptTag(publicBase)}</body>`);
   return enhanced;
