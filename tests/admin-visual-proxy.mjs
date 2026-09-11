@@ -119,10 +119,12 @@ assert.ok(!workerSource.includes("upstreamRequest.headers.set('origin'"), 'proxy
 assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
 
 const wrangler = JSON.parse(wranglerSource);
-assert.ok(Array.isArray(wrangler.assets?.run_worker_first), 'Worker-first configuration must remain explicit');
-for (const pattern of ['/*', '/api/*', '/admin', '/admin/*', '/careers', '/careers/jobs/*']) {
-  assert.ok(wrangler.assets.run_worker_first.includes(pattern), `Worker-first pattern missing: ${pattern}`);
-}
+assert.deepEqual(wrangler.assets?.run_worker_first, ['/*'], 'A single catch-all Worker-first rule must own admin, API and dynamic Careers routing in Wrangler 4.');
+assert.equal(wrangler.main, './worker/index.js', 'Phase 12 canonical Worker entrypoint must retain fetch plus scheduled cleanup ownership.');
+const stagingRoute = wrangler.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
+assert.equal(stagingRoute?.zone_name, 'rcitcs.com', 'staging admin hostname must remain explicitly bound.');
+const productionRoute = wrangler.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
+assert.equal(productionRoute?.custom_domain, true, 'production admin hostname must remain a Worker Custom Domain.');
 assert.deepEqual(wrangler.triggers?.crons, ['*/15 * * * *']);
 
 assert.ok(workflowSource.includes('Verify live Phase 12 private application runtimes'));
