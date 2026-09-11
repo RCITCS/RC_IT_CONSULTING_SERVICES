@@ -13,6 +13,7 @@ const baseHtml = `<!doctype html><html><head>
 <meta name="twitter:description" content="Careers" />
 <script type="application/ld+json">{"@context":"https://schema.org"}</script>
 </head><body><div id="site-root" data-prerendered-path="/careers"><main id="main-content" class="careers-page"><section><div class="career-no-openings"><h2>No roles are currently published.</h2><p>Base empty state.</p></div></section></main></div></body></html>`;
+const previewBaseHtml = baseHtml.replace('name="robots" content="index,follow"', 'name="robots" content="noindex,nofollow"');
 
 const listJob = {
   id: '11111111-1111-4111-8111-111111111111', code: 'RC-ENG-26-HYB-A1B2C3', slug: 'platform-engineer',
@@ -31,10 +32,10 @@ const selectedJob = {
   published_at: '2026-09-10T00:00:00Z', closes_at: null, updated_at: '2026-09-10T00:00:00Z'
 };
 
-function env() {
+function env(html = baseHtml) {
   return {
     PUBLIC_CAREERS_API_URL: 'https://example.supabase.co/functions/v1/public-careers',
-    ASSETS: { async fetch() { return new Response(baseHtml, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=0, must-revalidate' } }); } }
+    ASSETS: { async fetch() { return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=0, must-revalidate' } }); } }
   };
 }
 function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
@@ -86,6 +87,23 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.ok(html.includes('"addressCountry":"GB"'), 'Runtime JobPosting UK job location is missing.');
   assert.ok(html.includes('"directApply":true'), 'Runtime JobPosting must reflect the operational direct application journey.');
   assert.ok(html.includes('Required skills') && html.includes('Responsibilities') && html.includes('Qualifications'), 'Runtime JobPosting description is incomplete.');
+}
+
+{
+  const calls = [];
+  const response = await handlePublicCareersRequest(new Request('https://branch-preview.example/careers/jobs/platform-engineer'), env(previewBaseHtml), { fetchImpl: successfulFetch(calls) });
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.ok(html.includes('name="robots" content="noindex,nofollow"'), 'Runtime vacancy must preserve preview noindex isolation.');
+  assert.equal(html.includes('data-runtime-job-posting'), false, 'Preview vacancy must not emit JobPosting structured data.');
+}
+
+{
+  const calls = [];
+  const response = await handlePublicCareersRequest(new Request('https://branch-preview.example/careers'), env(previewBaseHtml), { fetchImpl: successfulFetch(calls) });
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.ok(html.includes('name="robots" content="noindex,nofollow"'), 'Runtime Careers listing must preserve preview noindex isolation.');
 }
 
 {
@@ -143,4 +161,4 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 12 public Careers preserves canonical vacancy content, emits JobPosting only on eligible published job pages, exposes the real noindex application form, keeps secrets server-side, and fails closed.');
+console.log('PASS: Phase 12 public Careers preserves canonical vacancy content, emits JobPosting only on eligible production job pages, preserves preview noindex isolation, exposes the real noindex application form, keeps secrets server-side, and fails closed.');
