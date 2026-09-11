@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [edge, gateway, router, handlers] = await Promise.all([
+const [edge, gateway, router, handlers, supabaseConfig] = await Promise.all([
   read('supabase/functions/candidate-applications/index.ts'),
   read('src/backend/providers/candidate-application-gateway.js'),
   read('src/backend/api/router.js'),
-  read('src/backend/api/handlers.js')
+  read('src/backend/api/handlers.js'),
+  read('supabase/config.toml')
 ]);
 
 assert.ok(edge.includes('bearerCredential(request)'), 'Candidate intake must authenticate the server proxy credential.');
@@ -30,9 +31,14 @@ assert.ok(!gateway.includes("headerValue(headers, 'x-rcitcs-client-ip')"), 'RC g
 assert.ok(router.includes("'career-application': { methods: ['POST'], handler: 'candidateApplication', body: true }"));
 assert.ok(handlers.includes('candidateApplicationGateway.forward'));
 
-for (const source of [edge, gateway, router, handlers]) {
+const candidateConfig = supabaseConfig.match(/\[functions\.candidate-applications\]([\s\S]*?)(?=\n\[|$)/)?.[1] || '';
+assert.ok(candidateConfig.includes('verify_jwt = false'), 'candidate-applications must explicitly disable the platform JWT gate because its function body authenticates the trusted RC server credential itself.');
+const adminConfig = supabaseConfig.match(/\[functions\.admin-auth\]([\s\S]*?)(?=\n\[|$)/)?.[1] || '';
+assert.ok(adminConfig.includes('verify_jwt = false'), 'admin-auth custom session boundary must remain explicit.');
+
+for (const source of [edge, gateway, router, handlers, supabaseConfig]) {
   assert.ok(!/sb_secret_[A-Za-z0-9_-]{20,}/.test(source), 'No real Supabase secret may be committed in Phase 12 source.');
   assert.ok(!/SUPABASE_SECRET_KEY\s*=/.test(source), 'No Supabase secret assignment may be committed in Phase 12 source.');
 }
 
-console.log('PASS: Phase 12 rejects forged direct-proxy authority, authenticates the RC server gateway before forwarded metadata, and keeps candidate JSON bounded.');
+console.log('PASS: Phase 12 rejects forged direct-proxy authority, explicitly uses its custom Edge authentication boundary, and keeps candidate JSON bounded.');
