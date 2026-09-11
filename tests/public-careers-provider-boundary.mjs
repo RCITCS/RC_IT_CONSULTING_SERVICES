@@ -6,12 +6,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [edge, repository, wrangler, migration] = await Promise.all([
+const [edge, repository, wranglerText, migration] = await Promise.all([
   read('supabase/functions/public-careers/index.ts'),
   read('src/backend/repositories/public-jobs-repository.js'),
   read('wrangler.jsonc'),
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql')
 ]);
+const wrangler = JSON.parse(wranglerText);
 
 for (const required of [
   'MAX_BODY_BYTES = 2_048',
@@ -42,14 +43,19 @@ assert.ok(repository.includes("source: 'public-careers-edge'"));
 assert.ok(repository.includes('body: JSON.stringify({ slug:'));
 assert.ok(repository.includes("source: 'direct-supabase-server'"), 'Local/server compatibility fallback must remain explicit.');
 
-assert.ok(wrangler.includes('PUBLIC_CAREERS_API_URL'));
-assert.ok(wrangler.includes('https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers'));
-for (const forbidden of ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'sb_secret_', 'service_role']) {
-  assert.ok(!wrangler.includes(forbidden), `Cloudflare configuration must not contain privileged credential material: ${forbidden}`);
-}
+assert.equal(
+  wrangler.vars?.PUBLIC_CAREERS_API_URL,
+  'https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers',
+  'Cloudflare public Careers must continue using the narrow Supabase-owned public projection.'
+);
+assert.ok(!('SUPABASE_SECRET_KEY' in (wrangler.vars || {})), 'Privileged Supabase credentials must never be committed as plaintext Wrangler vars.');
+assert.ok(!('SUPABASE_SERVICE_ROLE_KEY' in (wrangler.vars || {})), 'Legacy service-role credentials must never be committed as plaintext Wrangler vars.');
+assert.ok(!(wrangler.secrets?.required || []).includes('SUPABASE_SERVICE_ROLE_KEY'), 'Cloudflare must not require the legacy service-role JWT binding.');
+assert.ok(!/sb_secret_[A-Za-z0-9_-]{20,}/.test(wranglerText), 'Cloudflare configuration must never contain an actual Supabase secret value.');
+assert.ok(!/service_role\s*[:=]/i.test(wranglerText), 'Cloudflare configuration must never contain a service-role credential assignment.');
 
 assert.ok(migration.includes('get_public_careers_context'));
 assert.ok(migration.includes('security invoker'));
 assert.ok(!/grant\s+execute[\s\S]{0,180}\bto\s+(?:anon|authenticated)\b/i.test(migration), 'Phase 11 database RPC must remain unavailable to browser roles.');
 
-console.log('PASS: Phase 11 public Careers uses a bounded Supabase-owned public projection without Cloudflare database secrets or broader browser database grants.');
+console.log('PASS: Phase 11 public Careers remains on its bounded Supabase-owned public projection; Phase 12 may declare a separate encrypted Worker secret name without exposing credential material or broadening browser database grants.');
