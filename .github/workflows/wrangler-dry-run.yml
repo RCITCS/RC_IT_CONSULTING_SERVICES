@@ -1,0 +1,47 @@
+name: Wrangler Deployment Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-wrangler-bundles:
+    name: Validate Cloudflare Worker bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Validate primary production Worker with Wrangler 4.131.0
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.jsonc --outdir /tmp/wrangler-primary
+
+      - name: Validate isolated staging admin Worker with Wrangler 4.131.0
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.admin-staging.jsonc --outdir /tmp/wrangler-admin-staging
+
+      - name: Validate isolated production admin Worker with Wrangler 4.131.0
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.admin-production.jsonc --outdir /tmp/wrangler-admin-production
+
+      - name: Verify generated bundles
+        run: |
+          set -euo pipefail
+          test -n "$(find /tmp/wrangler-primary -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-staging -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-production -maxdepth 2 -type f -print -quit)"
+          echo 'All three Wrangler configurations compile successfully without deployment.'
