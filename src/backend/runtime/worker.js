@@ -87,6 +87,10 @@ export function isDedicatedAdminHost(hostname = '') {
   return ADMIN_HOSTS.has(String(hostname).toLowerCase());
 }
 
+function isInternalWorkerHost(hostname = '') {
+  return String(hostname).toLowerCase().endsWith('.workers.dev');
+}
+
 function isAdminPath(pathname) {
   return pathname === ADMIN_PUBLIC_BASE || pathname.startsWith(`${ADMIN_PUBLIC_BASE}/`);
 }
@@ -250,6 +254,7 @@ export default {
     const url = new URL(request.url);
     if (isDedicatedAdminHost(url.hostname)) return handleAdminRequest(request);
     if (url.pathname.startsWith('/api/')) return handleApiRequest(request, env);
+    if (isAdminPath(url.pathname) && isInternalWorkerHost(url.hostname)) return handleAdminRequest(request);
     if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url);
     if (isPublicCareersRuntimePath(url.pathname)) return handlePublicCareersRequest(request, env);
     return serveApplication(request, env);
