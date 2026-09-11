@@ -34,8 +34,10 @@ assert.ok(router.includes("'career-application': { methods: ['POST'], handler: '
 assert.ok(handlers.includes('candidateApplicationGateway.forward'));
 
 assert.equal(wrangler.vars?.SUPABASE_URL, 'https://chsizmffzpxcqhaptjeu.supabase.co', 'The production public Worker must bind the Supabase project origin required by the Phase 12 candidate gateway.');
+assert.deepEqual(wrangler.secrets?.required, ['SUPABASE_SECRET_KEY'], 'Production deploys must fail unless the encrypted Supabase server credential is configured as a Worker runtime secret.');
 assert.ok(!('SUPABASE_SECRET_KEY' in (wrangler.vars || {})), 'Supabase server credentials must remain secret bindings, never plaintext Wrangler vars.');
 assert.ok(!('SUPABASE_SERVICE_ROLE_KEY' in (wrangler.vars || {})), 'Supabase service-role credentials must remain secret bindings, never plaintext Wrangler vars.');
+assert.ok(!(wrangler.secrets?.required || []).includes('SUPABASE_SERVICE_ROLE_KEY'), 'New Cloudflare deployments must require the modern SUPABASE_SECRET_KEY binding rather than a legacy service-role JWT binding.');
 
 const candidateConfig = supabaseConfig.match(/\[functions\.candidate-applications\]([\s\S]*?)(?=\n\[|$)/)?.[1] || '';
 assert.ok(candidateConfig.includes('verify_jwt = false'), 'candidate-applications must explicitly disable the platform JWT gate because its function body authenticates the trusted RC server credential itself.');
@@ -47,4 +49,4 @@ for (const source of [edge, gateway, router, handlers, supabaseConfig, wranglerT
   assert.ok(!/SUPABASE_SECRET_KEY\s*=/.test(source), 'No Supabase secret assignment may be committed in Phase 12 source.');
 }
 
-console.log('PASS: Phase 12 rejects forged direct-proxy authority, explicitly binds its Supabase project origin, keeps server credentials secret, and keeps candidate JSON bounded.');
+console.log('PASS: Phase 12 rejects forged direct-proxy authority, explicitly binds its Supabase project origin, requires an encrypted runtime secret, keeps server credentials out of source, and keeps candidate JSON bounded.');
