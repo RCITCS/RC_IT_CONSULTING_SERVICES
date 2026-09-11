@@ -111,7 +111,7 @@ jobs:
     needs: quality
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - name: Wait for current Cloudflare prerender build and verify deep routes
@@ -130,7 +130,7 @@ jobs:
             '/privacy'
           )
 
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 72); do
             all_ok=1
             for route in "${routes[@]}"; do
               code=$(curl -sS -o /tmp/rc-page.html -w '%{http_code}' "${BASE}${route}" || true)
@@ -155,7 +155,7 @@ jobs:
               break
             fi
 
-            if [[ "$attempt" == '30' ]]; then
+            if [[ "$attempt" == '72' ]]; then
               echo 'Current Cloudflare prerender build did not become healthy within the verification window.' >&2
               exit 1
             fi

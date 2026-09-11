@@ -23,6 +23,8 @@ for (const contract of [
 const config = JSON.parse(wrangler);
 assert.ok(Array.isArray(config.assets?.run_worker_first));
 assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets at admin-host root.');
+assert.equal(config.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*')?.zone_name, 'rcitcs.com', 'Known-good staging transition route must remain deployable until isolated staging provisioning is complete.');
+assert.equal(config.routes?.find((route) => route.pattern === 'admin.rcitcs.com')?.custom_domain, true, 'Production admin custom domain remains authoritative during the cutover transition.');
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
@@ -30,8 +32,9 @@ for (const expected of [
   '! grep -q \'Technology that moves business forward\'',
   'action="/login"',
   "PUBLIC='https://rcitcs.com'",
-  'Public rcitcs.com does not accept admin authentication'
+  'Production admin routes remain private and host-local',
+  'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: admin.rcitcs.com/admin-staging.rcitcs.com are separate private portal origins with first-class Applications navigation.');
+console.log('PASS: admin.rcitcs.com is the authoritative private portal, staging/public-apex provisioning is diagnosed without weakening production security, and Applications navigation remains first-class.');

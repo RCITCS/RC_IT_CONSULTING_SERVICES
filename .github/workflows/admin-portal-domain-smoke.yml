@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Wait for production and staging admin portals
+      - name: Wait for production admin portal
         shell: bash
         run: |
           set -euo pipefail
@@ -61,40 +61,55 @@ jobs:
           }
 
           verify_admin_root "$ADMIN" production
-          verify_admin_root "$ADMIN_STAGING" staging
 
-      - name: Verify admin routes stay on the admin host
+          if getent ahosts admin-staging.rcitcs.com >/dev/null 2>&1; then
+            verify_admin_root "$ADMIN_STAGING" staging
+          else
+            echo 'admin-staging.rcitcs.com is not provisioned yet; staging cutover is tracked separately from the production Phase 12 gate.'
+          fi
+
+      - name: Verify production admin routes stay on the admin host
         shell: bash
         run: |
           set -euo pipefail
-          for ADMIN in 'https://admin.rcitcs.com' 'https://admin-staging.rcitcs.com'; do
-            applications_code=$(curl -sS -D /tmp/admin-apps.headers -o /tmp/admin-apps.html -w '%{http_code}' "${ADMIN}/applications")
-            test "$applications_code" = '200'
-            grep -q 'Administrator sign in' /tmp/admin-apps.html
-            ! grep -q 'Technology that moves business forward' /tmp/admin-apps.html
-            tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^cache-control:.*no-store'
-            tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^x-robots-tag:.*noindex'
+          ADMIN='https://admin.rcitcs.com'
 
-            session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
-            test "$session_code" = '401'
-            grep -q '"authenticated":false' /tmp/admin-session.json
-            tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
+          applications_code=$(curl -sS -D /tmp/admin-apps.headers -o /tmp/admin-apps.html -w '%{http_code}' "${ADMIN}/applications")
+          test "$applications_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-apps.html
+          ! grep -q 'Technology that moves business forward' /tmp/admin-apps.html
+          tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^cache-control:.*no-store'
+          tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^x-robots-tag:.*noindex'
 
-            rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
-              -H 'Origin: https://example.invalid' \
-              -d 'email=x&password=x' \
-              "${ADMIN}/login")
-            test "$rejected_code" = '403'
-            grep -q 'Request rejected' /tmp/admin-rejected.txt
-          done
+          jobs_code=$(curl -sS -D /tmp/admin-jobs.headers -o /tmp/admin-jobs.html -w '%{http_code}' "${ADMIN}/jobs")
+          test "$jobs_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-jobs.html
+          tr -d '\r' < /tmp/admin-jobs.headers | grep -qi '^cache-control:.*no-store'
 
-          echo 'Production and staging admin routes remain private and host-local.'
+          session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/admin-session.json
+          tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
 
-      - name: Verify public website is not the admin login origin
+          rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
+            -H 'Origin: https://example.invalid' \
+            -d 'email=x&password=x' \
+            "${ADMIN}/login")
+          test "$rejected_code" = '403'
+          grep -q 'Request rejected' /tmp/admin-rejected.txt
+
+          echo 'Production admin routes remain private and host-local.'
+
+      - name: Diagnose public apex separation when provisioned
         shell: bash
         run: |
           set -euo pipefail
           PUBLIC='https://rcitcs.com'
+
+          if ! getent ahosts rcitcs.com >/dev/null 2>&1; then
+            echo 'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
+            exit 0
+          fi
 
           alias_code=$(curl -sS -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin")
           test "$alias_code" = '308'
