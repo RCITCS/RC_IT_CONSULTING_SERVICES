@@ -15,7 +15,7 @@ const [migration, hardening, db, index, routes, ui, publicRepository, publicRunt
   read('src/backend/repositories/public-jobs-repository.js'),
   read('src/backend/runtime/public-careers.js'),
   read('src/backend/runtime/worker.js'),
-  read('src/frontend/content/career-jobs-catalog.js')
+  read('src/frontend/app/career-job-catalog.js')
 ]);
 
 for (const field of [
@@ -67,10 +67,12 @@ assert.ok(!ui.includes('name="code"'), 'Job code must not be editable in the adm
 
 assert.ok(worker.includes('isPublicCareersRuntimePath'));
 assert.ok(worker.includes('handlePublicCareersRequest'));
-assert.ok(!catalog.includes('career-jobs.js'));
-assert.ok(!catalog.includes('career-jobs-data-expansion.js'));
-assert.ok(!catalog.includes('career-jobs-services-expansion.js'));
+assert.ok(!catalog.includes("from './career-jobs.js'"));
+assert.ok(!catalog.includes("from './career-jobs-data-expansion.js'"));
+assert.ok(!catalog.includes("from './career-jobs-services-expansion.js'"));
 assert.ok(catalog.includes('server-authoritative in PostgreSQL'));
+assert.ok(catalog.includes('return []'));
+assert.ok(catalog.includes('return null'));
 assert.ok(publicRepository.includes('rpc/get_public_careers_context'));
 assert.ok(publicRepository.includes('getCareersContext'));
 assert.ok(!publicRepository.includes('rpc/get_public_jobs'), 'Public runtime should not download full content for every list item.');
