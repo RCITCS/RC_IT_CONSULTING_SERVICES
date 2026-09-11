@@ -95,7 +95,7 @@ jobs:
           grep -q 'data-prerendered-path' dist/index.html
           grep -q '404-page' wrangler.jsonc
           grep -q 'drop-trailing-slash' wrangler.jsonc
-          grep -q 'rcitcservices' wrangler.jsonc
+          grep -q 'rc-it-consulting-services' wrangler.jsonc
           grep -q '"/admin"' wrangler.jsonc
           grep -q '"/admin/\*"' wrangler.jsonc
           grep -q '"crons"' wrangler.jsonc
@@ -118,7 +118,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcservices.frsmkgit.workers.dev'
+          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
           routes=(
             '/'
             '/careers'
@@ -166,7 +166,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcservices.frsmkgit.workers.dev'
+          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
 
           curl -sS "${BASE}/about-us" -o /tmp/about.html
           grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
@@ -234,7 +234,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rcitcservices.frsmkgit.workers.dev'
+          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
 
           curl -sS "${BASE}/" -o /tmp/rc-index.html
           app_asset=$(grep -oE '/assets/app-[A-Za-z0-9]+\.js' /tmp/rc-index.html | head -n1)
@@ -320,7 +320,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'
+          ADMIN='https://rc-it-consulting-services.rcitcservices.workers.dev/admin'
 
           root_code=$(curl -sS -D /tmp/admin-visual.headers -o /tmp/admin-visual.html -w '%{http_code}' "${ADMIN}")
           test "$root_code" = '200'
