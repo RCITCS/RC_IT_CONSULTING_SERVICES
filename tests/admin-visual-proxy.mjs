@@ -67,7 +67,8 @@ assert.equal(await proxied.text(), 'email=admin%40example.invalid&password=place
 assert.equal(primaryConfig.main, './worker/index.js');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
-assert.equal(primaryConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com/*' || route.pattern === 'admin-staging.rcitcs.com'), false, 'The public/current production Worker must not claim the separate staging admin hostname.');
+const transitionalStagingBinding = primaryConfig.routes?.find((route) => route.pattern === 'admin-staging.rcitcs.com/*');
+assert.equal(transitionalStagingBinding?.zone_name, 'rcitcs.com', 'The last-known-good staging route must remain on the current Worker until the isolated staging Worker is actually provisioned and cut over.');
 const temporaryProductionBinding = primaryConfig.routes?.find((route) => route.pattern === 'admin.rcitcs.com');
 assert.equal(temporaryProductionBinding?.custom_domain, true, 'Production admin must remain live on the current Worker until the isolated production Worker is created and cut over.');
 
@@ -76,7 +77,7 @@ assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.routes?.length, 1);
 assert.equal(stagingConfig.routes?.[0]?.pattern, 'admin-staging.rcitcs.com');
-assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'Staging admin must be a Worker Custom Domain so Cloudflare owns its DNS and certificate.');
+assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'The isolated staging cutover config must use a Worker Custom Domain when it is provisioned.');
 
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
@@ -98,9 +99,10 @@ for (const expected of [
   "PUBLIC='https://rcitcs.com'",
   '${ADMIN}/applications',
   '${ADMIN}/session',
-  'Public rcitcs.com does not accept admin authentication'
+  'Production admin routes remain private and host-local',
+  'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
 ]) {
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: admin proxy security is preserved, staging ownership is isolated to rcitcs-admin-staging, and the production admin Worker cutover is source-controlled without downtime.');
+console.log('PASS: admin proxy security is preserved, last-known-good transitional bindings stay deployable, and isolated admin Worker cutover configurations remain source-controlled.');
