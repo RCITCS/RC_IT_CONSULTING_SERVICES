@@ -8,10 +8,12 @@ const workerPath = path.join(root, 'src/backend/runtime/worker.js');
 const workerSource = await readFile(workerPath, 'utf8');
 const wranglerSource = await readFile(path.join(root, 'wrangler.jsonc'), 'utf8');
 const workflowSource = await readFile(path.join(root, '.github/workflows/cloudflare-deploy.yml'), 'utf8');
-const { adminOriginAllowed, buildAdminUpstreamRequest } = await import(pathToFileURL(workerPath).href);
+const { adminOriginAllowed, buildAdminUpstreamRequest, isDedicatedAdminHost } = await import(pathToFileURL(workerPath).href);
 
 for (const required of [
   "const ADMIN_PUBLIC_BASE = '/admin'",
+  "const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com'",
+  "new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])",
   "const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth'",
   "script-src 'self'",
   'const ADMIN_UI_SCRIPT =',
@@ -19,6 +21,9 @@ for (const required of [
   'function adminFetchMetadataAllowsNavigationPost',
   'export function adminOriginAllowed',
   'export function buildAdminUpstreamRequest',
+  'export function isDedicatedAdminHost',
+  'function adminPublicBase',
+  'function redirectPublicAdminAlias',
   "request.headers.get('sec-fetch-site') === 'same-origin'",
   "request.headers.get('sec-fetch-mode') === 'navigate'",
   "request.headers.get('sec-fetch-dest') === 'document'",
@@ -34,11 +39,10 @@ for (const required of [
   'async function handleAdminRequest',
   "headers.set('content-type', 'text/html; charset=utf-8')",
   "headers.set('content-security-policy', ADMIN_HTML_CSP)",
-  "incomingUrl.pathname === `${ADMIN_PUBLIC_BASE}/ui.js`",
-  "headers.append('set-cookie', rewriteAdminReference(cookie))",
-  "if (isAdminPath(url.pathname)) return handleAdminRequest(request)"
+  "if (isDedicatedAdminHost(url.hostname)) return handleAdminRequest(request)",
+  "if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url)"
 ]) {
-  assert.ok(workerSource.includes(required), `admin visual proxy contract missing: ${required}`);
+  assert.ok(workerSource.includes(required), `admin dedicated-host contract missing: ${required}`);
 }
 
 for (const passwordUiContract of [
@@ -52,12 +56,17 @@ for (const passwordUiContract of [
   assert.ok(workerSource.includes(passwordUiContract), `password reveal contract missing: ${passwordUiContract}`);
 }
 
+assert.equal(isDedicatedAdminHost('admin.rcitcs.com'), true, 'production admin hostname must be dedicated');
+assert.equal(isDedicatedAdminHost('ADMIN-STAGING.RCITCS.COM'), true, 'staging admin hostname matching must be case-insensitive');
+assert.equal(isDedicatedAdminHost('rcitcs.com'), false, 'public production hostname must never be classified as admin');
+assert.equal(isDedicatedAdminHost('rcitcservices.frsmkgit.workers.dev'), false, 'underlying public workers.dev hostname must never be classified as admin');
+
 function requestWith(headers = {}) {
   return { headers: new Headers(headers) };
 }
 
-const stagingLoginUrl = new URL('https://admin-staging.rcitcs.com/admin/login');
-const productionLoginUrl = new URL('https://admin.rcitcs.com/admin/login');
+const stagingLoginUrl = new URL('https://admin-staging.rcitcs.com/login');
+const productionLoginUrl = new URL('https://admin.rcitcs.com/login');
 const sameOriginNavigation = {
   'sec-fetch-site': 'same-origin',
   'sec-fetch-mode': 'navigate',
@@ -69,7 +78,7 @@ assert.equal(adminOriginAllowed(requestWith({ origin: stagingLoginUrl.origin }),
 assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin }), productionLoginUrl), true, 'explicit production same-origin POST must be accepted');
 assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation }), stagingLoginUrl), true, 'privacy-reduced same-origin browser form POST with Origin: null must be accepted');
 assert.equal(adminOriginAllowed(requestWith(sameOriginNavigation), stagingLoginUrl), true, 'same-origin browser form POST with an omitted Origin header must be accepted');
-assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin, ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit different origin must not be accepted by the staging host');
+assert.equal(adminOriginAllowed(requestWith({ origin: productionLoginUrl.origin, ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit different admin origin must not be accepted by staging');
 assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...sameOriginNavigation }), stagingLoginUrl), false, 'an explicit hostile origin must take precedence over fetch metadata and be rejected');
 assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'cross-site' }), stagingLoginUrl), false, 'Origin: null from a cross-site request must be rejected');
 assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...sameOriginNavigation, 'sec-fetch-site': 'same-site' }), stagingLoginUrl), false, 'Origin: null from a same-site but cross-origin request must be rejected');
@@ -106,22 +115,24 @@ assert.ok(workerSource.includes("fetch(upstreamRequest, { redirect: 'manual' })"
 assert.ok(!workerSource.includes("upstreamRequest.headers.set('origin'"), 'proxy must not rewrite the browser Origin header');
 assert.ok(!workerSource.includes('ADMIN_ALLOWED_PUBLIC_ORIGINS'), 'cross-origin admin host allowlist must not bypass exact same-origin validation');
 
-assert.ok(wranglerSource.includes('"/admin"'));
-assert.ok(wranglerSource.includes('"/admin/*"'));
-assert.ok(wranglerSource.includes('"run_worker_first"'));
+const wrangler = JSON.parse(wranglerSource);
+assert.equal(wrangler.assets?.run_worker_first, true, 'Worker must run before static assets so admin-host root cannot leak the public site');
+assert.deepEqual(wrangler.triggers?.crons, ['*/15 * * * *']);
 
 assert.ok(workflowSource.includes('Verify live Phase 12 private application runtimes'));
-assert.ok(workflowSource.includes('Verify live Phase 12 visual admin delivery'));
+assert.ok(workflowSource.includes('Verify dedicated Phase 12 admin portal delivery'));
 assert.ok(workflowSource.includes('"jobs":true'));
 assert.ok(workflowSource.includes('"applications":true'));
 assert.ok(workflowSource.includes('"design":"phase12-candidate-application-workflow"'));
-assert.ok(workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"));
+assert.ok(workflowSource.includes("ADMIN='https://admin.rcitcs.com'"));
+assert.ok(workflowSource.includes("ADMIN_STAGING='https://admin-staging.rcitcs.com'"));
 assert.ok(workflowSource.includes('${ADMIN}/applications'));
-assert.ok(workflowSource.includes('content-type:.*text/html'));
+assert.ok(workflowSource.includes('action="/login"'));
 assert.ok(workflowSource.includes('${ADMIN}/session'));
+assert.ok(!workflowSource.includes("ADMIN='https://rcitcservices.frsmkgit.workers.dev/admin'"), 'workers.dev must not be the admin UI verification origin');
 
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.ok(!workerSource.includes(forbidden), `secret material must not enter the Cloudflare admin proxy: ${forbidden}`);
 }
 
-console.log('PASS: inherited Phase 10 admin proxy security remains intact while the Phase 12 release gate verifies private Applications runtime and visual admin delivery.');
+console.log('PASS: dedicated admin.rcitcs.com/admin-staging.rcitcs.com host routing prevents public-site fallback and preserves inherited admin proxy security.');
