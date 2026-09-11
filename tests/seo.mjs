@@ -1,5 +1,5 @@
 globalThis.document = { title: '' };
-globalThis.location = { origin: 'https://rcitcservices.frsmkgit.workers.dev' };
+globalThis.location = { origin: 'https://rc-it-consulting-services.rcitcservices.workers.dev' };
 
 const { routeContent } = await import('../src/frontend/router/router.js');
 const { ALL_ROUTES, COMPANY, LEGACY_ROUTE_ALIASES } = await import('../src/frontend/app/site-config.js');
@@ -79,7 +79,7 @@ assert(organization?.address?.addressRegion === addressRegion, 'Organization reg
 assert(organization?.address?.postalCode === postalCode, 'Organization postcode diverged from COMPANY.registeredOffice.');
 assert(organization?.address?.addressCountry === 'GB', 'Organization country must be GB.');
 
-assert(JOB_SEARCH_INDEXING_ENABLED === false, 'Job search indexing must remain disabled until the real application workflow is available.');
+assert(JOB_SEARCH_INDEXING_ENABLED === true, 'Job search indexing must be enabled after the real Phase 12 application workflow is operational.');
 const supportedEmploymentTypes = new Set(['FULL_TIME', 'PART_TIME', 'CONTRACTOR', 'TEMPORARY', 'INTERN', 'VOLUNTEER', 'PER_DIEM', 'OTHER']);
 
 for (const job of publishedJobs) {
@@ -90,10 +90,10 @@ for (const job of publishedJobs) {
   const graph = schemaGraphForRoute(detailPath);
   const candidateJobPosting = createJobPostingSchema(jobSeo);
 
-  assert(jobSeo?.index === false, `Job must remain noindex until a real application path is available: ${detailPath}`);
+  assert(jobSeo?.index === true, `Eligible published job must be indexable after Phase 12 activation: ${detailPath}`);
   assert(jobSeo.canonical === `${SITE_ORIGIN}${detailPath}`, `Published job canonical is wrong: ${detailPath}`);
-  assert(renderSeoHead(detailPath).includes('noindex,nofollow'), `Job noindex metadata is missing: ${detailPath}`);
-  assert(!graph.some((node) => node['@type'] === 'JobPosting'), `JobPosting must not be emitted before application eligibility: ${detailPath}`);
+  assert(renderSeoHead(detailPath).includes('index,follow'), `Job index metadata is missing: ${detailPath}`);
+  assert(graph.some((node) => node['@type'] === 'JobPosting'), `JobPosting must be emitted for an eligible published job: ${detailPath}`);
 
   assert(candidateJobPosting.description.includes('<p>') && candidateJobPosting.description.includes('<ul>'), `Candidate JobPosting description must contain structured HTML: ${detailPath}`);
   assert(candidateJobPosting.description.includes('Responsibilities') && candidateJobPosting.description.includes('Qualifications'), `Candidate JobPosting description is incomplete: ${detailPath}`);
@@ -135,7 +135,7 @@ for (const alias of LEGACY_ROUTE_ALIASES) {
 assert(!sitemap.includes(`${SITE_ORIGIN}/login`), 'Login leaked into sitemap.');
 assert(!sitemap.includes('/apply</loc>'), 'Application route leaked into sitemap.');
 for (const job of publishedJobs) {
-  assert(!sitemap.includes(`${SITE_ORIGIN}/careers/jobs/${job.slug}</loc>`), `Ineligible job leaked into sitemap: ${job.slug}`);
+  assert(sitemap.includes(`${SITE_ORIGIN}/careers/jobs/${job.slug}</loc>`), `Eligible published job is missing from sitemap: ${job.slug}`);
 }
 
 const robots = renderRobotsTxt();
@@ -143,7 +143,7 @@ for (const rule of ['Disallow: /api/', 'Disallow: /admin/', `Sitemap: ${SITE_ORI
   assert(robots.includes(rule), `Robots rule missing: ${rule}`);
 }
 assert(!robots.includes('Disallow: /login'), 'Login must stay crawlable so crawlers can observe its noindex directive.');
-assert(!robots.includes('Disallow: /careers/jobs/'), 'Job and application pages must stay crawlable so crawlers can observe their noindex directives.');
+assert(!robots.includes('Disallow: /careers/jobs/'), 'Job and application pages must stay crawlable; application routes carry noindex metadata.');
 
 const redirects = renderRedirectsFile();
 for (const alias of [...LEGACY_ROUTE_ALIASES, '/index.php']) {
@@ -163,4 +163,4 @@ for (const route of prerenderRoutes) {
   }
 }
 
-console.log(`PASS: Phase 6 SEO model verified for ${prerenderRoutes.length} prerender routes, ${indexableRoutes.length} currently eligible indexable routes and ${publishedJobs.length} gated job routes.`);
+console.log(`PASS: SEO model verified for ${prerenderRoutes.length} prerender routes, ${indexableRoutes.length} currently eligible indexable routes and Phase 12 vacancy indexing enabled.`);
