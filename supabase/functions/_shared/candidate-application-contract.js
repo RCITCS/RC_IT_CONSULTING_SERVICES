@@ -124,6 +124,10 @@ export function validateCandidateStartRequest(input = {}) {
   const identity = validateCandidateIdentity(input);
   const documents = validateCandidateDocumentDescriptors(input.documents);
   const errors = [...identity.errors, ...documents.errors];
+  const hasCoverLetterDocument = documents.documents.some((document) => document.kind === 'cover_letter');
+  if (!identity.value.cover_letter_text && !hasCoverLetterDocument) {
+    errors.push({ field: 'coverLetter', code: 'COVER_LETTER_REQUIRED' });
+  }
   if (!jobSlug || jobSlug.length > 160 || !JOB_SLUG.test(jobSlug)) errors.push({ field: 'jobSlug', code: 'INVALID_JOB' });
 
   return Object.freeze({
