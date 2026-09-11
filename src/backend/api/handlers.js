@@ -8,7 +8,7 @@ const messages = Object.freeze({
   chat: 'Your message has been recorded.'
 });
 
-export function createApiHandlers({ config, submissionService } = {}) {
+export function createApiHandlers({ config, submissionService, candidateApplicationGateway } = {}) {
   return Object.freeze({
     health({ context }) {
       return successResponse({
@@ -42,8 +42,12 @@ export function createApiHandlers({ config, submissionService } = {}) {
     recruitment() {
       throw featureNotConfigured(
         'RECRUITMENT_STORAGE_NOT_CONFIGURED',
-        'Recruitment document submission is not enabled yet. No candidate document or application has been stored.'
+        'General recruitment document submission is not enabled yet. No candidate document or application has been stored.'
       );
+    },
+
+    async candidateApplication({ context, headers, body }) {
+      return candidateApplicationGateway.forward({ body, headers, requestId: context.requestId });
     }
   });
 }
