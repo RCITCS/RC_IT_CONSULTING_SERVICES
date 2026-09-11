@@ -314,10 +314,13 @@ alter table public.application_documents
     or (mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' and lower(original_filename) like '%.docx')
   );
 
+-- Phase 8 legitimately allowed historical rows without a content hash. Do not
+-- fabricate one or block the forward migration. NOT VALID preserves those rows
+-- while PostgreSQL still enforces the hash contract for every new/updated row.
 alter table public.application_documents drop constraint if exists application_documents_sha256_check;
 alter table public.application_documents
   add constraint application_documents_sha256_check
-  check (sha256 is not null and sha256 ~ '^[0-9a-f]{64}$');
+  check (sha256 is not null and sha256 ~ '^[0-9a-f]{64}$') not valid;
 
 create unique index if not exists application_documents_object_path_uidx
   on public.application_documents(bucket_id, object_path);
@@ -726,6 +729,14 @@ begin
      or jsonb_array_length(p_documents) <> jsonb_array_length(v_session.document_manifest)
      or (select count(*) from jsonb_array_elements(p_documents) d where d->>'kind' = 'resume') <> 1 then
     return jsonb_build_object('ok', false, 'code', 'INVALID_DOCUMENTS');
+  end if;
+
+  -- The start contract is not trusted as the final authority: a hostile client can
+  -- change the candidate payload between start and finalize. Reassert the business
+  -- rule at the transaction boundary before persistence.
+  if v_cover_letter_text is null
+     and (select count(*) from jsonb_array_elements(p_documents) d where d->>'kind' = 'cover_letter') <> 1 then
+    return jsonb_build_object('ok', false, 'code', 'INVALID_CANDIDATE');
   end if;
 
   for v_document in select value from jsonb_array_elements(p_documents)
