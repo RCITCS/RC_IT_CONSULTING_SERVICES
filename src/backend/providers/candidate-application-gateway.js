@@ -1,5 +1,6 @@
 import { createPersistenceConfig } from '../config/persistence.js';
 import { BackendError, providerUnavailable } from '../core/errors.js';
+import { createSupabaseHttpClient } from './supabase-http.js';
 
 const ALLOWED_PUBLIC_ORIGINS = new Set([
   'https://rcitcservices.frsmkgit.workers.dev',
@@ -17,20 +18,12 @@ function headerValue(headers, name) {
 }
 
 function normalizedOrigin(value) {
-  try {
-    const url = new URL(String(value || ''));
-    return url.origin;
-  } catch {
-    return '';
-  }
+  try { return new URL(String(value || '')).origin; } catch { return ''; }
 }
 
 function trustedClientIp(runtime, headers) {
-  if (runtime === 'cloudflare-workers') {
-    return headerValue(headers, 'cf-connecting-ip').trim();
-  }
+  if (runtime === 'cloudflare-workers') return headerValue(headers, 'cf-connecting-ip').trim();
   if (runtime === 'vercel') {
-    // Vercel overwrites x-forwarded-for at its ingress to prevent client spoofing.
     return headerValue(headers, 'x-vercel-forwarded-for').split(',')[0].trim()
       || headerValue(headers, 'x-forwarded-for').split(',')[0].trim()
       || headerValue(headers, 'x-real-ip').trim();
@@ -47,14 +40,7 @@ function proxyName(runtime) {
 function publicOrigin(runtime, headers) {
   const origin = normalizedOrigin(headerValue(headers, 'origin'));
   if (origin && ALLOWED_PUBLIC_ORIGINS.has(origin)) return origin;
-
-  // Vercel/Cloudflare browser POSTs are expected to carry Origin. Do not derive a
-  // trusted application origin from Host/X-Forwarded-Host because those values are
-  // easier to misconfigure or spoof outside the managed ingress.
-  if (runtime === 'node-local') {
-    const local = normalizedOrigin(origin);
-    if (local && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(local)) return local;
-  }
+  if (runtime === 'node-local' && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(origin)) return origin;
   return '';
 }
 
@@ -70,14 +56,24 @@ function forwardedHeaders(response) {
   return headers;
 }
 
+function objectPaths(claim) {
+  return (Array.isArray(claim?.documents) ? claim.documents : [])
+    .map((document) => String(document?.object_path || '').trim())
+    .filter(Boolean);
+}
+
 export function createCandidateApplicationGateway({ env = {}, runtime = 'unknown', fetchImpl = globalThis.fetch } = {}) {
   const persistence = createPersistenceConfig(env);
   const proxy = proxyName(runtime);
   const endpoint = persistence.url ? `${persistence.url}/functions/v1/candidate-applications` : '';
+  const client = persistence.configured
+    ? createSupabaseHttpClient({ url: persistence.url, secretKey: persistence.secretKey, fetchImpl })
+    : null;
 
   return Object.freeze({
     kind: 'candidate-application-gateway',
     configured: Boolean(endpoint && persistence.secretKey && proxy),
+
     async forward({ body, headers, requestId } = {}) {
       if (!endpoint || !persistence.secretKey || !proxy) {
         throw providerUnavailable('candidate_application', 'Candidate application intake is not configured for this runtime.');
@@ -86,11 +82,7 @@ export function createCandidateApplicationGateway({ env = {}, runtime = 'unknown
       const origin = publicOrigin(runtime, headers);
       const clientIp = trustedClientIp(runtime, headers);
       if (!origin || !clientIp || clientIp.length > 64) {
-        throw new BackendError({
-          code: 'REQUEST_REJECTED',
-          message: 'The candidate application request could not be verified.',
-          status: 403
-        });
+        throw new BackendError({ code: 'REQUEST_REJECTED', message: 'The candidate application request could not be verified.', status: 403 });
       }
 
       let response;
@@ -110,24 +102,13 @@ export function createCandidateApplicationGateway({ env = {}, runtime = 'unknown
           body: JSON.stringify(body || {})
         });
       } catch (cause) {
-        throw new BackendError({
-          code: 'APPLICATION_SERVICE_UNAVAILABLE',
-          message: 'Candidate application service is temporarily unavailable.',
-          status: 503,
-          cause
-        });
+        throw new BackendError({ code: 'APPLICATION_SERVICE_UNAVAILABLE', message: 'Candidate application service is temporarily unavailable.', status: 503, cause });
       }
 
       let payload;
-      try {
-        payload = await response.json();
-      } catch (cause) {
-        throw new BackendError({
-          code: 'APPLICATION_SERVICE_INVALID_RESPONSE',
-          message: 'Candidate application service returned an invalid response.',
-          status: 503,
-          cause
-        });
+      try { payload = await response.json(); }
+      catch (cause) {
+        throw new BackendError({ code: 'APPLICATION_SERVICE_INVALID_RESPONSE', message: 'Candidate application service returned an invalid response.', status: 503, cause });
       }
 
       return Object.freeze({
@@ -135,6 +116,50 @@ export function createCandidateApplicationGateway({ env = {}, runtime = 'unknown
         headers: Object.freeze({ ...forwardedHeaders(response), ...(requestId ? { 'x-request-id': requestId } : {}) }),
         body: payload
       });
+    },
+
+    async cleanupExpired({ limit = 10 } = {}) {
+      if (runtime !== 'cloudflare-workers' || !client) {
+        throw providerUnavailable('candidate_application_cleanup', 'Candidate application cleanup is not configured for this runtime.');
+      }
+      const boundedLimit = Math.max(1, Math.min(Number.isSafeInteger(limit) ? limit : 10, 50));
+      const claimed = await client.request('/rest/v1/rpc/claim_expired_candidate_intakes', {
+        method: 'POST',
+        json: { p_limit: boundedLimit }
+      });
+      const claims = Array.isArray(claimed?.claims) ? claimed.claims : [];
+      let cleaned = 0;
+      let failed = 0;
+
+      for (const claim of claims) {
+        try {
+          const paths = objectPaths(claim);
+          if (paths.length) {
+            await client.request(`/storage/v1/object/${encodeURIComponent(persistence.storageBucket)}`, {
+              method: 'DELETE',
+              json: { prefixes: paths }
+            });
+          }
+          const completed = await client.request('/rest/v1/rpc/complete_expired_candidate_intake_cleanup', {
+            method: 'POST',
+            json: { p_intake_id: claim.intake_id, p_token_hash: claim.token_hash }
+          });
+          if (completed?.ok !== true) throw new Error('cleanup completion rejected');
+          cleaned += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      if (failed > 0) {
+        throw new BackendError({
+          code: 'CANDIDATE_CLEANUP_INCOMPLETE',
+          message: 'One or more expired candidate upload sessions could not be cleaned.',
+          status: 503,
+          details: { claimed: claims.length, cleaned, failed }
+        });
+      }
+      return Object.freeze({ claimed: claims.length, cleaned, failed: 0 });
     }
   });
 }
