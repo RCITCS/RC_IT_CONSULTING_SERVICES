@@ -116,7 +116,6 @@ function bearerCredential(request: Request): string {
 function requestBoundary(request: Request, serviceKey: string): { ok: true; proxy: string; origin: string; clientIp: string } | { ok: false } {
   const presented = bearerCredential(request);
   if (!serviceKey || !presented || !constantTimeEqual(presented, serviceKey)) return { ok: false };
-
   const proxy = String(request.headers.get("x-rcitcs-application-proxy") ?? "").trim().toLowerCase();
   const origin = normalizeOrigin(request.headers.get("x-rcitcs-original-origin"));
   const clientIp = String(request.headers.get("x-rcitcs-client-ip") ?? "").split(",")[0].trim();
@@ -127,7 +126,6 @@ function requestBoundary(request: Request, serviceKey: string): { ok: true; prox
 async function boundedJson(request: Request): Promise<Record<string, unknown>> {
   const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
   if (!contentType.startsWith("application/json")) throw Object.assign(new Error("unsupported media type"), { status: 415, code: "UNSUPPORTED_MEDIA_TYPE" });
-
   const declared = request.headers.get("content-length");
   if (declared !== null) {
     const size = Number(declared);
@@ -135,7 +133,6 @@ async function boundedJson(request: Request): Promise<Record<string, unknown>> {
       throw Object.assign(new Error("payload too large"), { status: 413, code: "PAYLOAD_TOO_LARGE" });
     }
   }
-
   if (!request.body) return {};
   const reader = request.body.getReader();
   const decoder = new TextDecoder();
@@ -156,7 +153,6 @@ async function boundedJson(request: Request): Promise<Record<string, unknown>> {
   } finally {
     try { reader.releaseLock(); } catch { /* no-op */ }
   }
-
   try {
     const parsed = JSON.parse(text || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new TypeError("object required");
@@ -180,20 +176,14 @@ function randomToken(): string {
 }
 
 async function rpc(supabaseUrl: string, key: string, name: string, payload: Record<string, unknown>): Promise<any> {
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
-    method: "POST",
-    headers: dataApiHeaders(key),
-    body: JSON.stringify(payload),
-  });
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, { method: "POST", headers: dataApiHeaders(key), body: JSON.stringify(payload) });
   if (!response.ok) throw new Error(`database rpc ${name} failed`);
   return response.json();
 }
 
 async function createSignedUploadToken(supabaseUrl: string, key: string, objectPath: string): Promise<string> {
   const response = await fetch(`${supabaseUrl}/storage/v1/object/upload/sign/${encodeURIComponent(CANDIDATE_DOCUMENT_BUCKET)}/${encodedObjectPath(objectPath)}`, {
-    method: "POST",
-    headers: storageHeaders(key),
-    body: "{}",
+    method: "POST", headers: storageHeaders(key), body: "{}",
   });
   if (!response.ok) throw new Error("signed upload token creation failed");
   const data = await response.json() as Record<string, unknown>;
@@ -209,9 +199,7 @@ async function deleteObjects(supabaseUrl: string, key: string, paths: string[]):
   const unique = [...new Set(paths.filter(Boolean))];
   if (!unique.length) return;
   const response = await fetch(`${supabaseUrl}/storage/v1/object/${encodeURIComponent(CANDIDATE_DOCUMENT_BUCKET)}`, {
-    method: "DELETE",
-    headers: storageHeaders(key),
-    body: JSON.stringify({ prefixes: unique }),
+    method: "DELETE", headers: storageHeaders(key), body: JSON.stringify({ prefixes: unique }),
   });
   if (!response.ok) throw new Error("storage cleanup failed");
 }
@@ -221,19 +209,14 @@ async function readBoundedObject(supabaseUrl: string, key: string, objectPath: s
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {
     const response = await fetch(`${supabaseUrl}/storage/v1/object/${encodeURIComponent(CANDIDATE_DOCUMENT_BUCKET)}/${encodedObjectPath(objectPath)}`, {
-      method: "GET",
-      headers: storageHeaders(key, "application/octet-stream"),
-      cache: "no-store",
-      signal: controller.signal,
+      method: "GET", headers: storageHeaders(key, "application/octet-stream"), cache: "no-store", signal: controller.signal,
     });
     if (!response.ok || !response.body) throw new Error("candidate document unavailable");
-
     const declared = response.headers.get("content-length");
     if (declared !== null) {
       const size = Number(declared);
       if (!Number.isFinite(size) || size < 1 || size > MAX_DOCUMENT_DOWNLOAD_BYTES) throw new RangeError("candidate document size invalid");
     }
-
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
@@ -252,7 +235,6 @@ async function readBoundedObject(supabaseUrl: string, key: string, objectPath: s
       try { reader.releaseLock(); } catch { /* no-op */ }
     }
     if (!total) throw new RangeError("candidate document empty");
-
     const bytes = new Uint8Array(total);
     let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
@@ -276,7 +258,6 @@ function mapBusinessFailure(result: any): Response | null {
 async function startApplication({ body, boundary, supabaseUrl, serviceKey, storageApiKey }: any): Promise<Response> {
   const validated = validateCandidateStartRequest(body);
   if (!validated.ok) return json({ ok: false, code: "VALIDATION_ERROR", errors: validated.errors }, 422);
-
   const intakeId = crypto.randomUUID();
   const intakeToken = randomToken();
   const tokenHash = await sha256Hex(intakeToken);
@@ -285,49 +266,30 @@ async function startApplication({ body, boundary, supabaseUrl, serviceKey, stora
   const manifest = validated.documents.map((document: any) => {
     const id = crypto.randomUUID();
     return {
-      id,
-      kind: document.kind,
-      original_filename: document.original_filename,
-      mime_type: document.mime_type,
-      size_bytes: document.size_bytes,
-      extension: document.extension,
+      id, kind: document.kind, original_filename: document.original_filename, mime_type: document.mime_type,
+      size_bytes: document.size_bytes, extension: document.extension,
       object_path: buildCandidateDocumentPath({ applicationId: intakeId, documentId: id, extension: document.extension }),
     };
   });
-
   const result = await rpc(supabaseUrl, serviceKey, "begin_candidate_application_intake", {
-    p_intake_id: intakeId,
-    p_job_slug: validated.jobSlug,
-    p_token_hash: tokenHash,
-    p_email_hash: emailHash,
-    p_ip_hash: ipHash,
-    p_document_manifest: manifest,
+    p_intake_id: intakeId, p_job_slug: validated.jobSlug, p_token_hash: tokenHash,
+    p_email_hash: emailHash, p_ip_hash: ipHash, p_document_manifest: manifest,
   });
   const businessFailure = mapBusinessFailure(result);
   if (businessFailure) return businessFailure;
-
   try {
     const signedDocuments = [];
     for (const document of manifest) {
       const signature = await createSignedUploadToken(supabaseUrl, serviceKey, document.object_path);
       signedDocuments.push({
-        kind: document.kind,
-        objectPath: document.object_path,
-        fileName: document.original_filename,
-        mimeType: document.mime_type,
-        sizeBytes: document.size_bytes,
-        signature,
+        kind: document.kind, objectPath: document.object_path, fileName: document.original_filename,
+        mimeType: document.mime_type, sizeBytes: document.size_bytes, signature,
       });
     }
-
     return json({
-      ok: true,
-      intakeToken,
-      expiresAt: result.expires_at,
-      consentVersion: CANDIDATE_CONSENT_VERSION,
-      job: result.job,
+      ok: true, intakeToken, expiresAt: result.expires_at, consentVersion: CANDIDATE_CONSENT_VERSION, job: result.job,
       upload: {
-        endpoint: `${storageOrigin(supabaseUrl)}/storage/v1/upload/resumable/sign`,
+        endpoint: `${storageOrigin(supabaseUrl)}/storage/v1/upload/resumable`,
         apiKey: storageApiKey,
         bucket: CANDIDATE_DOCUMENT_BUCKET,
         chunkSize: TUS_CHUNK_BYTES,
@@ -343,60 +305,53 @@ async function startApplication({ body, boundary, supabaseUrl, serviceKey, stora
 async function finalizeApplication({ body, boundary, request, supabaseUrl, serviceKey }: any): Promise<Response> {
   const intakeToken = validateIntakeToken(body.intakeToken ?? body.intake_token);
   if (!intakeToken) return json({ ok: false, code: "INVALID_INTAKE", message: "The application session is invalid." }, 422);
-
   const candidateValidation = validateCandidateIdentity(body.candidate ?? body);
   if (!candidateValidation.ok) return json({ ok: false, code: "VALIDATION_ERROR", errors: candidateValidation.errors }, 422);
-
   const tokenHash = await sha256Hex(intakeToken);
   const intake = await rpc(supabaseUrl, serviceKey, "get_candidate_application_intake", { p_token_hash: tokenHash });
   const intakeFailure = mapBusinessFailure(intake);
   if (intakeFailure) return intakeFailure;
   if (intake.completed === true) {
-    return json({
-      ok: true,
-      idempotent: true,
-      reference: intake.reference,
-      submittedAt: intake.submitted_at,
-      job: intake.job,
-    });
+    return json({ ok: true, idempotent: true, reference: intake.reference, submittedAt: intake.submitted_at, job: intake.job });
+  }
+
+  const intakeDocuments = Array.isArray(intake.documents) ? intake.documents : [];
+  const hasCoverLetterDocument = intakeDocuments.some((document: any) => String(document?.kind ?? "") === "cover_letter");
+  if (!candidateValidation.value.cover_letter_text && !hasCoverLetterDocument) {
+    try {
+      await deleteObjects(supabaseUrl, serviceKey, intakeDocuments.map((document: any) => String(document.object_path ?? "")));
+      await rpc(supabaseUrl, serviceKey, "cancel_candidate_application_intake", { p_token_hash: tokenHash });
+    } catch { /* scheduled cleanup remains authoritative */ }
+    return json({ ok: false, code: "VALIDATION_ERROR", errors: [{ field: "coverLetter", code: "COVER_LETTER_REQUIRED" }] }, 422);
   }
 
   const emailHash = await sha256Hex(normalizeCandidateEmail(candidateValidation.value.email));
   if (emailHash !== intake.email_hash) {
     try {
-      await deleteObjects(supabaseUrl, serviceKey, (intake.documents ?? []).map((document: any) => String(document.object_path ?? "")));
+      await deleteObjects(supabaseUrl, serviceKey, intakeDocuments.map((document: any) => String(document.object_path ?? "")));
       await rpc(supabaseUrl, serviceKey, "cancel_candidate_application_intake", { p_token_hash: tokenHash });
-    } catch { /* cleanup is best effort; session remains unusable if cancellation succeeded */ }
+    } catch { /* cleanup is best effort */ }
     return json({ ok: false, code: "CANDIDATE_MISMATCH", message: "The application identity does not match the secure upload session." }, 422);
   }
 
   const verifiedDocuments = [];
   try {
-    for (const expected of intake.documents ?? []) {
+    for (const expected of intakeDocuments) {
       const objectPath = String(expected.object_path ?? "");
       const object = await readBoundedObject(supabaseUrl, serviceKey, objectPath);
       const expectedMime = String(expected.mime_type ?? "").toLowerCase();
       if (object.contentType && object.contentType !== expectedMime) throw new TypeError("stored MIME mismatch");
       if (object.bytes.byteLength !== Number(expected.size_bytes)) throw new TypeError("stored size mismatch");
-      const inspection = inspectCandidateDocument({
-        fileName: String(expected.original_filename ?? ""),
-        mimeType: expectedMime,
-        bytes: object.bytes,
-      });
+      const inspection = inspectCandidateDocument({ fileName: String(expected.original_filename ?? ""), mimeType: expectedMime, bytes: object.bytes });
       if (!inspection.ok) throw new TypeError(inspection.code);
       verifiedDocuments.push({
-        id: expected.id,
-        kind: expected.kind,
-        object_path: objectPath,
-        original_filename: expected.original_filename,
-        mime_type: expectedMime,
-        size_bytes: object.bytes.byteLength,
-        sha256: await sha256Hex(object.bytes),
+        id: expected.id, kind: expected.kind, object_path: objectPath, original_filename: expected.original_filename,
+        mime_type: expectedMime, size_bytes: object.bytes.byteLength, sha256: await sha256Hex(object.bytes),
       });
     }
   } catch {
     try {
-      await deleteObjects(supabaseUrl, serviceKey, (intake.documents ?? []).map((document: any) => String(document.object_path ?? "")));
+      await deleteObjects(supabaseUrl, serviceKey, intakeDocuments.map((document: any) => String(document.object_path ?? "")));
       await rpc(supabaseUrl, serviceKey, "cancel_candidate_application_intake", { p_token_hash: tokenHash });
     } catch { /* best effort */ }
     return json({ ok: false, code: "DOCUMENT_VALIDATION_FAILED", message: "One or more uploaded documents failed secure validation. Start the application again." }, 422);
@@ -404,31 +359,22 @@ async function finalizeApplication({ body, boundary, request, supabaseUrl, servi
 
   const ipHash = await sha256Hex(boundary.clientIp);
   const result = await rpc(supabaseUrl, serviceKey, "finalize_candidate_application", {
-    p_token_hash: tokenHash,
-    p_payload: candidateValidation.value,
-    p_documents: verifiedDocuments,
-    p_ip_hash: ipHash,
-    p_user_agent: String(request.headers.get("user-agent") ?? "").slice(0, 500),
+    p_token_hash: tokenHash, p_payload: candidateValidation.value, p_documents: verifiedDocuments,
+    p_ip_hash: ipHash, p_user_agent: String(request.headers.get("user-agent") ?? "").slice(0, 500),
   });
-
   const businessFailure = mapBusinessFailure(result);
   if (businessFailure) {
-    if (["DUPLICATE_APPLICATION", "JOB_UNAVAILABLE", "INTAKE_EXPIRED", "CANDIDATE_MISMATCH", "INVALID_DOCUMENTS"].includes(String(result?.code ?? ""))) {
+    if (["DUPLICATE_APPLICATION", "JOB_UNAVAILABLE", "INTAKE_EXPIRED", "CANDIDATE_MISMATCH", "INVALID_DOCUMENTS", "INVALID_CANDIDATE"].includes(String(result?.code ?? ""))) {
       try {
-        await deleteObjects(supabaseUrl, serviceKey, (intake.documents ?? []).map((document: any) => String(document.object_path ?? "")));
+        await deleteObjects(supabaseUrl, serviceKey, intakeDocuments.map((document: any) => String(document.object_path ?? "")));
         await rpc(supabaseUrl, serviceKey, "cancel_candidate_application_intake", { p_token_hash: tokenHash });
       } catch { /* best effort */ }
     }
     return businessFailure;
   }
-
   return json({
-    ok: true,
-    idempotent: Boolean(result.idempotent),
-    reference: result.reference,
-    submittedAt: result.submitted_at,
-    responseWindow: result.response_window ?? null,
-    job: result.job,
+    ok: true, idempotent: Boolean(result.idempotent), reference: result.reference, submittedAt: result.submitted_at,
+    responseWindow: result.response_window ?? null, job: result.job,
   }, 201);
 }
 
@@ -449,29 +395,19 @@ async function cancelApplication({ body, supabaseUrl, serviceKey }: any): Promis
 
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
-  if (request.method === "GET" && url.pathname.endsWith("/health")) {
-    return json({ ok: true, service: SERVICE, contract: CONTRACT });
-  }
+  if (request.method === "GET" && url.pathname.endsWith("/health")) return json({ ok: true, service: SERVICE, contract: CONTRACT });
   if (request.method !== "POST") return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405, { allow: "POST" });
-
   const supabaseUrl = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
   const serviceKey = serviceCredential();
   const storageApiKey = publicStorageKey();
   if (!supabaseUrl || !serviceKey || !storageApiKey) return json({ ok: false, code: "SERVICE_UNAVAILABLE" }, 503);
-
   const boundary = requestBoundary(request, serviceKey);
   if (!boundary.ok) return json({ ok: false, code: "REQUEST_REJECTED" }, 403);
-
   let body: Record<string, unknown>;
-  try {
-    body = await boundedJson(request);
-  } catch (error: any) {
-    return json({ ok: false, code: error?.code ?? "INVALID_REQUEST" }, Number(error?.status ?? 400));
-  }
-
+  try { body = await boundedJson(request); }
+  catch (error: any) { return json({ ok: false, code: error?.code ?? "INVALID_REQUEST" }, Number(error?.status ?? 400)); }
   const action = String(body.action ?? "").trim().toLowerCase();
   if (!["start", "finalize", "cancel"].includes(action)) return json({ ok: false, code: "INVALID_ACTION" }, 400);
-
   try {
     if (action === "start") return await startApplication({ body, boundary, request, supabaseUrl, serviceKey, storageApiKey });
     if (action === "finalize") return await finalizeApplication({ body, boundary, request, supabaseUrl, serviceKey });
