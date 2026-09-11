@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install project dependencies
         run: npm install --no-audit --no-fund
@@ -41,7 +41,7 @@ jobs:
       - name: Verify generated bundles
         run: |
           set -euo pipefail
-          test -n "$(find /tmp/wrangler-primary -type f -maxdepth 2 -print -quit)"
-          test -n "$(find /tmp/wrangler-admin-staging -type f -maxdepth 2 -print -quit)"
-          test -n "$(find /tmp/wrangler-admin-production -type f -maxdepth 2 -print -quit)"
+          test -n "$(find /tmp/wrangler-primary -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-staging -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-production -maxdepth 2 -type f -print -quit)"
           echo 'All three Wrangler configurations compile successfully without deployment.'
