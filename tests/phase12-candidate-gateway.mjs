@@ -25,7 +25,7 @@ const env = {
     body: { action: 'start', jobSlug: 'senior-data-engineer' },
     requestId: 'req-phase12-test',
     headers: new Headers({
-      origin: 'https://rcitcservices.frsmkgit.workers.dev',
+      origin: 'https://rc-it-consulting-services.rcitcservices.workers.dev',
       'cf-connecting-ip': '203.0.113.44',
       'x-rcitcs-client-ip': '198.51.100.77'
     })
@@ -39,7 +39,7 @@ const env = {
   assert.equal(sent.get('authorization'), 'Bearer sb_secret_phase12_test_only');
   assert.equal(sent.get('apikey'), 'sb_secret_phase12_test_only');
   assert.equal(sent.get('x-rcitcs-application-proxy'), 'cloudflare');
-  assert.equal(sent.get('x-rcitcs-original-origin'), 'https://rcitcservices.frsmkgit.workers.dev');
+  assert.equal(sent.get('x-rcitcs-original-origin'), 'https://rc-it-consulting-services.rcitcservices.workers.dev');
   assert.equal(sent.get('x-rcitcs-client-ip'), '203.0.113.44', 'Cloudflare gateway must ignore browser-supplied proxy IP metadata.');
   assert.deepEqual(JSON.parse(calls[0].init.body), { action: 'start', jobSlug: 'senior-data-engineer' });
 }
@@ -136,4 +136,4 @@ const env = {
   );
 }
 
-console.log('PASS: Phase 12 candidate gateway authenticates intake, uses trusted ingress metadata, rejects spoofed authority and performs retry-safe scheduled private-upload cleanup.');
+console.log('PASS: Phase 12 candidate gateway authenticates intake, trusts the actual Cloudflare production origin, uses trusted ingress metadata, rejects spoofed authority and performs retry-safe scheduled private-upload cleanup.');
