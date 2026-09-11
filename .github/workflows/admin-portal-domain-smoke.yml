@@ -1,0 +1,110 @@
+name: RC Admin Portal Domain Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-admin-domain-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dedicated-admin-domains:
+    name: Verify dedicated admin portal domains
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Wait for production and staging admin portals
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          ADMIN_STAGING='https://admin-staging.rcitcs.com'
+
+          verify_admin_root() {
+            local origin="$1"
+            local label="$2"
+            local body="/tmp/${label}-admin-root.html"
+            local headers="/tmp/${label}-admin-root.headers"
+
+            for attempt in $(seq 1 40); do
+              code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "${origin}/" || true)
+              if [[ "$code" == '200' ]] \
+                && grep -q '<!doctype html>' "$body" \
+                && grep -q 'Administrator sign in' "$body" \
+                && grep -q 'Private administration for controlled operational work.' "$body" \
+                && grep -q 'action="/login"' "$body" \
+                && ! grep -q 'action="/admin/login"' "$body" \
+                && ! grep -q 'Technology that moves business forward' "$body" \
+                && ! grep -q 'data-prerendered-path="/"' "$body"; then
+                tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store'
+                tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex'
+                tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY'
+                tr -d '\r' < "$headers" | grep -qi '^content-security-policy:'
+                echo "${label} dedicated admin root verified on attempt ${attempt}."
+                return 0
+              fi
+
+              if [[ "$attempt" == '40' ]]; then
+                echo "${label} did not converge to the dedicated admin portal." >&2
+                echo "Last HTTP status: ${code}" >&2
+                sed -n '1,40p' "$body" >&2 || true
+                return 1
+              fi
+              sleep 5
+            done
+          }
+
+          verify_admin_root "$ADMIN" production
+          verify_admin_root "$ADMIN_STAGING" staging
+
+      - name: Verify admin routes stay on the admin host
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ADMIN in 'https://admin.rcitcs.com' 'https://admin-staging.rcitcs.com'; do
+            applications_code=$(curl -sS -D /tmp/admin-apps.headers -o /tmp/admin-apps.html -w '%{http_code}' "${ADMIN}/applications")
+            test "$applications_code" = '200'
+            grep -q 'Administrator sign in' /tmp/admin-apps.html
+            ! grep -q 'Technology that moves business forward' /tmp/admin-apps.html
+            tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^cache-control:.*no-store'
+            tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^x-robots-tag:.*noindex'
+
+            session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+            test "$session_code" = '401'
+            grep -q '"authenticated":false' /tmp/admin-session.json
+            tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
+
+            rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
+              -H 'Origin: https://example.invalid' \
+              -d 'email=x&password=x' \
+              "${ADMIN}/login")
+            test "$rejected_code" = '403'
+            grep -q 'Request rejected' /tmp/admin-rejected.txt
+          done
+
+          echo 'Production and staging admin routes remain private and host-local.'
+
+      - name: Verify public website is not the admin login origin
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLIC='https://rcitcs.com'
+
+          alias_code=$(curl -sS -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin")
+          test "$alias_code" = '308'
+          tr -d '\r' < /tmp/public-admin.headers | grep -qi '^location: *https://admin\.rcitcs\.com/'
+          tr -d '\r' < /tmp/public-admin.headers | grep -qi '^cache-control:.*no-store'
+
+          post_code=$(curl -sS -o /tmp/public-admin-post.txt -w '%{http_code}' -X POST \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=x&password=x' \
+            "${PUBLIC}/admin/login")
+          test "$post_code" = '404'
+
+          echo 'Public rcitcs.com does not accept admin authentication; admin.rcitcs.com is authoritative.'
