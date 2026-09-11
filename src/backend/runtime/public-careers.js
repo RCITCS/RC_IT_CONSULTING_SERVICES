@@ -1,5 +1,6 @@
 import { createPublicJobsRepository } from '../repositories/public-jobs-repository.js';
 import { CANDIDATE_CONSENT_VERSION } from '../../../supabase/functions/_shared/candidate-application-contract.js';
+import { appendRuntimeJobPosting, createRuntimeJobPosting } from './job-posting.js';
 
 function esc(value = '') {
   return String(value ?? '')
@@ -280,10 +281,11 @@ export async function handlePublicCareersRequest(request, env, { fetchImpl = glo
   }
 
   const description = selected.summary || `Review the published ${selected.title} vacancy at RC IT Services.`;
-  const html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
+  let html = runtimeSeo(replaceOpenings(baseHtml, openingsBrowser(jobs, selected)), pathName, siteOrigin, {
     title: `${selected.title} | Careers | RC IT Services`,
     description,
     robots: 'index,follow'
   });
+  html = appendRuntimeJobPosting(html, createRuntimeJobPosting(selected, siteOrigin, pathName));
   return new Response(request.method === 'HEAD' ? null : html, { status: 200, headers: publicHeaders(assetResponse.headers) });
 }
