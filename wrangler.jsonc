@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rcitcservices",
+  "name": "rc-it-consulting-services",
   "main": "./worker/index.js",
   "compatibility_date": "2026-09-08",
   "workers_dev": true,
