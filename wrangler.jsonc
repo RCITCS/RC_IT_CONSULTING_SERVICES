@@ -14,7 +14,9 @@
     }
   ],
   "vars": {
-    "PUBLIC_CAREERS_API_URL": "https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers"
+    "PUBLIC_CAREERS_API_URL": "https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers",
+    "ADMIN_PROXY_BASE": "/admin",
+    "ADMIN_PROXY_WILDCARD": "/admin/*"
   },
   "assets": {
     "directory": "./dist",
