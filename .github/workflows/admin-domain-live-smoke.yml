@@ -19,57 +19,85 @@ jobs:
     timeout-minutes: 8
 
     steps:
-      - name: Verify staging and production admin domains
+      - name: Diagnose DNS and verify dedicated admin domains
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          failures=0
+
+          diagnose_dns() {
+            local host="$1"
+            echo "--- DNS ${host} ---"
+            if command -v dig >/dev/null 2>&1; then
+              echo 'CNAME:'
+              dig +short CNAME "$host" || true
+              echo 'A:'
+              dig +short A "$host" || true
+              echo 'AAAA:'
+              dig +short AAAA "$host" || true
+            else
+              getent ahosts "$host" || true
+            fi
+          }
 
           verify_admin() {
             local admin="$1"
             local label="$2"
+            local host="${admin#https://}"
             local body="/tmp/${label}-admin.html"
             local headers="/tmp/${label}-admin.headers"
+            local passed=0
 
-            for attempt in $(seq 1 36); do
+            diagnose_dns "$host"
+
+            for attempt in $(seq 1 12); do
               code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$admin/" || true)
+              title=$(grep -o '<title>[^<]*' "$body" 2>/dev/null | head -n1 || true)
+              echo "${label} attempt=${attempt} status=${code} ${title}"
 
               if [[ "$code" == '200' ]] \
                 && grep -q 'Administrator sign in' "$body" \
                 && grep -q 'Private administration for controlled operational work.' "$body" \
                 && ! grep -q 'Technology that' "$body" \
                 && ! grep -q 'data-prerendered-path="/"' "$body"; then
-                echo "${label} dedicated admin portal verified on attempt ${attempt}."
+                passed=1
                 break
               fi
-
-              if [[ "$attempt" == '36' ]]; then
-                echo "${label} admin domain failed dedicated-portal verification; status=${code}." >&2
-                sed -n '1,40p' "$body" >&2 || true
-                exit 1
-              fi
-
               sleep 5
             done
 
-            tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store'
-            tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex'
-            tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY'
+            if [[ "$passed" != '1' ]]; then
+              echo "${label} admin domain is NOT serving the dedicated private portal." >&2
+              sed -n '1,24p' "$body" >&2 || true
+              failures=$((failures + 1))
+              return
+            fi
+
+            tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store' || failures=$((failures + 1))
+            tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex' || failures=$((failures + 1))
+            tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY' || failures=$((failures + 1))
 
             session_code=$(curl -sS -D "/tmp/${label}-session.headers" -o "/tmp/${label}-session.json" -w '%{http_code}' "$admin/session" || true)
-            test "$session_code" = '401'
-            grep -q '"authenticated":false' "/tmp/${label}-session.json"
+            if [[ "$session_code" != '401' ]] || ! grep -q '"authenticated":false' "/tmp/${label}-session.json"; then
+              echo "${label} session boundary failed; status=${session_code}." >&2
+              failures=$((failures + 1))
+            fi
           }
 
           verify_admin 'https://admin-staging.rcitcs.com' 'staging'
           verify_admin 'https://admin.rcitcs.com' 'production'
 
-      - name: Verify public corporate site remains public
-        shell: bash
-        run: |
-          set -euo pipefail
-          PUBLIC='https://rcitcs.com'
-          code=$(curl -L -sS -o /tmp/public.html -w '%{http_code}' "${PUBLIC}/")
-          test "$code" = '200'
-          grep -q 'Technology that' /tmp/public.html
-          ! grep -q 'Administrator sign in' /tmp/public.html
+          echo '--- Public corporate site ---'
+          public_code=$(curl -L -sS -o /tmp/public.html -w '%{http_code}' 'https://rcitcs.com/' || true)
+          echo "public status=${public_code}"
+          if [[ "$public_code" != '200' ]] || ! grep -q 'Technology that' /tmp/public.html || grep -q 'Administrator sign in' /tmp/public.html; then
+            echo 'Public corporate-site separation failed.' >&2
+            failures=$((failures + 1))
+          fi
+
+          if [[ "$failures" != '0' ]]; then
+            echo "Admin-domain live verification failed with ${failures} finding(s)." >&2
+            exit 1
+          fi
+
           echo 'Public and dedicated-admin hostname separation verified.'
