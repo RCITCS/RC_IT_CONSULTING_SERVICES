@@ -4,6 +4,8 @@ import { assertJsonContentType, parseJsonText, readBoundedRequestText } from '..
 import { handlePublicCareersRequest, isPublicCareersRuntimePath } from './public-careers.js';
 
 const ADMIN_PUBLIC_BASE = '/admin';
+const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com';
+const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
@@ -39,7 +41,6 @@ const ADMIN_UI_SCRIPT = `(() => {
 const ADMIN_UI_STYLE = `<style>
 .password-control{position:relative}.password-control input{padding-right:48px}.password-reveal{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:3px;background:transparent;color:#667085;cursor:pointer}.password-reveal:hover{background:#f4f6f8;color:#263244}.password-reveal:focus-visible{outline:3px solid rgba(47,91,211,.22);outline-offset:1px}.password-reveal svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 </style>`;
-const ADMIN_UI_SCRIPT_TAG = `<script src="${ADMIN_PUBLIC_BASE}/ui.js" defer></script>`;
 
 function toResponse(result) {
   return new Response(JSON.stringify(result.body), { status: result.status, headers: result.headers });
@@ -82,8 +83,16 @@ function adminGatewayHeaders(contentType = 'text/plain; charset=utf-8') {
   });
 }
 
+export function isDedicatedAdminHost(hostname = '') {
+  return ADMIN_HOSTS.has(String(hostname).toLowerCase());
+}
+
 function isAdminPath(pathname) {
   return pathname === ADMIN_PUBLIC_BASE || pathname.startsWith(`${ADMIN_PUBLIC_BASE}/`);
+}
+
+function adminPublicBase(incomingUrl) {
+  return isDedicatedAdminHost(incomingUrl.hostname) ? '' : ADMIN_PUBLIC_BASE;
 }
 
 function adminFetchMetadataAllowsNavigationPost(request) {
@@ -114,9 +123,12 @@ function adminUiScriptResponse(requestMethod) {
 }
 
 function adminUpstreamUrl(incomingUrl) {
-  const suffix = incomingUrl.pathname === ADMIN_PUBLIC_BASE
-    ? '/'
-    : incomingUrl.pathname.slice(ADMIN_PUBLIC_BASE.length) || '/';
+  const publicBase = adminPublicBase(incomingUrl);
+  const suffix = publicBase === ''
+    ? incomingUrl.pathname || '/'
+    : incomingUrl.pathname === ADMIN_PUBLIC_BASE
+      ? '/'
+      : incomingUrl.pathname.slice(ADMIN_PUBLIC_BASE.length) || '/';
   return new URL(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}${suffix}${incomingUrl.search}`);
 }
 
@@ -134,37 +146,42 @@ function adminCookieValues(headers) {
   return combined ? combined.split(/,(?=[^;,]+=)/g).map((value) => value.trim()) : [];
 }
 
-function rewriteAdminReference(value) {
-  return value
-    .replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, ADMIN_PUBLIC_BASE)
-    .replaceAll(ADMIN_UPSTREAM_BASE, ADMIN_PUBLIC_BASE);
+function rewriteAdminReference(value, publicBase) {
+  let rewritten = value.replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, publicBase);
+  rewritten = rewritten.replaceAll(`${ADMIN_UPSTREAM_BASE}/`, `${publicBase}/`);
+  rewritten = rewritten.replaceAll(ADMIN_UPSTREAM_BASE, publicBase || '/');
+  return rewritten;
 }
 
-function enhanceAdminHtml(body) {
-  let enhanced = rewriteAdminReference(body);
+function adminUiScriptTag(publicBase) {
+  return `<script src="${publicBase}/ui.js" defer></script>`;
+}
+
+function enhanceAdminHtml(body, publicBase) {
+  let enhanced = rewriteAdminReference(body, publicBase);
   if (enhanced.includes('</head>')) enhanced = enhanced.replace('</head>', `${ADMIN_UI_STYLE}</head>`);
-  if (enhanced.includes('</body>')) enhanced = enhanced.replace('</body>', `${ADMIN_UI_SCRIPT_TAG}</body>`);
+  if (enhanced.includes('</body>')) enhanced = enhanced.replace('</body>', `${adminUiScriptTag(publicBase)}</body>`);
   return enhanced;
 }
 
-function proxyAdminResponse(upstream, bodyText, requestMethod) {
+function proxyAdminResponse(upstream, bodyText, requestMethod, publicBase) {
   const headers = new Headers(upstream.headers);
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
 
   const location = headers.get('location');
-  if (location) headers.set('location', rewriteAdminReference(location));
+  if (location) headers.set('location', rewriteAdminReference(location, publicBase));
 
   const cookies = adminCookieValues(upstream.headers);
   headers.delete('set-cookie');
   for (const cookie of cookies) {
-    headers.append('set-cookie', rewriteAdminReference(cookie));
+    headers.append('set-cookie', rewriteAdminReference(cookie, publicBase));
   }
 
   let body = bodyText;
   if (body.trimStart().toLowerCase().startsWith('<!doctype html>')) {
-    body = enhanceAdminHtml(body);
+    body = enhanceAdminHtml(body, publicBase);
     headers.set('content-type', 'text/html; charset=utf-8');
     headers.set('content-security-policy', ADMIN_HTML_CSP);
     headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
@@ -184,8 +201,10 @@ function proxyAdminResponse(upstream, bodyText, requestMethod) {
 
 async function handleAdminRequest(request) {
   const incomingUrl = new URL(request.url);
+  const publicBase = adminPublicBase(incomingUrl);
+  const uiPath = `${publicBase}/ui.js` || '/ui.js';
 
-  if (incomingUrl.pathname === `${ADMIN_PUBLIC_BASE}/ui.js` && ['GET', 'HEAD'].includes(request.method)) {
+  if (incomingUrl.pathname === uiPath && ['GET', 'HEAD'].includes(request.method)) {
     return adminUiScriptResponse(request.method);
   }
 
@@ -198,14 +217,28 @@ async function handleAdminRequest(request) {
 
   try {
     const upstream = await fetch(upstreamRequest, { redirect: 'manual' });
-    const bodyText = ['HEAD'].includes(request.method) ? '' : await upstream.text();
-    return proxyAdminResponse(upstream, bodyText, request.method);
+    const bodyText = request.method === 'HEAD' ? '' : await upstream.text();
+    return proxyAdminResponse(upstream, bodyText, request.method, publicBase);
   } catch {
     return new Response('Administration service unavailable', {
       status: 503,
       headers: adminGatewayHeaders()
     });
   }
+}
+
+function redirectPublicAdminAlias(request, incomingUrl) {
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    return new Response('Not Found', { status: 404, headers: adminGatewayHeaders() });
+  }
+
+  const suffix = incomingUrl.pathname === ADMIN_PUBLIC_BASE
+    ? '/'
+    : incomingUrl.pathname.slice(ADMIN_PUBLIC_BASE.length) || '/';
+  const target = new URL(`${suffix}${incomingUrl.search}`, ADMIN_PRODUCTION_ORIGIN);
+  const headers = adminGatewayHeaders();
+  headers.set('location', target.toString());
+  return new Response(null, { status: 308, headers });
 }
 
 async function serveApplication(request, env) {
@@ -215,8 +248,9 @@ async function serveApplication(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (isDedicatedAdminHost(url.hostname)) return handleAdminRequest(request);
     if (url.pathname.startsWith('/api/')) return handleApiRequest(request, env);
-    if (isAdminPath(url.pathname)) return handleAdminRequest(request);
+    if (isAdminPath(url.pathname)) return redirectPublicAdminAlias(request, url);
     if (isPublicCareersRuntimePath(url.pathname)) return handlePublicCareersRequest(request, env);
     return serveApplication(request, env);
   }
