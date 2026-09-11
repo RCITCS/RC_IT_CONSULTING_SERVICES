@@ -11,7 +11,7 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page",
     "html_handling": "drop-trailing-slash",
-    "run_worker_first": true
+    "run_worker_first": ["/*", "/api/*", "/admin", "/admin/*", "/careers", "/careers/jobs/*"]
   },
   "triggers": {
     "crons": ["*/15 * * * *"]
