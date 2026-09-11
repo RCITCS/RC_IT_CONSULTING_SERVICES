@@ -167,26 +167,27 @@ function applicationsHref(publicBase) {
   return `${publicBase}/applications` || '/applications';
 }
 
-function replaceWithinSection(body, startMarker, endMarker, target, replacement) {
+function replaceWithinSection(body, startMarker, endMarker, existing, target, replacement) {
   const start = body.indexOf(startMarker);
   if (start < 0) return body;
   const end = body.indexOf(endMarker, start);
   if (end < 0) return body;
   const endExclusive = end + endMarker.length;
   const section = body.slice(start, endExclusive);
-  if (!section.includes(target)) return body;
+  if (section.includes(existing) || !section.includes(target)) return body;
   const updated = section.replace(target, replacement);
   return `${body.slice(0, start)}${updated}${body.slice(endExclusive)}`;
 }
 
 export function enhanceAdminNavigation(body, publicBase) {
-  if (body.includes('href="/applications"') || body.includes('href="/admin/applications"')) return body;
   const applications = applicationsHref(publicBase);
+  const applicationsAnchor = `href="${applications}"`;
   const security = `<a href="${publicBase}/change-password">`;
   let enhanced = replaceWithinSection(
     body,
     '<nav class="primary-nav"',
     '</nav>',
+    applicationsAnchor,
     security,
     `<a href="${applications}">${ADMIN_APPLICATIONS_ICON}<span>Applications</span></a>${security}`
   );
@@ -194,6 +195,7 @@ export function enhanceAdminNavigation(body, publicBase) {
     enhanced,
     '<div class="mobile-menu">',
     '</div>',
+    applicationsAnchor,
     security,
     `<a href="${applications}">Applications</a>${security}`
   );
