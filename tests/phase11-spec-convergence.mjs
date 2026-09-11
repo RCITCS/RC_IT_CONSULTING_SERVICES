@@ -72,9 +72,8 @@ for (const label of ['Required skills', 'Preferred skills', 'Application respons
 
 assert.ok(publicRuntime.includes("robots = 'index,follow'"), 'Published public job pages must default to crawlable SEO state.');
 assert.ok(publicRuntime.includes("robots: 'noindex,nofollow'"), 'Application/error surfaces must remain noindex.');
-assert.ok(publicRuntime.includes('Applications opening soon'), 'Published Phase 11 job pages must expose a truthful disabled application state.');
-assert.ok(!publicRuntime.includes('data-rcitcs-job-posting'), 'Phase 11 must not emit Google JobPosting markup until a working application method is live.');
-assert.ok(!publicRuntime.includes('directApply:'), 'Phase 11 must not assert direct-apply semantics before Phase 12.');
+assert.ok(publicRuntime.includes('Apply for this role'), 'Phase 12 may enable application intake only while preserving the Phase 11 canonical vacancy renderer.');
+assert.ok(publicRuntime.includes('/apply'), 'Published jobs must link to the Phase 12 application route once the application workflow is active.');
 
 const runtimeNavigationGuard = 'if (selectRole(slug)) event.preventDefault();';
 assert.ok(careerInteractions.includes(runtimeNavigationGuard), 'Runtime-rendered vacancy links must retain native browser navigation when the legacy static selector cannot handle the role.');
@@ -86,4 +85,4 @@ for (const source of [prerequisite, migration, adminUi, overviewUi, securityUi, 
   }
 }
 
-console.log('PASS: Phase 11 clean-schema convergence, server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority, runtime-link navigation, crawlable job pages and truthful pre-application SEO boundaries verified.');
+console.log('PASS: Phase 11 clean-schema convergence, server-generated immutable job codes, canonical candidate fields, discoverable admin navigation, shared content authority and runtime-link navigation remain verified after Phase 12 activates the application journey.');
