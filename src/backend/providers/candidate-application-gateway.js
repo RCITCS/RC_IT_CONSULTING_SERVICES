@@ -3,7 +3,7 @@ import { BackendError, providerUnavailable } from '../core/errors.js';
 import { createSupabaseHttpClient } from './supabase-http.js';
 
 const ALLOWED_PUBLIC_ORIGINS = new Set([
-  'https://rcitcservices.frsmkgit.workers.dev',
+  'https://rc-it-consulting-services.rcitcservices.workers.dev',
   'https://rc-it-services.vercel.app',
   'https://www.rcitcs.com',
   'https://rcitcs.com'
