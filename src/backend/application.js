@@ -6,16 +6,19 @@ import { createLogger } from './core/logger.js';
 import { createRequestContext } from './core/request-context.js';
 import { errorResponse } from './core/response.js';
 import { createProviderRegistry } from './providers/provider-registry.js';
+import { createCandidateApplicationGateway } from './providers/candidate-application-gateway.js';
 import { createDatabaseSubmissionRepository } from './repositories/submission-repository.js';
 import { createSubmissionService } from './services/submission-service.js';
 
 export function createBackendApplication({ runtime = 'unknown', env = {}, providers, submissionRepository, logger, fetchImpl = globalThis.fetch } = {}) {
   const config = createBackendConfig(env, { runtime });
   const providerRegistry = createProviderRegistry(providers, { env, fetchImpl });
+  const candidateApplicationGateway = providers?.candidateApplication
+    || createCandidateApplicationGateway({ env, runtime, fetchImpl });
   const applicationLogger = logger || createLogger();
   const repository = submissionRepository || createDatabaseSubmissionRepository(providerRegistry.database);
   const submissionService = createSubmissionService({ repository });
-  const handlers = createApiHandlers({ config, submissionService });
+  const handlers = createApiHandlers({ config, submissionService, candidateApplicationGateway });
   const router = createApiRouter({ handlers, logger: applicationLogger });
 
   function contextFor({ method, pathname, headers }) {
@@ -30,7 +33,7 @@ export function createBackendApplication({ runtime = 'unknown', env = {}, provid
 
   return Object.freeze({
     config,
-    providers: providerRegistry,
+    providers: Object.freeze({ ...providerRegistry, candidateApplication: candidateApplicationGateway }),
     async handle({ method, pathname, headers, body }) {
       const context = contextFor({ method, pathname, headers });
       return router({ method, pathname, headers, body, context });
