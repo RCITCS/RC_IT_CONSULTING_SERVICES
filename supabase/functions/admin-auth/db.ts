@@ -125,16 +125,29 @@ export async function createSession(data: Record<string, unknown>) {
 }
 
 export async function sessionContextByHash(hash: string, idleCutoff: string) {
+  const payload = JSON.stringify({
+    p_token_hash: hash,
+    p_idle_cutoff: idleCutoff
+  });
   const response = await rest("rpc/get_admin_session_context", {
     method: "POST",
-    body: JSON.stringify({
-      p_token_hash: hash,
-      p_idle_cutoff: idleCutoff
-    })
+    body: payload
   });
-  if (!response.ok) throw new Error("session context request failed");
-  const body = await response.json();
-  return Array.isArray(body) ? body[0] ?? null : body;
+  if (response.ok) {
+    const body = await response.json();
+    return Array.isArray(body) ? body[0] ?? null : body;
+  }
+
+  // The dashboard context applies the same server-authoritative session checks and is
+  // a safe fallback if PostgREST temporarily fails to expose the dedicated session RPC.
+  const fallback = await rest("rpc/get_admin_dashboard_page_context", {
+    method: "POST",
+    body: payload
+  });
+  if (!fallback.ok) throw new Error("session context request failed");
+  const body = await fallback.json();
+  const context = Array.isArray(body) ? body[0] ?? null : body;
+  return context?.session ?? null;
 }
 
 export async function dashboardPageContextByHash(hash: string, idleCutoff: string) {

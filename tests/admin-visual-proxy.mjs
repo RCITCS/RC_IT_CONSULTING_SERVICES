@@ -11,7 +11,12 @@ const stagingConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-
 const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
-const { adminOriginAllowed, buildAdminUpstreamRequest, isDedicatedAdminHost } = await import(pathToFileURL(workerPath).href);
+const {
+  adminOriginAllowed,
+  buildAdminUpstreamRequest,
+  enhanceAdminNavigation,
+  isDedicatedAdminHost
+} = await import(pathToFileURL(workerPath).href);
 
 for (const required of [
   "const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com'",
@@ -64,6 +69,17 @@ assert.equal(proxied.headers.get('host'), null);
 assert.equal(proxied.headers.get('content-length'), null);
 assert.equal(await proxied.text(), 'email=admin%40example.invalid&password=placeholder');
 
+const legacyDashboardNavigation = '<header><nav class="primary-nav" aria-label="Administration"><a href="/">Overview</a><a href="/jobs">Jobs</a><a href="/change-password">Security</a></nav><details><div class="mobile-menu"><a href="/">Overview</a><a href="/jobs">Jobs</a><a href="/change-password">Security</a></div></details></header>';
+const enhancedNavigation = enhanceAdminNavigation(legacyDashboardNavigation, '');
+assert.equal((enhancedNavigation.match(/href="\/applications"/g) || []).length, 2, 'Applications must be injected exactly once into desktop and mobile navigation.');
+assert.equal((enhancedNavigation.match(/<span>Applications<\/span>/g) || []).length, 1, 'Desktop Applications entry must not be duplicated.');
+assert.equal((enhancedNavigation.match(/>Applications<\/a>/g) || []).length, 1, 'Mobile Applications entry must not be duplicated.');
+assert.equal(enhanceAdminNavigation(enhancedNavigation, ''), enhancedNavigation, 'Admin navigation enhancement must be idempotent even if the response passes through the proxy twice.');
+
+const partiallyNativeNavigation = '<header><nav class="primary-nav"><a href="/applications"><span>Applications</span></a><a href="/change-password">Security</a></nav><div class="mobile-menu"><a href="/change-password">Security</a></div></header>';
+const completedNavigation = enhanceAdminNavigation(partiallyNativeNavigation, '');
+assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length, 2, 'A missing mobile Applications entry must be added without duplicating the native desktop entry.');
+
 assert.equal(primaryConfig.main, './worker/index.js');
 assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 application Worker must remain reachable on its workers.dev production origin.');
 assert.equal(Object.hasOwn(primaryConfig, 'route'), false, 'Primary Worker route reconciliation is intentionally detached during the admin Worker cutover.');
@@ -104,4 +120,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 public Worker deployment is detached from admin-route reconciliation while admin proxy security, live-domain verification and isolated admin Worker cutover configs remain intact.');
+console.log('PASS: Phase 12 public Worker deployment is detached from admin-route reconciliation while admin proxy security, idempotent navigation, live-domain verification and isolated admin Worker cutover configs remain intact.');
