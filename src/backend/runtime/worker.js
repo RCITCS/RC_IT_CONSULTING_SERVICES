@@ -104,20 +104,24 @@ function adminPublicBase(incomingUrl) {
 function adminFetchMetadataAllowsNavigationPost(request) {
   return request.headers.get('sec-fetch-site') === 'same-origin'
     && request.headers.get('sec-fetch-mode') === 'navigate'
-    && request.headers.get('sec-fetch-dest') === 'document'
-    && request.headers.get('sec-fetch-user') === '?1';
+    && request.headers.get('sec-fetch-dest') === 'document';
+}
+
+function adminHeaderMatchesOrigin(value, incomingUrl) {
+  if (!value || value === 'null') return false;
+  try {
+    return new URL(value).origin === incomingUrl.origin;
+  } catch {
+    return false;
+  }
 }
 
 export function adminOriginAllowed(request, incomingUrl) {
   const origin = request.headers.get('origin');
+  if (origin && origin !== 'null') return adminHeaderMatchesOrigin(origin, incomingUrl);
 
-  if (origin && origin !== 'null') {
-    try {
-      return new URL(origin).origin === incomingUrl.origin;
-    } catch {
-      return false;
-    }
-  }
+  const referer = request.headers.get('referer');
+  if (referer) return adminHeaderMatchesOrigin(referer, incomingUrl);
 
   return adminFetchMetadataAllowsNavigationPost(request);
 }
@@ -143,6 +147,12 @@ export function buildAdminUpstreamRequest(request, upstreamUrl) {
   upstreamRequest.headers.delete('host');
   upstreamRequest.headers.delete('content-length');
   upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare');
+  if (request.method === 'POST') {
+    upstreamRequest.headers.set('sec-fetch-site', 'same-origin');
+    upstreamRequest.headers.set('sec-fetch-mode', 'navigate');
+    upstreamRequest.headers.set('sec-fetch-dest', 'document');
+    upstreamRequest.headers.set('sec-fetch-user', '?1');
+  }
   return upstreamRequest;
 }
 
