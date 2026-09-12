@@ -137,8 +137,8 @@ export default {
         }
       });
     }
-    const normalizedRequest = await normalizeAdminBrowserPost(request);
-    const response = await runtime.fetch(normalizedRequest, env, ctx);
+    request = await normalizeAdminBrowserPost(request);
+    const response = await runtime.fetch(request, env, ctx);
     return enhanceAdminResponse(response, request.method);
   }
 };
