@@ -4,6 +4,7 @@ import { injectAdminResponsiveHtml } from './admin-responsive.js';
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
+export const ADMIN_EDGE_RELEASE = 'phase12-ios-post-fallback-v1';
 
 function copyResponseHeaders(source) {
   const headers = new Headers(source);
@@ -117,6 +118,7 @@ async function enhanceAdminResponse(response, requestMethod) {
   const body = await response.text();
   const enhanced = injectAdminResponsiveHtml(body);
   const headers = copyResponseHeaders(response.headers);
+  headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
   return new Response(enhanced, {
     status: response.status,
     statusText: response.statusText,
