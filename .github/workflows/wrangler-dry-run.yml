@@ -38,10 +38,16 @@ jobs:
       - name: Validate isolated production admin Worker with Wrangler 4.131.0
         run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.admin-production.jsonc --outdir /tmp/wrangler-admin-production
 
+      - name: Validate Cloudflare Builds admin root exactly as dashboard will run it
+        working-directory: cloudflare/admin-production
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --outdir /tmp/wrangler-admin-build-root
+
       - name: Verify generated bundles
         run: |
           set -euo pipefail
           test -n "$(find /tmp/wrangler-primary -maxdepth 2 -type f -print -quit)"
           test -n "$(find /tmp/wrangler-admin-staging -maxdepth 2 -type f -print -quit)"
           test -n "$(find /tmp/wrangler-admin-production -maxdepth 2 -type f -print -quit)"
-          echo 'All three Wrangler configurations compile successfully without deployment.'
+          test -n "$(find /tmp/wrangler-admin-build-root -maxdepth 2 -type f -print -quit)"
+          grep -q '"name": "rcitcs-admin-production"' cloudflare/admin-production/wrangler.jsonc
+          echo 'Primary, isolated admin, and Cloudflare Builds-root Wrangler configurations compile successfully without deployment.'
