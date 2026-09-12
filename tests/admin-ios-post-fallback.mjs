@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { normalizeAdminBrowserPost } from '../worker/admin-only.js';
+import { ADMIN_EDGE_RELEASE, normalizeAdminBrowserPost } from '../worker/admin-only.js';
+
+assert.equal(ADMIN_EDGE_RELEASE, 'phase12-ios-post-fallback-v1', 'Live admin verification must be able to distinguish the iOS/WebKit compatibility release from stale edge code.');
 
 const loginUrl = 'https://admin.rcitcs.com/login';
 const jobUrl = 'https://admin.rcitcs.com/jobs/00000000-0000-4000-8000-000000000001/transition';
@@ -82,4 +84,4 @@ const foreignHost = new Request('https://example.invalid/login', {
 });
 assert.equal((await normalizeAdminBrowserPost(foreignHost)).headers.get('origin'), null, 'Compatibility normalization is restricted to dedicated admin hostnames.');
 
-console.log('PASS: iPhone/iPad WebKit POST compatibility is limited to safe unauthenticated forms or server-issued CSRF evidence while explicit cross-origin requests stay rejected.');
+console.log('PASS: iPhone/iPad WebKit POST compatibility is limited to safe unauthenticated forms or server-issued CSRF evidence while explicit cross-origin requests stay rejected and the release is externally distinguishable.');
