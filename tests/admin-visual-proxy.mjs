@@ -23,8 +23,10 @@ for (const required of [
   "new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])",
   "const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth'",
   "upstreamRequest.headers.set('x-rcitcs-admin-proxy', 'cloudflare')",
+  "upstreamRequest.headers.set('sec-fetch-user', '?1')",
   "upstreamRequest.headers.delete('host')",
   "upstreamRequest.headers.delete('content-length')",
+  "request.headers.get('referer')",
   "fetch(upstreamRequest, { redirect: 'manual' })",
   "headers.set('cache-control', 'no-store, no-transform, max-age=0, must-revalidate')",
   "headers.set('x-robots-tag', 'noindex, nofollow, noarchive')",
@@ -46,14 +48,15 @@ const stagingLogin = new URL('https://admin-staging.rcitcs.com/login');
 const navHeaders = {
   'sec-fetch-site': 'same-origin',
   'sec-fetch-mode': 'navigate',
-  'sec-fetch-dest': 'document',
-  'sec-fetch-user': '?1'
+  'sec-fetch-dest': 'document'
 };
 const requestWith = (headers) => ({ headers: new Headers(headers) });
 assert.equal(adminOriginAllowed(requestWith({ origin: productionLogin.origin }), productionLogin), true);
 assert.equal(adminOriginAllowed(requestWith({ origin: stagingLogin.origin }), stagingLogin), true);
-assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', ...navHeaders }), productionLogin), false);
-assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...navHeaders }), productionLogin), true);
+assert.equal(adminOriginAllowed(requestWith({ origin: 'https://example.invalid', referer: `${productionLogin.origin}/`, ...navHeaders }), productionLogin), false, 'An explicit cross-origin Origin must fail closed.');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...navHeaders }), productionLogin), true, 'iPad/WebKit same-origin navigation must not require Sec-Fetch-User.');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', referer: `${productionLogin.origin}/` }), productionLogin), true, 'Same-origin Referer is a valid fallback when browser fetch metadata is incomplete.');
+assert.equal(adminOriginAllowed(requestWith({ origin: 'null', referer: 'https://example.invalid/', ...navHeaders }), productionLogin), false, 'A present cross-origin Referer must fail closed.');
 assert.equal(adminOriginAllowed(requestWith({ origin: 'null', ...navHeaders, 'sec-fetch-site': 'cross-site' }), productionLogin), false);
 
 const browserPost = new Request(productionLogin, {
@@ -67,6 +70,10 @@ assert.equal(proxied.url, upstream.href);
 assert.equal(proxied.headers.get('x-rcitcs-admin-proxy'), 'cloudflare');
 assert.equal(proxied.headers.get('host'), null);
 assert.equal(proxied.headers.get('content-length'), null);
+assert.equal(proxied.headers.get('sec-fetch-site'), 'same-origin');
+assert.equal(proxied.headers.get('sec-fetch-mode'), 'navigate');
+assert.equal(proxied.headers.get('sec-fetch-dest'), 'document');
+assert.equal(proxied.headers.get('sec-fetch-user'), '?1', 'Verified browser POSTs are normalized for the upstream Supabase security contract.');
 assert.equal(await proxied.text(), 'email=admin%40example.invalid&password=placeholder');
 
 const legacyDashboardNavigation = '<header><nav class="primary-nav" aria-label="Administration"><a href="/">Overview</a><a href="/jobs">Jobs</a><a href="/change-password">Security</a></nav><details><div class="mobile-menu"><a href="/">Overview</a><a href="/jobs">Jobs</a><a href="/change-password">Security</a></div></details></header>';
@@ -120,4 +127,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 public Worker deployment is detached from admin-route reconciliation while admin proxy security, idempotent navigation, live-domain verification and isolated admin Worker cutover configs remain intact.');
+console.log('PASS: Phase 12 admin proxy preserves same-origin POST protection across iPad/WebKit navigation differences, normalizes the verified upstream contract, keeps navigation idempotent, and preserves isolated admin Worker ownership.');
