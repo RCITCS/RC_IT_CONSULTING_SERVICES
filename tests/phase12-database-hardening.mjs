@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [contractMigration, hardeningMigration, edge] = await Promise.all([
+const [contractMigration, hardeningMigration, schemaRefreshMigration, edge] = await Promise.all([
   readFile(path.join(root, 'supabase/migrations/20260910203000_phase_12_candidate_application_contract.sql'), 'utf8'),
   readFile(path.join(root, 'supabase/migrations/20260910204500_phase_12_candidate_application_hardening.sql'), 'utf8'),
+  readFile(path.join(root, 'supabase/migrations/20260912233500_phase_12_postgrest_schema_refresh.sql'), 'utf8'),
   readFile(path.join(root, 'supabase/functions/candidate-applications/index.ts'), 'utf8')
 ]);
 
@@ -46,4 +47,8 @@ assert.ok(!edge.includes('/storage/v1/upload/resumable/sign'), 'Undocumented TUS
 assert.ok(edge.includes('hasCoverLetterDocument'), 'Edge finalization must revalidate cover-letter presence after loading the intake session.');
 assert.ok(edge.includes('COVER_LETTER_REQUIRED'), 'Missing final cover-letter content must produce an explicit validation result.');
 
-console.log('PASS: Phase 12 persistence preserves legacy document truth, enforces verified hashes/new cover-letter invariants, and owns retry-safe cleanup of expired private upload sessions.');
+assert.match(schemaRefreshMigration, /select\s+pg_notification_queue_usage\s*\(\s*\)\s*;/i, 'Phase 12 must explicitly touch the Postgres notification queue before refreshing the Data API cache.');
+assert.match(schemaRefreshMigration, /notify\s+pgrst\s*,\s*'reload schema'\s*;/i, 'Phase 12 admin RPC rollout must explicitly refresh the PostgREST schema cache.');
+assert.equal(/create\s+(?:or\s+replace\s+)?function|alter\s+table|drop\s+/i.test(schemaRefreshMigration), false, 'The cache-convergence migration must not rewrite schema or historical migration authority.');
+
+console.log('PASS: Phase 12 persistence preserves legacy document truth, enforces verified hashes/new cover-letter invariants, owns retry-safe cleanup of expired private upload sessions, and explicitly converges the PostgREST schema cache for admin RPCs.');
