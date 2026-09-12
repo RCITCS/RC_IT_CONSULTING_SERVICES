@@ -9,6 +9,7 @@ const workerSource = await readFile(workerPath, 'utf8');
 const primaryConfig = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
 const stagingConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
 const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
+const publicEntrypointSource = await readFile(path.join(root, 'worker/index.js'), 'utf8');
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const {
@@ -89,32 +90,44 @@ assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length,
 
 assert.equal(primaryConfig.main, './worker/index.js');
 assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 application Worker must remain reachable on its workers.dev production origin.');
-assert.equal(Object.hasOwn(primaryConfig, 'route'), false, 'Primary Worker route reconciliation is intentionally detached during the admin Worker cutover.');
-assert.equal(Object.hasOwn(primaryConfig, 'routes'), false, 'Primary Worker must not overwrite externally managed admin-domain bindings during the cutover.');
+assert.equal(Object.hasOwn(primaryConfig, 'route'), false);
+assert.equal(primaryConfig.routes?.length, 1, 'The connected company Worker must install one production admin edge Route.');
+assert.equal(primaryConfig.routes?.[0]?.pattern, 'admin.rcitcs.com/*');
+assert.equal(primaryConfig.routes?.[0]?.zone_name, 'rcitcs.com');
+assert.notEqual(primaryConfig.routes?.[0]?.custom_domain, true, 'Route precedence is intentional; the existing dedicated Custom Domain remains the underlying origin/fallback.');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
+
+for (const required of [
+  "import adminWorker from './admin-only.js'",
+  'if (DEDICATED_ADMIN_HOSTS.has(host))',
+  'return adminWorker.fetch(request, env, ctx)'
+]) {
+  assert.ok(publicEntrypointSource.includes(required), `Connected Worker admin delegation contract missing: ${required}`);
+}
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.routes?.length, 1);
 assert.equal(stagingConfig.routes?.[0]?.pattern, 'admin-staging.rcitcs.com');
-assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'The isolated staging cutover config must use a Worker Custom Domain when it is provisioned.');
+assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'The isolated staging config retains its Worker Custom Domain when provisioned.');
 
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
 assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true);
+assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The existing production Custom Domain remains as fallback/origin beneath the edge Route.');
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
 assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
+assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-ios-post-fallback-v1'"));
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.equal(workerSource.includes(forbidden), false, `Secret material leaked into admin proxy source: ${forbidden}`);
-  assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into dedicated admin entrypoint: ${forbidden}`);
+  assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into hardened admin entrypoint: ${forbidden}`);
 }
 
 for (const expected of [
@@ -129,4 +142,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 admin proxy preserves same-origin POST protection across iPad/WebKit navigation differences, normalizes the verified upstream contract, applies the dedicated responsive enhancement path, keeps navigation idempotent, and preserves isolated admin Worker ownership.');
+console.log('PASS: Phase 12 admin routing uses the existing company Workers Build to place the hardened mobile-compatible admin entrypoint on the production hostname while preserving responsive UI, CSRF/origin protection and the existing Custom Domain fallback.');

@@ -1,5 +1,6 @@
 import runtime from '../src/backend/runtime/worker.js';
 import { createCandidateApplicationGateway } from '../src/backend/providers/candidate-application-gateway.js';
+import adminWorker from './admin-only.js';
 
 const DEDICATED_ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 
@@ -37,6 +38,12 @@ export default {
   async fetch(request, env, ctx) {
     const legacy = legacyAdminRedirect(request);
     if (legacy) return legacy;
+
+    const host = new URL(request.url).hostname.toLowerCase();
+    if (DEDICATED_ADMIN_HOSTS.has(host)) {
+      return adminWorker.fetch(request, env, ctx);
+    }
+
     return runtime.fetch(request, env, ctx);
   },
   scheduled(_controller, env, ctx) {

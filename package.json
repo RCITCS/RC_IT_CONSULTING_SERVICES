@@ -26,7 +26,7 @@
     "test:public-careers-provider": "node tests/public-careers-provider-boundary.mjs",
     "test:public-careers": "node tests/public-careers-runtime.mjs",
     "test:phase12": "npm run check:phase12-applications",
-    "test:admin-visual-proxy": "node tests/admin-visual-proxy.mjs && node tests/admin-responsive.mjs && node tests/admin-ios-post-fallback.mjs && node tests/cloudflare-admin-build-orchestrator.mjs",
+    "test:admin-visual-proxy": "node tests/admin-visual-proxy.mjs && node tests/admin-responsive.mjs && node tests/admin-ios-post-fallback.mjs",
     "test:render": "node tests/render-routes.mjs",
     "test:design-system": "node tests/design-system.mjs",
     "test:performance-routing": "node tests/performance-routing.mjs",
@@ -36,7 +36,6 @@
     "test:seo-build": "node tests/seo-build.mjs",
     "test": "npm run test:smoke && npm run test:backend && npm run test:persistence && npm run test:admin-auth && npm run test:admin-dashboard && npm run test:admin-jobs && npm run test:phase11-content && npm run test:phase11-seed && npm run test:phase11-spec && npm run test:public-careers-provider && npm run test:public-careers && npm run test:phase12 && npm run test:admin-visual-proxy && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
     "build": "node scripts/build.mjs",
-    "postbuild": "node scripts/deploy-admin-from-workers-build.mjs",
     "provision:storage": "node scripts/provision-supabase-storage.mjs",
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:performance && npm run test:seo-build"
   },
