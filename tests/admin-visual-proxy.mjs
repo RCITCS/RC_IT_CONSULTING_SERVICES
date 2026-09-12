@@ -109,7 +109,9 @@ assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true);
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
-assert.ok(adminOnlySource.includes('return runtime.fetch(request, env, ctx)'));
+assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
+assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
+assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.equal(workerSource.includes(forbidden), false, `Secret material leaked into admin proxy source: ${forbidden}`);
   assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into dedicated admin entrypoint: ${forbidden}`);
@@ -127,4 +129,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 admin proxy preserves same-origin POST protection across iPad/WebKit navigation differences, normalizes the verified upstream contract, keeps navigation idempotent, and preserves isolated admin Worker ownership.');
+console.log('PASS: Phase 12 admin proxy preserves same-origin POST protection across iPad/WebKit navigation differences, normalizes the verified upstream contract, applies the dedicated responsive enhancement path, keeps navigation idempotent, and preserves isolated admin Worker ownership.');
