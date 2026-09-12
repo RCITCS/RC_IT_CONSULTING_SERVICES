@@ -26,7 +26,7 @@
     "test:public-careers-provider": "node tests/public-careers-provider-boundary.mjs",
     "test:public-careers": "node tests/public-careers-runtime.mjs",
     "test:phase12": "npm run check:phase12-applications",
-    "test:admin-visual-proxy": "node tests/admin-visual-proxy.mjs",
+    "test:admin-visual-proxy": "node tests/admin-visual-proxy.mjs && node tests/admin-responsive.mjs",
     "test:render": "node tests/render-routes.mjs",
     "test:design-system": "node tests/design-system.mjs",
     "test:performance-routing": "node tests/performance-routing.mjs",
