@@ -4,8 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [worker, wrangler, domainWorkflow] = await Promise.all([
+const [worker, publicEntrypoint, wrangler, domainWorkflow] = await Promise.all([
   readFile(path.join(root, 'src/backend/runtime/worker.js'), 'utf8'),
+  readFile(path.join(root, 'worker/index.js'), 'utf8'),
   readFile(path.join(root, 'wrangler.jsonc'), 'utf8'),
   readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8')
 ]);
@@ -20,12 +21,21 @@ for (const contract of [
   "headers.set('location', target.toString())"
 ]) assert.ok(worker.includes(contract), `Dedicated admin routing contract missing: ${contract}`);
 
+for (const contract of [
+  "import adminWorker from './admin-only.js'",
+  'if (DEDICATED_ADMIN_HOSTS.has(host))',
+  'return adminWorker.fetch(request, env, ctx)'
+]) assert.ok(publicEntrypoint.includes(contract), `Connected production Worker must delegate the admin hostname through the hardened admin entrypoint: ${contract}`);
+
 const config = JSON.parse(wrangler);
 assert.ok(Array.isArray(config.assets?.run_worker_first));
-assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets for dynamic Careers/API/internal admin-probe routing.');
-assert.equal(config.workers_dev, true, 'Primary application Worker remains a workers.dev deployment.');
-assert.equal(Object.hasOwn(config, 'route'), false, 'Primary Worker must not reconcile dashboard-managed admin routes.');
-assert.equal(Object.hasOwn(config, 'routes'), false, 'Primary Worker must not reconcile dashboard-managed admin domains during the isolated-Worker cutover.');
+assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets for dynamic Careers/API/admin-host routing.');
+assert.equal(config.workers_dev, true, 'Primary application Worker remains reachable on its workers.dev deployment.');
+assert.equal(Object.hasOwn(config, 'route'), false);
+assert.equal(config.routes?.length, 1, 'The connected company Worker must own exactly one explicit production admin edge route.');
+assert.equal(config.routes?.[0]?.pattern, 'admin.rcitcs.com/*');
+assert.equal(config.routes?.[0]?.zone_name, 'rcitcs.com');
+assert.notEqual(config.routes?.[0]?.custom_domain, true, 'The public Worker is a Route in front of the existing admin Custom Domain, not a replacement origin.');
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
@@ -38,4 +48,4 @@ for (const expected of [
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: primary Worker deployment cannot overwrite admin-domain ownership; admin.rcitcs.com remains the authoritative private portal and Applications navigation stays first-class.');
+console.log('PASS: the existing company Workers Build owns the production admin edge Route, delegates it through the hardened admin entrypoint, and leaves the existing Custom Domain as the underlying origin/fallback.');
