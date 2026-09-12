@@ -43,6 +43,7 @@ jobs:
           verify_admin() {
             local admin="$1"
             local label="$2"
+            local expected_release="${3:-}"
             local host="${admin#https://}"
             local body="/tmp/${label}-admin.html"
             local headers="/tmp/${label}-admin.headers"
@@ -50,12 +51,19 @@ jobs:
 
             diagnose_dns "$host"
 
-            for attempt in $(seq 1 20); do
+            for attempt in $(seq 1 40); do
               code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$admin/" || true)
               title=$(grep -o '<title>[^<]*' "$body" 2>/dev/null | head -n1 || true)
-              echo "${label} attempt=${attempt} status=${code} ${title}"
+              release=$(tr -d '\r' < "$headers" | awk -F': *' 'tolower($1)=="x-rc-admin-edge-release" {print $2}' | tail -n1)
+              echo "${label} attempt=${attempt} status=${code} release=${release:-none} ${title}"
+
+              release_ok=1
+              if [[ -n "$expected_release" && "$release" != "$expected_release" ]]; then
+                release_ok=0
+              fi
 
               if [[ "$code" == '200' ]] \
+                && [[ "$release_ok" == '1' ]] \
                 && grep -q 'Administrator sign in' "$body" \
                 && grep -q 'Private administration for controlled operational work.' "$body" \
                 && ! grep -q 'Technology that' "$body" \
@@ -67,7 +75,7 @@ jobs:
             done
 
             if [[ "$passed" != '1' ]]; then
-              echo "${label} admin domain is NOT serving the dedicated private portal." >&2
+              echo "${label} admin domain is NOT serving the expected private portal release." >&2
               sed -n '1,24p' "$body" >&2 || true
               failures=$((failures + 1))
               return
@@ -82,9 +90,32 @@ jobs:
               echo "${label} session boundary failed; status=${session_code}." >&2
               failures=$((failures + 1))
             fi
+
+            if [[ "$label" == 'production' ]]; then
+              mobile_code=$(curl -sS -o /tmp/admin-mobile-compatible.html -w '%{http_code}' \
+                -X POST \
+                -H 'content-type: application/x-www-form-urlencoded' \
+                --data 'email=not-the-admin%40example.invalid' \
+                "$admin/forgot-password" || true)
+              if [[ "$mobile_code" != '200' ]] || grep -q 'Request rejected' /tmp/admin-mobile-compatible.html; then
+                echo "Header-sparse iPhone/iPad form compatibility failed; status=${mobile_code}." >&2
+                failures=$((failures + 1))
+              fi
+
+              rejected_code=$(curl -sS -o /tmp/admin-cross-origin-rejected.txt -w '%{http_code}' \
+                -X POST \
+                -H 'Origin: https://example.invalid' \
+                -H 'content-type: application/x-www-form-urlencoded' \
+                --data 'email=not-the-admin%40example.invalid' \
+                "$admin/forgot-password" || true)
+              if [[ "$rejected_code" != '403' ]] || ! grep -q 'Request rejected' /tmp/admin-cross-origin-rejected.txt; then
+                echo "Explicit cross-origin POST protection failed; status=${rejected_code}." >&2
+                failures=$((failures + 1))
+              fi
+            fi
           }
 
-          verify_admin 'https://admin.rcitcs.com' 'production'
+          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-ios-post-fallback-v1'
 
           echo '--- Staging admin DNS diagnostic ---'
           diagnose_dns 'admin-staging.rcitcs.com'
@@ -112,4 +143,4 @@ jobs:
             exit 1
           fi
 
-          echo 'Production dedicated-admin hostname verified; optional unprovisioned hostnames reported separately.'
+          echo 'Production dedicated-admin hostname, exact mobile edge release and cross-origin boundary verified.'
