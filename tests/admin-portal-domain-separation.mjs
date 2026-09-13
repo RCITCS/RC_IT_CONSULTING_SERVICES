@@ -4,10 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const [worker, publicEntrypoint, wrangler, domainWorkflow] = await Promise.all([
+const [worker, publicEntrypoint, wrangler, adminConnectedWrangler, adminConnectedEntrypoint, domainWorkflow] = await Promise.all([
   readFile(path.join(root, 'src/backend/runtime/worker.js'), 'utf8'),
   readFile(path.join(root, 'worker/index.js'), 'utf8'),
   readFile(path.join(root, 'wrangler.jsonc'), 'utf8'),
+  readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'),
+  readFile(path.join(root, 'cloudflare/legacy-rcitcservices/index.js'), 'utf8'),
   readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8')
 ]);
 
@@ -21,25 +23,26 @@ for (const contract of [
   "headers.set('location', target.toString())"
 ]) assert.ok(worker.includes(contract), `Dedicated admin routing contract missing: ${contract}`);
 
-for (const contract of [
-  "import adminWorker from './admin-only.js'",
-  'if (DEDICATED_ADMIN_HOSTS.has(host))',
-  'return adminWorker.fetch(request, env, ctx)'
-]) assert.ok(publicEntrypoint.includes(contract), `Connected production Worker must delegate the admin hostname through the hardened admin entrypoint: ${contract}`);
+assert.ok(publicEntrypoint.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but routing must not expose it on admin.rcitcs.com.');
 
-const config = JSON.parse(wrangler);
-assert.ok(Array.isArray(config.assets?.run_worker_first));
-assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets for dynamic Careers/API/admin-host routing.');
-assert.equal(config.workers_dev, true, 'Primary application Worker remains reachable on its workers.dev deployment.');
-assert.equal(Object.hasOwn(config, 'route'), false);
-assert.equal(config.routes?.length, 2, 'Production routing must preserve the public apex Custom Domain and exactly one separate admin edge Route.');
-const publicDomain = config.routes.find((route) => route.pattern === 'rcitcs.com');
-const adminRoute = config.routes.find((route) => route.pattern === 'admin.rcitcs.com/*');
-assert.ok(publicDomain, 'Public rcitcs.com Custom Domain binding must remain declared.');
-assert.equal(publicDomain.custom_domain, true, 'Public rcitcs.com must remain a Worker Custom Domain so Cloudflare owns its DNS/certificate binding.');
-assert.ok(adminRoute, 'Dedicated admin route must remain declared independently of the public apex.');
-assert.equal(adminRoute.zone_name, 'rcitcs.com');
-assert.notEqual(adminRoute.custom_domain, true, 'The admin edge remains a Route in front of the dedicated admin origin; it must not replace the public apex binding.');
+const publicConfig = JSON.parse(wrangler);
+const adminConfig = JSON.parse(adminConnectedWrangler);
+
+assert.ok(Array.isArray(publicConfig.assets?.run_worker_first));
+assert.ok(publicConfig.assets.run_worker_first.includes('/*'), 'Public Worker must run before assets for dynamic Careers/API routing.');
+assert.equal(publicConfig.workers_dev, true, 'Primary public Worker remains reachable on its workers.dev deployment.');
+assert.equal(publicConfig.routes?.length, 1, 'Public Worker must own only rcitcs.com.');
+assert.equal(publicConfig.routes?.[0]?.pattern, 'rcitcs.com');
+assert.equal(publicConfig.routes?.[0]?.custom_domain, true, 'Public rcitcs.com remains its own Worker Custom Domain.');
+assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'Public Worker must never own or route admin.rcitcs.com.');
+
+assert.equal(adminConfig.name, 'rcitcservices');
+assert.equal(adminConfig.workers_dev, false);
+assert.equal(adminConfig.routes?.length, 1, 'Connected admin Worker must own only admin.rcitcs.com.');
+assert.equal(adminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
+assert.equal(adminConfig.routes?.[0]?.custom_domain, true, 'Admin hostname must be a Custom Domain so Cloudflare provisions DNS and TLS independently of the public site.');
+assert.ok(adminConnectedEntrypoint.includes("import adminWorker from '../../worker/admin-only.js';"));
+assert.ok(adminConnectedEntrypoint.includes('export default adminWorker;'));
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
@@ -47,9 +50,8 @@ for (const expected of [
   '! grep -q \'Technology that moves business forward\'',
   'action="/login"',
   "PUBLIC='https://rcitcs.com'",
-  'Production admin routes remain private and host-local',
-  'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
+  'Production admin routes remain private and host-local'
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: production routing preserves the public rcitcs.com Custom Domain while the dedicated admin hostname remains isolated on its own edge Route.');
+console.log('PASS: rcitcs.com and admin.rcitcs.com are independently provisioned Cloudflare Custom Domains on separate connected Workers, with no cross-domain route ownership.');
