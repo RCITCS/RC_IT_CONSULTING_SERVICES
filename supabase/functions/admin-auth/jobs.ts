@@ -71,34 +71,34 @@ const REQUESTED_CATEGORIES = [
 ] as const;
 
 const JOB_EDITOR_POLISH = String.raw`<style data-rc-job-editor-polish>
-main[aria-labelledby="job-editor-title"] .field input:not([type="checkbox"]),
-main[aria-labelledby="job-editor-title"] .field select,
-main[aria-labelledby="job-editor-title"] .field textarea{
+.job-editor-form .field input:not([type="checkbox"]),
+.job-editor-form .field select,
+.job-editor-form .field textarea{
   width:100%;max-width:none;border:1px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--text);font:inherit;font-size:13px;line-height:1.5;box-shadow:0 1px 1px rgba(15,23,42,.02);transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease
 }
-main[aria-labelledby="job-editor-title"] .field input:not([type="checkbox"]),
-main[aria-labelledby="job-editor-title"] .field select{min-height:46px;padding:10px 12px}
-main[aria-labelledby="job-editor-title"] .field select{-webkit-appearance:none;appearance:none;padding-right:38px;background-image:linear-gradient(45deg,transparent 50%,#667085 50%),linear-gradient(135deg,#667085 50%,transparent 50%);background-position:calc(100% - 17px) 20px,calc(100% - 12px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-main[aria-labelledby="job-editor-title"] .field textarea{display:block;min-height:160px;padding:13px 14px;resize:vertical;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-main[aria-labelledby="job-editor-title"] #job-required-skills{min-height:220px}
-main[aria-labelledby="job-editor-title"] #job-description{min-height:360px}
-main[aria-labelledby="job-editor-title"] #job-benefits{min-height:190px}
-main[aria-labelledby="job-editor-title"] #job-summary,
-main[aria-labelledby="job-editor-title"] #job-location-details{min-height:150px}
-main[aria-labelledby="job-editor-title"] .field input:not([type="checkbox"]):focus,
-main[aria-labelledby="job-editor-title"] .field select:focus,
-main[aria-labelledby="job-editor-title"] .field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,91,211,.10);outline:none}
-main[aria-labelledby="job-editor-title"] .field textarea::placeholder,
-main[aria-labelledby="job-editor-title"] .field input::placeholder{color:#98a2b3}
-main[aria-labelledby="job-editor-title"] .field .muted{margin:8px 0 0;line-height:1.5}
+.job-editor-form .field input:not([type="checkbox"]),
+.job-editor-form .field select{min-height:46px;padding:10px 12px}
+.job-editor-form .field select{-webkit-appearance:none;appearance:none;padding-right:38px;background-image:linear-gradient(45deg,transparent 50%,#667085 50%),linear-gradient(135deg,#667085 50%,transparent 50%);background-position:calc(100% - 17px) 20px,calc(100% - 12px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.job-editor-form .field textarea{display:block;min-height:160px;padding:13px 14px;resize:vertical;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.job-editor-form #job-required-skills{min-height:220px}
+.job-editor-form #job-description{min-height:360px}
+.job-editor-form #job-benefits{min-height:190px}
+.job-editor-form #job-summary,
+.job-editor-form #job-location-details{min-height:150px}
+.job-editor-form .field input:not([type="checkbox"]):focus,
+.job-editor-form .field select:focus,
+.job-editor-form .field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,91,211,.10);outline:none}
+.job-editor-form .field textarea::placeholder,
+.job-editor-form .field input::placeholder{color:#98a2b3}
+.job-editor-form .field .muted{margin:8px 0 0;line-height:1.5}
 @media(max-width:760px){
-  main[aria-labelledby="job-editor-title"] .field input:not([type="checkbox"]),
-  main[aria-labelledby="job-editor-title"] .field select,
-  main[aria-labelledby="job-editor-title"] .field textarea{font-size:16px}
-  main[aria-labelledby="job-editor-title"] .field textarea{min-height:180px;padding:14px}
-  main[aria-labelledby="job-editor-title"] #job-required-skills{min-height:240px}
-  main[aria-labelledby="job-editor-title"] #job-description{min-height:400px}
-  main[aria-labelledby="job-editor-title"] #job-benefits{min-height:220px}
+  .job-editor-form .field input:not([type="checkbox"]),
+  .job-editor-form .field select,
+  .job-editor-form .field textarea{font-size:16px}
+  .job-editor-form .field textarea{min-height:180px;padding:14px}
+  .job-editor-form #job-required-skills{min-height:240px}
+  .job-editor-form #job-description{min-height:400px}
+  .job-editor-form #job-benefits{min-height:220px}
 }
 </style>`;
 
@@ -233,9 +233,9 @@ export function jobEditorPage(basePath: string, session: AdminSessionView, conte
   const categoryValue = submitted ? String((submitted as any)?.category || "") : value(source,"category_name");
   const noExpiry = !value(source,"closes_at") && !(submitted as any)?.closes_at;
 
-  return shell(editing ? "Edit job" : "Create job", `${JOB_EDITOR_POLISH}<div class="admin-shell">${adminHeader(basePath, session, "jobs")}${workspaceBar(editing ? "Edit vacancy" : "Create vacancy")}
-  <main class="workspace" id="main-content" aria-labelledby="job-editor-title"><div class="page-heading"><div><div class="eyebrow">${editing ? "Vacancy record" : "New vacancy"}</div><h1 id="job-editor-title">${editing ? esc(job?.title || "Edit job") : "Create job"}</h1><p>${editing ? "Update the vacancy without leaving Job management." : "Enter the vacancy once, then save it as a draft or publish it immediately."}</p></div><div class="snapshot"><strong>Job code</strong>${editing ? esc(job?.code || "Identifier pending") : "Generated automatically"}<br>${editing ? `Version ${esc(job?.version ?? 1)}` : "Based on category and work mode · immutable"}</div></div>${notice(message,error)}
-    <form method="post" action="${action}"><input type="hidden" name="csrf" value="${esc(session.csrf)}">${editing ? `<input type="hidden" name="expected_version" value="${esc(job?.version ?? 1)}"><input type="hidden" name="slug" value="${esc(job?.slug || "")}">` : ""}
+  return shell(editing ? "Edit job" : "Create job", `<div class="admin-shell">${adminHeader(basePath, session, "jobs")}${workspaceBar(editing ? "Edit vacancy" : "Create vacancy")}
+  <main class="workspace" id="main-content" aria-labelledby="job-editor-title">${JOB_EDITOR_POLISH}<div class="page-heading"><div><div class="eyebrow">${editing ? "Vacancy record" : "New vacancy"}</div><h1 id="job-editor-title">${editing ? esc(job?.title || "Edit job") : "Create job"}</h1><p>${editing ? "Update the vacancy without leaving Job management." : "Enter the vacancy once, then save it as a draft or publish it immediately."}</p></div><div class="snapshot"><strong>Job code</strong>${editing ? esc(job?.code || "Identifier pending") : "Generated automatically"}<br>${editing ? `Version ${esc(job?.version ?? 1)}` : "Based on category and work mode · immutable"}</div></div>${notice(message,error)}
+    <form class="job-editor-form" method="post" action="${action}"><input type="hidden" name="csrf" value="${esc(session.csrf)}">${editing ? `<input type="hidden" name="expected_version" value="${esc(job?.version ?? 1)}"><input type="hidden" name="slug" value="${esc(job?.slug || "")}">` : ""}
       <section class="data-plane"><header class="section-header"><div><h2>Job details</h2><p>Required fields are marked with *. The job code is generated automatically by the server.</p></div><span class="section-meta">Straightforward authoring</span></header><div style="padding:8px 22px 18px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:0 18px"><div class="field"><label for="job-category">Department / category *</label><select id="job-category" name="category" required><option value="">Select department</option>${categoryOptions(context,categoryValue)}</select></div>${textField("job-title","Position title","title",value(source,"title"),true,"text",160,"","e.g. Senior Data Engineer")}${selectField("job-work-model","Work mode","workplace_type",WORK_MODELS,value(source,"workplace_type"),true)}${textField("job-location","Office / job location","location",value(source,"location"),true,"text",200,"","e.g. London, UK")}${selectField("job-employment","Employment type","employment_type",EMPLOYMENT_TYPES,value(source,"employment_type"))}${textField("job-experience","Experience required","experience",value(source,"experience"),true,"text",200,"","e.g. 2–10 years")}${textField("job-response-window","Response time","application_response_window",value(source,"application_response_window"),false,"text",300,"Optional.","e.g. 1–5 days")}</div>
         ${textareaField("job-required-skills","Required skills","required_skills",listText(source.required_skills),"One skill per line.",16000,true)}${textareaField("job-description","Job description","description",value(source,"description"),"Describe the role accurately for candidates.",20000,true)}${textareaField("job-benefits","Benefits","benefits",listText(source.benefits),"Optional; one item per line.",12000)}
