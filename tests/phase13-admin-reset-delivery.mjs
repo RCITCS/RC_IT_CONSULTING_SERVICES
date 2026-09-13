@@ -130,4 +130,13 @@ assert.match(dispatcher, /dispatchAdminPasswordReset/);
 assert.ok(!dispatcher.includes('console.log'));
 assert.ok(!dispatcher.includes('RESEND_API_KEY = "re_'));
 
+const adminDb = await readFile(path.join(root, 'supabase/functions/admin-auth/db.ts'), 'utf8');
+assert.match(adminDb, /rpc\/enqueue_transactional_email/);
+assert.match(adminDb, /functions\/v1\/transactional-email\/dispatch/);
+assert.match(adminDb, /crypto\.randomUUID\(\)/);
+assert.match(adminDb, /EMAIL_IDENTITIES\.noreply\.address/);
+assert.match(adminDb, /token_generation: "at_send_time"/);
+assert.ok(!adminDb.includes('rest("email_logs"'));
+assert.ok(!adminDb.includes('RESEND_API_KEY'));
+
 console.log('Phase 13 administrator password-reset delivery, single-use token, no-auto-retry and dispatcher security checks passed.');
