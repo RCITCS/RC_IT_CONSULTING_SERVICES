@@ -6,12 +6,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [ui, routes, migration, convergence, publicHardening] = await Promise.all([
+const [ui, routes, migration, convergence, publicHardening, interactions] = await Promise.all([
   read('supabase/functions/admin-auth/jobs.ts'),
   read('supabase/functions/admin-auth/job-routes.ts'),
   read('supabase/migrations/20260913023000_phase_12_job_authoring_simplification.sql'),
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
-  read('supabase/migrations/20260910161000_phase_11_job_management_hardening.sql')
+  read('supabase/migrations/20260910161000_phase_11_job_management_hardening.sql'),
+  read('worker/admin-interactions.js')
 ]);
 
 const requested = [
@@ -35,6 +36,18 @@ assert.ok(ui.includes('normalized.slice(0,140).replace(/-+$/g,"")'), 'Generated 
 assert.ok(ui.includes('type="hidden" name="slug"'), 'Existing canonical URL must be preserved internally on edit without exposing it to the administrator.');
 assert.equal(ui.includes('name="code"'), false, 'Job code must never be client-editable.');
 assert.ok(ui.includes('Based on category and work mode · immutable'), 'Admin must be told the job code is automatic and immutable.');
+
+assert.ok(ui.includes('data-rc-job-editor-polish'), 'Job editor must ship its professional control treatment with the server-rendered form.');
+assert.ok(ui.includes('.job-editor-form #job-required-skills{min-height:220px}'), 'Required-skills editor must have a substantial desktop writing area.');
+assert.ok(ui.includes('.job-editor-form #job-description{min-height:360px}'), 'Job-description editor must have a substantial desktop writing area.');
+assert.ok(ui.includes('.job-editor-form #job-benefits{min-height:190px}'), 'Benefits editor must not collapse to a browser-default textarea.');
+assert.ok(ui.includes('.job-editor-form #job-description{min-height:400px}'), 'Job-description editor must remain comfortably sized on phone layouts.');
+assert.ok(ui.includes('resize:vertical'), 'Long-form fields must remain user-resizable.');
+assert.ok(ui.includes('-webkit-appearance:none;appearance:none'), 'Job-editor selects must avoid inconsistent iOS pill styling.');
+assert.ok(ui.includes('id === "job-description" ? 14'), 'Textarea rows must provide a semantic fallback size even if CSS is unavailable.');
+assert.ok(ui.includes('<form class="job-editor-form" method="post"'), 'Professional form styles must be scoped to the job editor form itself.');
+assert.ok(ui.includes('<main class="workspace" id="main-content" aria-labelledby="job-editor-title">${JOB_EDITOR_POLISH}<div class="page-heading">'), 'Job-editor style payload must live inside the workspace so modal extraction preserves it.');
+assert.ok(interactions.includes("body.innerHTML = workspace ? workspace.innerHTML : source.innerHTML;"), 'Regression gate must reflect the modal workspace extraction contract.');
 
 assert.ok(ui.includes('name="confirm_code"'), 'Draft deletion confirmation must use visible job code, not internal URL slug.');
 assert.equal(ui.includes('confirm_slug'), false, 'Internal URL slug must not be used as an administrator confirmation value.');
@@ -69,4 +82,4 @@ assert.ok(publicHardening.includes("'category', e.category"), 'Public Careers pr
 assert.ok(publicHardening.includes("j.opens_at is null or j.opens_at <= now()"));
 assert.ok(publicHardening.includes("j.closes_at is null or j.closes_at > now()"));
 
-console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, validation-state preservation and authoritative public category grouping.');
+console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, validation-state preservation, modal-safe professional responsive authoring controls and authoritative public category grouping.');
