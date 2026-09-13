@@ -1,3 +1,9 @@
+import {
+  EMAIL_IDENTITIES,
+  EMAIL_TEMPLATE_KEYS,
+  emailIdempotencyKey
+} from "../_shared/email-contract.js";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const LEGACY_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -218,24 +224,65 @@ export async function resetRequestCount(ipHash: string) {
   );
 }
 
-export async function queueResetRequest(adminId: string, email: string) {
-  const response = await rest("email_logs", {
-    method: "POST",
-    body: JSON.stringify({
-      provider: "pending",
-      template_key: "admin_password_reset",
-      recipient_email: email,
-      subject: "RC IT Services administrator password reset",
-      status: "queued",
-      metadata: {
-        admin_id: adminId,
-        purpose: "admin_password_reset",
-        token_generation: "at_send_time",
-        delivery_phase: 13
-      }
-    })
-  });
-  if (!response.ok) throw new Error("reset queue failed");
+async function dispatchTransactionalEmail(emailLogId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !API_KEY || !emailLogId) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/transactional-email/dispatch`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${API_KEY}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({ emailLogId }),
+      signal: controller.signal
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function queueResetRequest(adminId: string, email: string): Promise<boolean> {
+  const resetRequestId = crypto.randomUUID();
+  const idempotencyKey = emailIdempotencyKey(
+    EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET,
+    "password_reset_request",
+    resetRequestId
+  );
+
+  let emailLogId = "";
+  try {
+    const queued = await jsonResult(await rest("rpc/enqueue_transactional_email", {
+      method: "POST",
+      body: JSON.stringify({
+        p_idempotency_key: idempotencyKey,
+        p_template_key: EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET,
+        p_recipient_email: email,
+        p_sender_email: EMAIL_IDENTITIES.noreply.address,
+        p_reply_to_email: null,
+        p_subject: "RC IT Services administrator password reset",
+        p_application_id: null,
+        p_contact_enquiry_id: null,
+        p_metadata: {
+          admin_id: adminId,
+          purpose: "admin_password_reset",
+          reset_request_id: resetRequestId,
+          token_generation: "at_send_time",
+          delivery_phase: 13
+        }
+      })
+    }));
+    emailLogId = String(queued ?? "").trim();
+  } catch {
+    return false;
+  }
+
+  if (!emailLogId) return false;
+  return dispatchTransactionalEmail(emailLogId);
 }
 
 export async function resetByHash(hash: string) {
