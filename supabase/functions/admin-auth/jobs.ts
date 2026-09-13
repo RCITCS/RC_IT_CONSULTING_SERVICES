@@ -197,7 +197,7 @@ export function jobEditorPage(basePath: string, session: AdminSessionView, conte
   const editing = Boolean(job?.id);
   const source: JobRecord = submitted ? { ...job, ...submitted } as JobRecord : (job || {});
   const action = editing ? `${basePath}/jobs/${esc(job?.id || "")}/update` : `${basePath}/jobs/create`;
-  const categoryValue = value(source,"category_name") || String((submitted as any)?.category || "");
+  const categoryValue = submitted ? String((submitted as any)?.category || "") : value(source,"category_name");
   const noExpiry = !value(source,"closes_at") && !(submitted as any)?.closes_at;
 
   return shell(editing ? "Edit job" : "Create job", `<div class="admin-shell">${adminHeader(basePath, session, "jobs")}${workspaceBar(editing ? "Edit vacancy" : "Create vacancy")}
@@ -250,7 +250,8 @@ function splitLines(value: FormDataEntryValue | null, field: string, errors: str
 }
 
 function generatedSlug(title: string): string {
-  const base = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,140) || "vacancy";
+  const normalized = title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  const base = normalized.slice(0,140).replace(/-+$/g,"") || "vacancy";
   return `${base}-${crypto.randomUUID().replace(/-/g,"").slice(0,6)}`;
 }
 
