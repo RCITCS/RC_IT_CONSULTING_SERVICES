@@ -24,6 +24,7 @@ const API_KEY = MODERN_SECRET_KEY || LEGACY_SERVICE_ROLE_KEY;
 const USING_LEGACY_KEY = !MODERN_SECRET_KEY && Boolean(LEGACY_SERVICE_ROLE_KEY);
 const provider = createResendEmailProvider({ apiKey: RESEND_API_KEY });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SWEEP_LIMIT = 10;
 
 function route(url: URL): string {
   let path = url.pathname || "/";
@@ -75,7 +76,7 @@ async function rest(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers: requestHeaders });
 }
 
-async function rpc(name: string, payload: Record<string, unknown>): Promise<unknown> {
+async function rpc(name: string, payload: Record<string, unknown> = {}): Promise<unknown> {
   const response = await rest(`rpc/${name}`, {
     method: "POST",
     body: JSON.stringify(payload)
@@ -95,6 +96,29 @@ function scalarBoolean(value: unknown): boolean {
   if (value === true) return true;
   if (Array.isArray(value) && value.length === 1) return value[0] === true;
   return false;
+}
+
+async function schedulerAuthorized(request: Request): Promise<boolean> {
+  const token = String(request.headers.get("x-rcitcs-scheduler-token") ?? "").trim();
+  if (token.length < 32 || token.length > 512) return false;
+  try {
+    return scalarBoolean(await rpc("verify_transactional_email_scheduler_token", { p_token: token }));
+  } catch {
+    return false;
+  }
+}
+
+async function dueEmailIds(limit = SWEEP_LIMIT): Promise<string[]> {
+  const value = await rpc("list_due_transactional_email_ids", { p_limit: limit });
+  const raw = Array.isArray(value) ? value : [];
+  return raw.map((id) => String(id ?? "").trim()).filter((id) => UUID.test(id)).slice(0, SWEEP_LIMIT);
+}
+
+async function healthSnapshot(): Promise<Record<string, unknown>> {
+  const value = await rpc("transactional_email_health_snapshot");
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (Array.isArray(value) && value[0] && typeof value[0] === "object") return value[0] as Record<string, unknown>;
+  throw new Error("email health snapshot unavailable");
 }
 
 async function claimEmail(emailLogId: string): Promise<Record<string, unknown> | null> {
@@ -179,6 +203,67 @@ function contactTemplate(templateKey: string): boolean {
     || templateKey === EMAIL_TEMPLATE_KEYS.INTERNAL_CONTACT_ALERT;
 }
 
+async function dispatchEmailById(emailLogId: string): Promise<{ ok: boolean; code?: string }> {
+  if (!provider.configured) return { ok: false, code: "EMAIL_PROVIDER_NOT_CONFIGURED" };
+  let queue: Record<string, unknown> | null = null;
+  try {
+    queue = await claimEmail(emailLogId);
+    if (!queue) return { ok: false, code: "EMAIL_NOT_CLAIMABLE" };
+    const templateKey = String(queue.template_key ?? "").trim();
+
+    if (templateKey === EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET) {
+      await dispatchAdminPasswordReset({
+        queue,
+        provider,
+        createResetToken,
+        markSent,
+        markFailed,
+        randomToken,
+        shaHex
+      });
+      return { ok: true };
+    }
+
+    if (applicationTemplate(templateKey)) {
+      const applicationId = String(queue.application_id ?? "").trim();
+      const application = await loadApplication(applicationId);
+      if (!application) throw new Error("persisted application unavailable");
+      await dispatchApplicationEmail({ queue, application, provider, markSent, markFailed });
+      return { ok: true };
+    }
+
+    if (contactTemplate(templateKey)) {
+      const enquiryId = String(queue.contact_enquiry_id ?? "").trim();
+      const enquiry = await loadContactEnquiry(enquiryId);
+      if (!enquiry) throw new Error("persisted contact enquiry unavailable");
+      await dispatchContactEmail({ queue, enquiry, provider, markSent, markFailed });
+      return { ok: true };
+    }
+
+    await markFailed({
+      emailLogId: String(queue.id ?? ""),
+      errorCode: "UNSUPPORTED_EMAIL_TEMPLATE",
+      errorMessage: "Transactional email template is not supported by this dispatcher.",
+      retryAt: null
+    });
+    return { ok: false, code: "UNSUPPORTED_EMAIL_TEMPLATE" };
+  } catch {
+    if (queue?.id) {
+      try {
+        await markFailed({
+          emailLogId: String(queue.id),
+          errorCode: "EMAIL_DISPATCH_FAILED",
+          errorMessage: "Transactional email dispatch failed.",
+          retryAt: null
+        });
+      } catch {
+        // Preserve the primary failure. Template-specific delivery code may already have recorded a retry.
+      }
+    }
+    return { ok: false, code: "EMAIL_DISPATCH_FAILED" };
+  }
+}
+
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   const path = route(url);
@@ -192,77 +277,55 @@ Deno.serve(async (request: Request) => {
       providerConfigured: provider.configured,
       databaseConfigured: Boolean(SUPABASE_URL && API_KEY),
       applicationNotifications: true,
-      contactNotifications: true
+      contactNotifications: true,
+      retryScheduler: true,
+      monitoring: true
     });
   }
 
-  if (request.method !== "POST" || path !== "/dispatch") {
-    const responseHeaders = headers("text/plain; charset=utf-8");
-    responseHeaders.set("allow", "GET, POST");
-    return new Response("Not Found", { status: 404, headers: responseHeaders });
-  }
-
-  if (!(await internalAuthorized(request))) return json({ ok: false, code: "UNAUTHORIZED" }, 401);
-  const body = await parseDispatchBody(request);
-  if (!body) return json({ ok: false, code: "INVALID_REQUEST" }, 400);
-  if (!provider.configured) return json({ ok: false, code: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
-
-  let queue: Record<string, unknown> | null = null;
-  try {
-    queue = await claimEmail(body.emailLogId);
-    if (!queue) return json({ ok: false, code: "EMAIL_NOT_CLAIMABLE" }, 409);
-    const templateKey = String(queue.template_key ?? "").trim();
-
-    let result;
-    if (templateKey === EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET) {
-      result = await dispatchAdminPasswordReset({
-        queue,
-        provider,
-        createResetToken,
-        markSent,
-        markFailed,
-        randomToken,
-        shaHex
-      });
-    } else if (applicationTemplate(templateKey)) {
-      const applicationId = String(queue.application_id ?? "").trim();
-      const application = await loadApplication(applicationId);
-      if (!application) throw new Error("persisted application unavailable");
-      result = await dispatchApplicationEmail({ queue, application, provider, markSent, markFailed });
-    } else if (contactTemplate(templateKey)) {
-      const enquiryId = String(queue.contact_enquiry_id ?? "").trim();
-      const enquiry = await loadContactEnquiry(enquiryId);
-      if (!enquiry) throw new Error("persisted contact enquiry unavailable");
-      result = await dispatchContactEmail({ queue, enquiry, provider, markSent, markFailed });
-    } else {
-      await markFailed({
-        emailLogId: String(queue.id ?? ""),
-        errorCode: "UNSUPPORTED_EMAIL_TEMPLATE",
-        errorMessage: "Transactional email template is not supported by this dispatcher.",
-        retryAt: null
-      });
-      return json({ ok: false, code: "UNSUPPORTED_EMAIL_TEMPLATE" }, 422);
+  if (request.method === "POST" && path === "/sweep") {
+    if (!(await schedulerAuthorized(request))) return json({ ok: false, code: "UNAUTHORIZED" }, 401);
+    if (!provider.configured) {
+      return json({ ok: false, code: "EMAIL_PROVIDER_NOT_CONFIGURED", attempted: 0, succeeded: 0, failed: 0, skipped: 0 }, 503);
     }
-
-    return json({
-      ok: true,
-      emailLogId: result.emailLogId,
-      provider: result.provider,
-      providerMessageId: result.providerMessageId
-    });
-  } catch {
-    if (queue?.id) {
-      try {
-        await markFailed({
-          emailLogId: String(queue.id),
-          errorCode: "EMAIL_DISPATCH_FAILED",
-          errorMessage: "Transactional email dispatch failed.",
-          retryAt: null
-        });
-      } catch {
-        // Failure persistence is best effort after the primary dispatch failure.
+    try {
+      const dueIds = await dueEmailIds(SWEEP_LIMIT);
+      let succeeded = 0;
+      let failed = 0;
+      let skipped = 0;
+      for (const emailLogId of dueIds) {
+        const result = await dispatchEmailById(emailLogId);
+        if (result.ok) succeeded += 1;
+        else if (result.code === "EMAIL_NOT_CLAIMABLE") skipped += 1;
+        else failed += 1;
       }
+      return json({ ok: true, attempted: dueIds.length, succeeded, failed, skipped });
+    } catch {
+      return json({ ok: false, code: "EMAIL_SWEEP_FAILED", attempted: 0, succeeded: 0, failed: 0, skipped: 0 }, 503);
     }
-    return json({ ok: false, code: "EMAIL_DISPATCH_FAILED" }, 503);
   }
+
+  if (request.method === "POST" && path === "/monitor") {
+    if (!(await internalAuthorized(request))) return json({ ok: false, code: "UNAUTHORIZED" }, 401);
+    try {
+      return json({ ok: true, health: await healthSnapshot() });
+    } catch {
+      return json({ ok: false, code: "EMAIL_MONITORING_UNAVAILABLE" }, 503);
+    }
+  }
+
+  if (request.method === "POST" && path === "/dispatch") {
+    if (!(await internalAuthorized(request))) return json({ ok: false, code: "UNAUTHORIZED" }, 401);
+    const body = await parseDispatchBody(request);
+    if (!body) return json({ ok: false, code: "INVALID_REQUEST" }, 400);
+    if (!provider.configured) return json({ ok: false, code: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
+    const result = await dispatchEmailById(body.emailLogId);
+    if (result.ok) return json({ ok: true });
+    const status = result.code === "EMAIL_NOT_CLAIMABLE" ? 409 : result.code === "UNSUPPORTED_EMAIL_TEMPLATE" ? 422 : 503;
+    return json({ ok: false, code: result.code ?? "EMAIL_DISPATCH_FAILED" }, status);
+  }
+
+  const responseHeaders = headers("text/plain; charset=utf-8");
+  responseHeaders.set("allow", "GET, POST");
+  return new Response("Not Found", { status: 404, headers: responseHeaders });
 });
