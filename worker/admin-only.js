@@ -10,7 +10,7 @@ import {
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
-export const ADMIN_EDGE_RELEASE = 'phase12-admin-soft-navigation-v1';
+export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 
 function copyResponseHeaders(source) {
   const headers = new Headers(source);
