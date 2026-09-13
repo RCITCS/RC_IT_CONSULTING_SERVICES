@@ -122,7 +122,7 @@ assert.match(migration, /attempt_count = attempt_count \+ 1/i);
 assert.match(migration, /grant execute on function public\.claim_transactional_email\(uuid\) to service_role/i);
 assert.match(migration, /revoke execute on function public\.claim_transactional_email\(uuid\) from public, anon, authenticated/i);
 
-const dedupMigration = await readFile(path.join(root, 'supabase/migrations/20260913231500_phase_13_admin_reset_dedup.sql'), 'utf8');
+const dedupMigration = await readFile(path.join(root, 'supabase/migrations/20260913231354_phase_13_admin_reset_dedup.sql'), 'utf8');
 assert.match(dedupMigration, /pg_advisory_xact_lock/i);
 assert.match(dedupMigration, /admin_password_reset/i);
 assert.match(dedupMigration, /interval '60 seconds'/i);
