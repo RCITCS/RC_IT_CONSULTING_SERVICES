@@ -52,27 +52,43 @@ jobs:
           set -euo pipefail
           BASE='https://rcitcs.com'
 
+          require_match() {
+            local label="$1" pattern="$2" file="$3"
+            if ! grep -q "$pattern" "$file"; then
+              echo "Missing expected production boundary: ${label}" >&2
+              exit 1
+            fi
+          }
+
+          reject_match() {
+            local label="$1" pattern="$2" file="$3"
+            if grep -q "$pattern" "$file"; then
+              echo "Unexpected production boundary content: ${label}" >&2
+              exit 1
+            fi
+          }
+
           curl -L -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
-          grep -q 'name="robots" content="index,follow"' /tmp/job.html
-          grep -q 'data-runtime-job-posting' /tmp/job.html
-          grep -q '"@type":"JobPosting"' /tmp/job.html
-          grep -q '"directApply":true' /tmp/job.html
-          grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
+          require_match 'job page index directive' 'name="robots" content="index,follow"' /tmp/job.html
+          require_match 'runtime job marker' 'data-runtime-job-posting' /tmp/job.html
+          require_match 'JobPosting structured data' '"@type":"JobPosting"' /tmp/job.html
+          require_match 'directApply structured data' '"directApply":true' /tmp/job.html
+          require_match 'application link' 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
 
           curl -L -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
-          grep -q 'data-career-application' /tmp/apply.html
-          grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
-          ! grep -q 'data-runtime-job-posting' /tmp/apply.html
-          ! grep -q 'SUPABASE_SECRET_KEY' /tmp/apply.html
-          ! grep -q 'sb_secret_' /tmp/apply.html
+          require_match 'candidate application form' 'data-career-application' /tmp/apply.html
+          require_match 'application noindex directive' 'name="robots" content="noindex,nofollow"' /tmp/apply.html
+          reject_match 'JobPosting marker on application page' 'data-runtime-job-posting' /tmp/apply.html
+          reject_match 'Supabase secret variable name in application page' 'SUPABASE_SECRET_KEY' /tmp/apply.html
+          reject_match 'Supabase secret value prefix in application page' 'sb_secret_' /tmp/apply.html
 
           curl -L -sS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
-          grep -Fq "${BASE}/careers/jobs/senior-data-engineer</loc>" /tmp/sitemap.xml
-          ! grep -q '/apply</loc>' /tmp/sitemap.xml
+          require_match 'published vacancy in runtime sitemap' '/careers/jobs/senior-data-engineer</loc>' /tmp/sitemap.xml
+          reject_match 'application URL in sitemap' '/apply</loc>' /tmp/sitemap.xml
 
           health_code=$(curl -L -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
           test "$health_code" = '200'
-          grep -q '"ok":true' /tmp/health.json
+          require_match 'public API health' '"ok":true' /tmp/health.json
 
           echo 'Phase 12 public Careers, JobPosting, application noindex, runtime sitemap and API health verified.'
 
