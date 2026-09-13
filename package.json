@@ -14,7 +14,7 @@
     "check:cloudflare-builds": "node tests/cloudflare-workers-build-routing.mjs",
     "check:phase11-jobs": "node tests/admin-job-management.mjs && node tests/phase12-job-authoring-final.mjs && node tests/phase11-content-preservation.mjs && node tests/phase11-seed-integrity.mjs && node tests/phase11-spec-convergence.mjs && node tests/public-careers-provider-boundary.mjs && node tests/public-careers-runtime.mjs",
     "check:phase12-applications": "node tests/phase12-candidate-contract.mjs && node tests/phase12-candidate-gateway.mjs && node tests/phase12-candidate-security.mjs && node tests/phase12-database-hardening.mjs && node tests/phase12-admin-session-identity.mjs && node tests/admin-candidate-applications.mjs && node tests/admin-portal-domain-separation.mjs && node tests/admin-dedicated-route-navigation.mjs",
-    "check:phase13-notifications": "node tests/phase13-notification-core.mjs && node tests/phase13-admin-reset-delivery.mjs",
+    "check:phase13-notifications": "node tests/phase13-notification-core.mjs && node tests/phase13-admin-reset-delivery.mjs && node tests/phase13-application-emails.mjs",
     "check:architecture": "node scripts/check-architecture.mjs && npm run check:backend-architecture && npm run check:persistence-architecture && npm run check:admin-auth-security && npm run check:phase10-dashboard && npm run check:cloudflare-builds && npm run check:phase11-jobs && npm run check:phase12-applications && npm run check:phase13-notifications",
     "test:smoke": "node tests/smoke.mjs",
     "test:backend": "node tests/backend-foundation.mjs",
