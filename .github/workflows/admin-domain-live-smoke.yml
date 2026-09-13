@@ -92,6 +92,14 @@ jobs:
             fi
 
             if [[ "$label" == 'production' ]]; then
+              if ! grep -Fq '.workspace[aria-labelledby="jobs-title"] .activity-table' "$body" \
+                || ! grep -Fq '.workspace[aria-labelledby="applications-title"] .activity-table' "$body" \
+                || ! grep -Fq 'content:"Candidate"' "$body" \
+                || ! grep -Fq 'content:"Actions"' "$body"; then
+                echo 'Production admin HTML is missing the Phase 12 Jobs/Applications mobile register stylesheet.' >&2
+                failures=$((failures + 1))
+              fi
+
               mobile_code=$(curl -sS -o /tmp/admin-mobile-compatible.html -w '%{http_code}' \
                 -X POST \
                 -H 'content-type: application/x-www-form-urlencoded' \
@@ -143,4 +151,4 @@ jobs:
             exit 1
           fi
 
-          echo 'Production dedicated-admin hostname, exact mobile edge release and cross-origin boundary verified.'
+          echo 'Production dedicated-admin hostname, exact mobile edge release, responsive register stylesheet and cross-origin boundary verified.'
