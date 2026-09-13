@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { dispatchAdminPasswordReset } from "../_shared/admin-password-reset-delivery.js";
+import { dispatchApplicationEmail } from "../_shared/application-email-delivery.js";
+import { EMAIL_TEMPLATE_KEYS } from "../_shared/email-contract.js";
 import { createResendEmailProvider } from "../_shared/resend-email-provider.js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -81,6 +83,13 @@ async function rpc(name: string, payload: Record<string, unknown>): Promise<unkn
   return response.json();
 }
 
+async function rows(path: string): Promise<Record<string, unknown>[]> {
+  const response = await rest(path, { method: "GET" });
+  if (!response.ok) throw new Error("database request failed");
+  const body = await response.json();
+  return Array.isArray(body) ? body as Record<string, unknown>[] : [];
+}
+
 function scalarBoolean(value: unknown): boolean {
   if (value === true) return true;
   if (Array.isArray(value) && value.length === 1) return value[0] === true;
@@ -92,6 +101,14 @@ async function claimEmail(emailLogId: string): Promise<Record<string, unknown> |
   if (!value) return null;
   if (Array.isArray(value)) return (value[0] as Record<string, unknown> | undefined) ?? null;
   return typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+async function loadApplication(applicationId: string): Promise<Record<string, unknown> | null> {
+  if (!UUID.test(applicationId)) return null;
+  const data = await rows(
+    `applications?id=eq.${encodeURIComponent(applicationId)}&select=id,public_reference,first_name,last_name,email,job_title,job_code,submitted_at&limit=1`
+  );
+  return data.length === 1 ? data[0] : null;
 }
 
 async function createResetToken({ adminId, tokenHash, expiresAt }: { adminId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
@@ -143,6 +160,11 @@ async function parseDispatchBody(request: Request): Promise<{ emailLogId: string
   }
 }
 
+function applicationTemplate(templateKey: string): boolean {
+  return templateKey === EMAIL_TEMPLATE_KEYS.APPLICATION_ACKNOWLEDGEMENT
+    || templateKey === EMAIL_TEMPLATE_KEYS.INTERNAL_APPLICATION_ALERT;
+}
+
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   const path = route(url);
@@ -154,7 +176,8 @@ Deno.serve(async (request: Request) => {
       contract: "phase13-admin-reset-v1",
       provider: "resend",
       providerConfigured: provider.configured,
-      databaseConfigured: Boolean(SUPABASE_URL && API_KEY)
+      databaseConfigured: Boolean(SUPABASE_URL && API_KEY),
+      applicationNotifications: true
     });
   }
 
@@ -167,20 +190,40 @@ Deno.serve(async (request: Request) => {
   if (!(await internalAuthorized(request))) return json({ ok: false, code: "UNAUTHORIZED" }, 401);
   const body = await parseDispatchBody(request);
   if (!body) return json({ ok: false, code: "INVALID_REQUEST" }, 400);
+  if (!provider.configured) return json({ ok: false, code: "EMAIL_PROVIDER_NOT_CONFIGURED" }, 503);
 
   let queue: Record<string, unknown> | null = null;
   try {
     queue = await claimEmail(body.emailLogId);
     if (!queue) return json({ ok: false, code: "EMAIL_NOT_CLAIMABLE" }, 409);
-    const result = await dispatchAdminPasswordReset({
-      queue,
-      provider,
-      createResetToken,
-      markSent,
-      markFailed,
-      randomToken,
-      shaHex
-    });
+    const templateKey = String(queue.template_key ?? "").trim();
+
+    let result;
+    if (templateKey === EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET) {
+      result = await dispatchAdminPasswordReset({
+        queue,
+        provider,
+        createResetToken,
+        markSent,
+        markFailed,
+        randomToken,
+        shaHex
+      });
+    } else if (applicationTemplate(templateKey)) {
+      const applicationId = String(queue.application_id ?? "").trim();
+      const application = await loadApplication(applicationId);
+      if (!application) throw new Error("persisted application unavailable");
+      result = await dispatchApplicationEmail({ queue, application, provider, markSent, markFailed });
+    } else {
+      await markFailed({
+        emailLogId: String(queue.id ?? ""),
+        errorCode: "UNSUPPORTED_EMAIL_TEMPLATE",
+        errorMessage: "Transactional email template is not supported by this dispatcher.",
+        retryAt: null
+      });
+      return json({ ok: false, code: "UNSUPPORTED_EMAIL_TEMPLATE" }, 422);
+    }
+
     return json({
       ok: true,
       emailLogId: result.emailLogId,
@@ -188,6 +231,18 @@ Deno.serve(async (request: Request) => {
       providerMessageId: result.providerMessageId
     });
   } catch {
+    if (queue?.id) {
+      try {
+        await markFailed({
+          emailLogId: String(queue.id),
+          errorCode: "EMAIL_DISPATCH_FAILED",
+          errorMessage: "Transactional email dispatch failed.",
+          retryAt: null
+        });
+      } catch {
+        // Failure persistence is best effort after the primary dispatch failure.
+      }
+    }
     return json({ ok: false, code: "EMAIL_DISPATCH_FAILED" }, 503);
   }
 });
