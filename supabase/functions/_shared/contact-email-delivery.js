@@ -7,6 +7,7 @@ import {
   contactAcknowledgementTemplate,
   internalContactAlertTemplate
 } from './email-templates.js';
+import { retryAtForEmailFailure } from './email-retry-policy.js';
 import { EmailProviderError } from './resend-email-provider.js';
 
 const CONTACT_TEMPLATES = new Set([
@@ -94,7 +95,11 @@ export async function dispatchContactEmail({ queue, enquiry, provider, markSent,
       emailLogId,
       errorCode: code,
       errorMessage: 'Transactional contact email delivery failed.',
-      retryAt: null
+      retryAt: retryAtForEmailFailure({
+        templateKey: queue.template_key,
+        attemptCount: queue.attempt_count,
+        error
+      })
     });
     throw error;
   }
