@@ -22,8 +22,9 @@ function providerErrorCode(body, fallback) {
   return value || fallback;
 }
 
-function retryableStatus(status) {
-  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+function retryableProviderError(status, code) {
+  if (status === 409) return code === 'concurrent_idempotent_requests';
+  return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
 async function safeJson(response) {
@@ -89,9 +90,10 @@ export function createResendEmailProvider({ apiKey = '', fetchImpl = globalThis.
 
         const body = await safeJson(response);
         if (!response.ok) {
+          const code = providerErrorCode(body, `EMAIL_PROVIDER_HTTP_${response.status}`);
           throw new EmailProviderError('Email provider rejected the request.', {
-            code: providerErrorCode(body, `EMAIL_PROVIDER_HTTP_${response.status}`),
-            retryable: retryableStatus(response.status),
+            code,
+            retryable: retryableProviderError(response.status, code),
             status: response.status
           });
         }
