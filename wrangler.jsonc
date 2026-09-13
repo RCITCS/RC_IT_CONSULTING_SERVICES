@@ -8,10 +8,6 @@
     {
       "pattern": "rcitcs.com",
       "custom_domain": true
-    },
-    {
-      "pattern": "admin.rcitcs.com/*",
-      "zone_name": "rcitcs.com"
     }
   ],
   "secrets": {

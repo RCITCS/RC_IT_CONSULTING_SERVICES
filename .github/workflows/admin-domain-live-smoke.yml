@@ -147,7 +147,7 @@ jobs:
             fi
           }
 
-          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-admin-soft-navigation-v1'
+          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-job-authoring-v1'
 
           echo '--- Staging admin DNS diagnostic ---'
           diagnose_dns 'admin-staging.rcitcs.com'

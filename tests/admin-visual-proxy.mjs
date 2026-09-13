@@ -9,7 +9,9 @@ const workerSource = await readFile(workerPath, 'utf8');
 const primaryConfig = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
 const stagingConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
 const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
+const connectedAdminConfig = JSON.parse(await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'));
 const publicEntrypointSource = await readFile(path.join(root, 'worker/index.js'), 'utf8');
+const connectedAdminEntrypointSource = await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/index.js'), 'utf8');
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const {
@@ -89,26 +91,25 @@ const completedNavigation = enhanceAdminNavigation(partiallyNativeNavigation, ''
 assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length, 2, 'A missing mobile Applications entry must be added without duplicating the native desktop entry.');
 
 assert.equal(primaryConfig.main, './worker/index.js');
-assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 application Worker must remain reachable on its workers.dev production origin.');
+assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 public Worker must remain reachable on its workers.dev production origin.');
 assert.equal(Object.hasOwn(primaryConfig, 'route'), false);
-assert.equal(primaryConfig.routes?.length, 2, 'The company Worker must preserve the public apex Custom Domain and install one separate production admin edge Route.');
-const publicDomain = primaryConfig.routes.find((route) => route.pattern === 'rcitcs.com');
-const adminRoute = primaryConfig.routes.find((route) => route.pattern === 'admin.rcitcs.com/*');
-assert.ok(publicDomain, 'The public rcitcs.com Custom Domain must remain declared.');
-assert.equal(publicDomain.custom_domain, true, 'The public apex must remain a Worker Custom Domain.');
-assert.ok(adminRoute, 'The production admin edge Route must remain declared independently.');
-assert.equal(adminRoute.zone_name, 'rcitcs.com');
-assert.notEqual(adminRoute.custom_domain, true, 'Route precedence is intentional; the dedicated admin Custom Domain remains the underlying origin/fallback.');
+assert.equal(primaryConfig.routes?.length, 1, 'The public Worker must own only the public apex Custom Domain.');
+assert.equal(primaryConfig.routes?.[0]?.pattern, 'rcitcs.com');
+assert.equal(primaryConfig.routes?.[0]?.custom_domain, true, 'The public apex must remain a Worker Custom Domain.');
+assert.equal(primaryConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'The public Worker must never claim the admin hostname.');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
 
-for (const required of [
-  "import adminWorker from './admin-only.js'",
-  'if (DEDICATED_ADMIN_HOSTS.has(host))',
-  'return adminWorker.fetch(request, env, ctx)'
-]) {
-  assert.ok(publicEntrypointSource.includes(required), `Connected Worker admin delegation contract missing: ${required}`);
-}
+assert.ok(publicEntrypointSource.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but public routing must not expose it on admin.rcitcs.com.');
+
+assert.equal(connectedAdminConfig.name, 'rcitcservices');
+assert.equal(connectedAdminConfig.workers_dev, false);
+assert.equal(connectedAdminConfig.keep_vars, true);
+assert.equal(connectedAdminConfig.routes?.length, 1, 'Connected production admin Worker must own exactly one Custom Domain.');
+assert.equal(connectedAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
+assert.equal(connectedAdminConfig.routes?.[0]?.custom_domain, true, 'Connected production admin Worker must provision the admin DNS/certificate independently.');
+assert.ok(connectedAdminEntrypointSource.includes("import adminWorker from '../../worker/admin-only.js';"));
+assert.ok(connectedAdminEntrypointSource.includes('export default adminWorker;'));
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
@@ -121,7 +122,7 @@ assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
 assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The existing production Custom Domain remains as fallback/origin beneath the edge Route.');
+assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The canonical production admin config remains available for a future dedicated build connection.');
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
@@ -129,7 +130,7 @@ assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request
 assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
 assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1'"));
-assert.ok(adminOnlySource.includes("ADMIN_INTERACTION_PATH"));
+assert.ok(adminOnlySource.includes('ADMIN_INTERACTION_PATH'));
 assert.ok(adminOnlySource.includes("script-src 'self'"));
 assert.ok(adminOnlySource.includes("connect-src 'self'"));
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
@@ -143,10 +144,9 @@ for (const expected of [
   "PUBLIC='https://rcitcs.com'",
   '${ADMIN}/applications',
   '${ADMIN}/session',
-  'Production admin routes remain private and host-local',
-  'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
+  'Production admin routes remain private and host-local'
 ]) {
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: production routing preserves the public apex Custom Domain while the dedicated admin route keeps the hardened mobile-compatible interaction shell isolated from the public site.');
+console.log('PASS: rcitcs.com stays on the public Worker while admin.rcitcs.com is independently provisioned and served by the isolated connected admin Worker.');
