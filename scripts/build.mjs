@@ -23,6 +23,7 @@ const stylesRoot = path.join(frontendRoot, 'styles');
 const out = path.join(root, 'dist');
 const assets = path.join(out, 'assets');
 const jsEntry = path.join(frontendRoot, 'app', 'app.js');
+const deploymentSha = String(process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA || 'development').trim();
 
 const cssEntries = {
   app: path.join(stylesRoot, 'app.css'),
@@ -103,11 +104,12 @@ function routeCssLinks(pathName) {
 }
 
 function renderDocument(pathName, shellMarkup, seoHead, prerenderMarker = pathName) {
+  const deploymentMeta = `<meta name="rc-deployment-sha" content="${htmlAttr(deploymentSha)}" />`;
   return sourceTemplate
     .replace(/\s*<meta name="description"[^>]*\/>/i, '')
     .replace(/\s*<title>[^<]*<\/title>/i, '')
     .replace(devStyles, '')
-    .replace('</head>', `  ${seoHead}\n  ${routeCssLinks(pathName)}\n</head>`)
+    .replace('</head>', `  ${deploymentMeta}\n  ${seoHead}\n  ${routeCssLinks(pathName)}\n</head>`)
     .replace('<div id="site-root"></div>', `<div id="site-root" data-route-styles='${JSON.stringify(routeStyles)}' data-prerendered-path="${htmlAttr(prerenderMarker)}">${shellMarkup}</div>`)
     .replace('<script type="module" src="/js/app.js"></script>', `<script type="module" src="/assets/${jsFile}"></script>`);
 }
@@ -141,4 +143,4 @@ await writeFile(path.join(out, '_redirects'), renderRedirectsFile(), 'utf8');
 
 await configureWorkersBuild();
 
-console.log(`Built prerendered SEO site: ${prerenderRoutes.length} route HTML files, sitemap.xml, robots.txt and 404.html; ${cssFile}, ${overridesFile}, ${jsFile}; route CSS ${Object.values(routeStyles).join(', ')}`);
+console.log(`Built prerendered SEO site: ${prerenderRoutes.length} route HTML files, sitemap.xml, robots.txt and 404.html; ${cssFile}, ${overridesFile}, ${jsFile}; route CSS ${Object.values(routeStyles).join(', ')}; deployment SHA ${deploymentSha}`);
