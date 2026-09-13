@@ -91,6 +91,7 @@ assert.equal(sentState.providerMessageId, 'msg_application_123');
 assert.equal(failedState, null);
 
 failedState = null;
+const beforeFailure = Date.now();
 await assert.rejects(
   dispatchApplicationEmail({
     queue: acknowledgementQueue,
@@ -110,8 +111,29 @@ await assert.rejects(
   (error) => error instanceof EmailProviderError && error.code === 'rate_limit_exceeded'
 );
 assert.equal(failedState.errorCode, 'rate_limit_exceeded');
-assert.equal(failedState.retryAt, null, 'Retry scheduling belongs to the dedicated Phase 13.6 reliability policy.');
+assert.ok(Date.parse(failedState.retryAt) >= beforeFailure + 4 * 60_000, 'Transient application delivery must schedule a bounded retry.');
+assert.ok(Date.parse(failedState.retryAt) <= Date.now() + 6 * 60_000, 'First retry must stay near the five-minute policy window.');
 assert.ok(!failedState.errorMessage.includes('temporary provider failure'));
+
+failedState = null;
+await assert.rejects(
+  dispatchApplicationEmail({
+    queue: { ...acknowledgementQueue, attempt_count: 5 },
+    application,
+    provider: {
+      async send() {
+        throw new EmailProviderError('temporary provider failure', {
+          code: 'rate_limit_exceeded',
+          retryable: true,
+          status: 429
+        });
+      }
+    },
+    async markSent() { return true; },
+    async markFailed(input) { failedState = input; return true; }
+  })
+);
+assert.equal(failedState.retryAt, null, 'Fifth failed application attempt must become dead-letter instead of retrying forever.');
 
 const migration = await readFile(path.join(root, 'supabase/migrations/20260913212500_phase_13_application_email_queue.sql'), 'utf8');
 assert.match(migration, /after insert on public\.applications/i);
@@ -134,4 +156,4 @@ assert.match(dispatcher, /INTERNAL_APPLICATION_ALERT/);
 assert.match(dispatcher, /dispatchApplicationEmail/);
 assert.match(dispatcher, /applications\?id=eq\./);
 
-console.log('Phase 13.4 application acknowledgement/internal alert queueing, template authority and provider isolation checks passed.');
+console.log('Phase 13.4/13.6 application notification authority, persistence isolation and bounded retry checks passed.');
