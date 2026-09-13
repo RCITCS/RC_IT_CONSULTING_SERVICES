@@ -128,7 +128,7 @@ assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
 assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
-assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-admin-soft-navigation-v1'"));
+assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1'"));
 assert.ok(adminOnlySource.includes("ADMIN_INTERACTION_PATH"));
 assert.ok(adminOnlySource.includes("script-src 'self'"));
 assert.ok(adminOnlySource.includes("connect-src 'self'"));
