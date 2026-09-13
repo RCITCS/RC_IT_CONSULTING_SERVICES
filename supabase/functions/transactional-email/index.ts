@@ -145,11 +145,15 @@ async function loadContactEnquiry(enquiryId: string): Promise<Record<string, unk
 }
 
 async function createResetToken({ adminId, tokenHash, expiresAt }: { adminId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
-  return scalarBoolean(await rpc("create_admin_password_reset_token", {
+  const result = await rpc("create_admin_password_reset_token", {
     p_admin_id: adminId,
     p_token_hash: tokenHash,
+    p_requested_ip_hash: null,
     p_expires_at: expiresAt
-  }));
+  });
+  if (typeof result === "string") return UUID.test(result);
+  if (Array.isArray(result) && result.length === 1) return UUID.test(String(result[0] ?? ""));
+  return false;
 }
 
 async function markSent({ emailLogId, providerMessageId }: { emailLogId: string; providerMessageId: string }): Promise<boolean> {
