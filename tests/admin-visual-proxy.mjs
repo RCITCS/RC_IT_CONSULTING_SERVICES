@@ -124,7 +124,10 @@ assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
 assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
-assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-ios-post-fallback-v1'"));
+assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-admin-soft-navigation-v1'"));
+assert.ok(adminOnlySource.includes("ADMIN_INTERACTION_PATH"));
+assert.ok(adminOnlySource.includes("script-src 'self'"));
+assert.ok(adminOnlySource.includes("connect-src 'self'"));
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.equal(workerSource.includes(forbidden), false, `Secret material leaked into admin proxy source: ${forbidden}`);
   assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into hardened admin entrypoint: ${forbidden}`);
@@ -142,4 +145,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 admin routing uses the existing company Workers Build to place the hardened mobile-compatible admin entrypoint on the production hostname while preserving responsive UI, CSRF/origin protection and the existing Custom Domain fallback.');
+console.log('PASS: Phase 12 admin routing uses the existing company Workers Build to place the hardened mobile-compatible interaction shell on the production hostname while preserving responsive UI, CSRF/origin protection and the existing Custom Domain fallback.');
