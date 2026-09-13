@@ -169,6 +169,28 @@ await assert.rejects(rateLimited.send(candidateAck), (error) =>
   && error.status === 429
 );
 
+const concurrentConflict = createResendEmailProvider({
+  apiKey: 'test-key',
+  fetchImpl: async () => new Response(JSON.stringify({ name: 'concurrent_idempotent_requests' }), { status: 409 })
+});
+await assert.rejects(concurrentConflict.send(candidateAck), (error) =>
+  error instanceof EmailProviderError
+  && error.code === 'concurrent_idempotent_requests'
+  && error.retryable === true
+  && error.status === 409
+);
+
+const permanentIdempotencyConflict = createResendEmailProvider({
+  apiKey: 'test-key',
+  fetchImpl: async () => new Response(JSON.stringify({ name: 'invalid_idempotent_request' }), { status: 409 })
+});
+await assert.rejects(permanentIdempotencyConflict.send(candidateAck), (error) =>
+  error instanceof EmailProviderError
+  && error.code === 'invalid_idempotent_request'
+  && error.retryable === false
+  && error.status === 409
+);
+
 const invalidRequest = createResendEmailProvider({
   apiKey: 'test-key',
   fetchImpl: async () => new Response(JSON.stringify({ name: 'validation_error' }), { status: 422 })
