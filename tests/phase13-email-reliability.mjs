@@ -94,6 +94,12 @@ for (const sensitive of ['recipient_email', 'reply_to_email', 'sender_email', 'm
   assert.ok(!snapshot.includes(sensitive), `Aggregate monitoring must not expose ${sensitive}.`);
 }
 
+const pgNetCorrection = await readFile(path.join(root, 'supabase/migrations/20260913215000_phase_13_pg_net_extension_schema.sql'), 'utf8');
+assert.match(pgNetCorrection, /drop extension pg_net/i);
+assert.match(pgNetCorrection, /create extension pg_net with schema extensions/i);
+assert.match(pgNetCorrection, /v_schema = 'public'/i);
+assert.ok(!pgNetCorrection.includes('cascade'), 'pg_net hardening must not cascade-delete unrelated objects.');
+
 const dispatcher = await readFile(path.join(root, 'supabase/functions/transactional-email/index.ts'), 'utf8');
 assert.match(dispatcher, /path === "\/sweep"/);
 assert.match(dispatcher, /schedulerAuthorized/);
@@ -111,4 +117,4 @@ assert.ok(!dispatcher.includes('metadata: result'));
 const resetDelivery = await readFile(path.join(root, 'supabase/functions/_shared/admin-password-reset-delivery.js'), 'utf8');
 assert.match(resetDelivery, /retryAt: null/);
 
-console.log('Phase 13.6 bounded retries, reset-link exclusion, cron sweep authorization and aggregate monitoring checks passed.');
+console.log('Phase 13.6 bounded retries, reset-link exclusion, cron sweep authorization, aggregate monitoring and pg_net schema hardening checks passed.');
