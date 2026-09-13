@@ -47,7 +47,7 @@ assert.ok(!/p_payload\s*->>\s*'code'/.test(migration));
 assert.ok(!adminUi.includes('name="code"'), 'Admin form must not expose an editable job-code input.');
 assert.ok(!adminUi.includes('form.get("code")'), 'Admin form parser must not accept a client-supplied job code.');
 assert.ok(adminUi.includes('Generated automatically'));
-assert.ok(adminUi.includes('Server-generated · immutable'));
+assert.ok(adminUi.includes('Based on category and work mode · immutable'));
 assert.ok(adminUi.includes('Candidate-content preview'));
 
 for (const candidateLabel of [
