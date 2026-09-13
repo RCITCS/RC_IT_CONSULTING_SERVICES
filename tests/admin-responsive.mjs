@@ -26,7 +26,14 @@ for (const contract of [
   'content:"Documents"',
   'content:"Submitted"',
   'grid-template-columns:repeat(2,minmax(0,1fr))!important',
-  '.workspace[aria-labelledby="jobs-title"] .activity-table td[colspan],.workspace[aria-labelledby="applications-title"] .activity-table td[colspan]'
+  '.workspace[aria-labelledby="jobs-title"] .activity-table td[colspan],.workspace[aria-labelledby="applications-title"] .activity-table td[colspan]',
+  '.admin-shell .job-editor-form textarea,.rc-admin-dialog .job-editor-form textarea{field-sizing:content!important',
+  'height:auto!important',
+  'overflow-y:hidden!important',
+  'resize:none!important',
+  '.admin-shell .job-editor-form #job-required-skills,.rc-admin-dialog .job-editor-form #job-required-skills{min-height:112px!important}',
+  '.admin-shell .job-editor-form #job-description,.rc-admin-dialog .job-editor-form #job-description{min-height:160px!important}',
+  '.admin-shell .job-editor-form #job-benefits,.rc-admin-dialog .job-editor-form #job-benefits{min-height:112px!important}'
 ]) {
   assert.ok(ADMIN_RESPONSIVE_STYLE.includes(contract), `Responsive admin contract missing: ${contract}`);
 }
@@ -51,5 +58,11 @@ assert.ok(
   ADMIN_RESPONSIVE_STYLE.includes('.workspace[aria-labelledby="applications-title"] .activity-table tbody td:nth-child(1){grid-column:1/-1!important'),
   'Applications register must keep candidate identity full-width in mobile card layout.'
 );
+assert.ok(
+  ADMIN_RESPONSIVE_STYLE.includes('field-sizing:content!important') &&
+  ADMIN_RESPONSIVE_STYLE.includes('height:auto!important') &&
+  ADMIN_RESPONSIVE_STYLE.includes('overflow-y:hidden!important'),
+  'Job long-form authoring controls must start compact and grow with their content instead of reserving a large fixed writing area.'
+);
 
-console.log('PASS: dedicated admin UI has phone and iPad/tablet responsive contracts, including native Jobs and Applications register card layouts, without changing desktop workflow authority.');
+console.log('PASS: dedicated admin UI has phone and iPad/tablet responsive contracts, including auto-growing job authoring fields and native Jobs and Applications register card layouts, without changing workflow authority.');
