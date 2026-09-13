@@ -9,9 +9,8 @@ const workerSource = await readFile(workerPath, 'utf8');
 const primaryConfig = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
 const stagingConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
 const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
-const connectedAdminConfig = JSON.parse(await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'));
+const legacyConfig = JSON.parse(await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'));
 const publicEntrypointSource = await readFile(path.join(root, 'worker/index.js'), 'utf8');
-const connectedAdminEntrypointSource = await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/index.js'), 'utf8');
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const {
@@ -99,30 +98,25 @@ assert.equal(primaryConfig.routes?.[0]?.custom_domain, true, 'The public apex mu
 assert.equal(primaryConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'The public Worker must never claim the admin hostname.');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
-
 assert.ok(publicEntrypointSource.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but public routing must not expose it on admin.rcitcs.com.');
-
-assert.equal(connectedAdminConfig.name, 'rcitcservices');
-assert.equal(connectedAdminConfig.workers_dev, false);
-assert.equal(connectedAdminConfig.keep_vars, true);
-assert.equal(connectedAdminConfig.routes?.length, 1, 'Connected production admin Worker must own exactly one Custom Domain.');
-assert.equal(connectedAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(connectedAdminConfig.routes?.[0]?.custom_domain, true, 'Connected production admin Worker must provision the admin DNS/certificate independently.');
-assert.ok(connectedAdminEntrypointSource.includes("import adminWorker from '../../worker/admin-only.js';"));
-assert.ok(connectedAdminEntrypointSource.includes('export default adminWorker;'));
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.workers_dev, false);
-assert.equal(stagingConfig.routes?.length, 1);
-assert.equal(stagingConfig.routes?.[0]?.pattern, 'admin-staging.rcitcs.com');
-assert.equal(stagingConfig.routes?.[0]?.custom_domain, true, 'The isolated staging config retains its Worker Custom Domain when provisioned.');
+assert.equal(stagingConfig.keep_vars, true);
+assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must provision production admin DNS/TLS.');
+assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must preserve staging admin DNS/TLS.');
+
+assert.equal(legacyConfig.name, 'rcitcservices');
+assert.equal(legacyConfig.workers_dev, false);
+assert.equal(legacyConfig.keep_vars, true);
+assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker must never claim company domains.');
 
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
 assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The canonical production admin config remains available for a future dedicated build connection.');
+assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The canonical production admin config remains ready for a future dedicated build migration.');
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
@@ -149,4 +143,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: rcitcs.com stays on the public Worker while admin.rcitcs.com is independently provisioned and served by the isolated connected admin Worker.');
+console.log('PASS: public and admin delivery remain isolated, with admin.rcitcs.com provisioned by the already-connected company admin Worker and the old Cloudflare account holding no company routes.');
