@@ -1,10 +1,16 @@
 import runtime from '../src/backend/runtime/worker.js';
 import { injectAdminResponsiveHtml } from './admin-responsive.js';
+import {
+  ADMIN_INTERACTION_PATH,
+  ADMIN_INTERACTION_SCRIPT,
+  ADMIN_SOFT_SUBMIT_HEADER,
+  injectAdminInteractionHtml
+} from './admin-interactions.js';
 
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
-export const ADMIN_EDGE_RELEASE = 'phase12-ios-post-fallback-v1';
+export const ADMIN_EDGE_RELEASE = 'phase12-admin-soft-navigation-v1';
 
 function copyResponseHeaders(source) {
   const headers = new Headers(source);
@@ -82,12 +88,32 @@ function withSameOriginEvidence(request, url) {
   return new Request(request, { headers });
 }
 
+function withTrustedNavigationEvidence(request, url) {
+  const headers = new Headers(request.headers);
+  headers.set('origin', url.origin);
+  headers.set('sec-fetch-site', 'same-origin');
+  headers.set('sec-fetch-mode', 'navigate');
+  headers.set('sec-fetch-dest', 'document');
+  headers.set('sec-fetch-user', '?1');
+  headers.delete(ADMIN_SOFT_SUBMIT_HEADER);
+  return new Request(request, { headers });
+}
+
 export async function normalizeAdminBrowserPost(request) {
   if (request.method !== 'POST') return request;
   const url = new URL(request.url);
   if (!ADMIN_HOSTS.has(url.hostname.toLowerCase())) return request;
 
   if (hasExplicitCrossOriginEvidence(request, url)) return request;
+
+  // The client interaction layer may submit authenticated admin forms with fetch
+  // so the surrounding register or modal does not tear down. Treat that request
+  // as browser-navigation evidence only after the edge independently proves the
+  // server-issued HttpOnly CSRF cookie matches the submitted form token.
+  if (request.headers.get(ADMIN_SOFT_SUBMIT_HEADER) === '1') {
+    if (!(await hasMatchingAdminCsrf(request))) return request;
+    return withTrustedNavigationEvidence(request, url);
+  }
 
   const origin = request.headers.get('origin');
   if (origin && origin !== 'null') return request;
@@ -109,6 +135,26 @@ export async function normalizeAdminBrowserPost(request) {
   return request;
 }
 
+function adminInteractionResponse() {
+  return new Response(ADMIN_INTERACTION_SCRIPT, {
+    status: 200,
+    headers: {
+      'content-type': 'text/javascript; charset=utf-8',
+      'cache-control': 'no-store, max-age=0, must-revalidate',
+      'x-content-type-options': 'nosniff',
+      'x-robots-tag': 'noindex, nofollow, noarchive',
+      'cross-origin-resource-policy': 'same-origin'
+    }
+  });
+}
+
+function allowAdminInteractions(csp = '') {
+  const directives = csp.split(';').map((item) => item.trim()).filter(Boolean);
+  if (!directives.some((item) => item.startsWith('script-src '))) directives.push("script-src 'self'");
+  if (!directives.some((item) => item.startsWith('connect-src '))) directives.push("connect-src 'self'");
+  return directives.join('; ');
+}
+
 async function enhanceAdminResponse(response, requestMethod) {
   const contentType = response.headers.get('content-type') || '';
   if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status) || !contentType.toLowerCase().includes('text/html')) {
@@ -116,8 +162,9 @@ async function enhanceAdminResponse(response, requestMethod) {
   }
 
   const body = await response.text();
-  const enhanced = injectAdminResponsiveHtml(body);
+  const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(body));
   const headers = copyResponseHeaders(response.headers);
+  headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
   headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
   return new Response(enhanced, {
     status: response.status,
@@ -128,7 +175,8 @@ async function enhanceAdminResponse(response, requestMethod) {
 
 export default {
   async fetch(request, env, ctx) {
-    const host = new URL(request.url).hostname.toLowerCase();
+    const url = new URL(request.url);
+    const host = url.hostname.toLowerCase();
     if (!ADMIN_HOSTS.has(host)) {
       return new Response('Not Found', {
         status: 404,
@@ -138,6 +186,13 @@ export default {
           'x-content-type-options': 'nosniff'
         }
       });
+    }
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === ADMIN_INTERACTION_PATH) {
+      if (request.method === 'HEAD') {
+        const response = adminInteractionResponse();
+        return new Response(null, { status: response.status, headers: response.headers });
+      }
+      return adminInteractionResponse();
     }
     request = await normalizeAdminBrowserPost(request);
     const response = await runtime.fetch(request, env, ctx);

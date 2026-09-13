@@ -100,6 +100,30 @@ jobs:
                 failures=$((failures + 1))
               fi
 
+              if ! grep -Fq 'data-rc-admin-interactions' "$body" \
+                || ! grep -Fq 'src="/__rc-admin/interactions.js"' "$body"; then
+                echo 'Production admin HTML is missing the Phase 12 progressive interaction shell.' >&2
+                failures=$((failures + 1))
+              fi
+
+              if ! tr -d '\r' < "$headers" | grep -qi "^content-security-policy:.*script-src 'self'" \
+                || ! tr -d '\r' < "$headers" | grep -qi "^content-security-policy:.*connect-src 'self'"; then
+                echo 'Production admin CSP does not narrowly permit the same-origin interaction script and fetch navigation.' >&2
+                failures=$((failures + 1))
+              fi
+
+              interaction_code=$(curl -sS -D /tmp/admin-interactions.headers -o /tmp/admin-interactions.js -w '%{http_code}' "$admin/__rc-admin/interactions.js" || true)
+              if [[ "$interaction_code" != '200' ]] \
+                || ! grep -Fq 'history.pushState' /tmp/admin-interactions.js \
+                || ! grep -Fq 'showModal()' /tmp/admin-interactions.js \
+                || ! grep -Fq 'x-rc-admin-soft-submit' /tmp/admin-interactions.js \
+                || grep -Fq 'location.reload(' /tmp/admin-interactions.js; then
+                echo "Production admin interaction script is missing or stale; status=${interaction_code}." >&2
+                failures=$((failures + 1))
+              fi
+              tr -d '\r' < /tmp/admin-interactions.headers | grep -qi '^cache-control:.*no-store' || failures=$((failures + 1))
+              tr -d '\r' < /tmp/admin-interactions.headers | grep -qi '^cross-origin-resource-policy: *same-origin' || failures=$((failures + 1))
+
               mobile_code=$(curl -sS -o /tmp/admin-mobile-compatible.html -w '%{http_code}' \
                 -X POST \
                 -H 'content-type: application/x-www-form-urlencoded' \
@@ -123,7 +147,7 @@ jobs:
             fi
           }
 
-          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-ios-post-fallback-v1'
+          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-admin-soft-navigation-v1'
 
           echo '--- Staging admin DNS diagnostic ---'
           diagnose_dns 'admin-staging.rcitcs.com'
@@ -151,4 +175,4 @@ jobs:
             exit 1
           fi
 
-          echo 'Production dedicated-admin hostname, exact mobile edge release, responsive register stylesheet and cross-origin boundary verified.'
+          echo 'Production dedicated-admin hostname, mobile register CSS, progressive History API/modal interaction shell, exact edge release and cross-origin boundary verified.'
