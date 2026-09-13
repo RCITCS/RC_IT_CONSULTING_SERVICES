@@ -4,7 +4,7 @@ import { EmailProviderError } from './resend-email-provider.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ADMIN_EMAIL = 'rcitcservices@gmail.com';
-export const ADMIN_RESET_TTL_MINUTES = 10;
+export const ADMIN_RESET_TTL_MINUTES = 30;
 
 function text(value) {
   return String(value ?? '').trim();
