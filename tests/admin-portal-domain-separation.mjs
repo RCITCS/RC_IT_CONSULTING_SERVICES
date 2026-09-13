@@ -32,10 +32,14 @@ assert.ok(Array.isArray(config.assets?.run_worker_first));
 assert.ok(config.assets.run_worker_first.includes('/*'), 'Worker must run before assets for dynamic Careers/API/admin-host routing.');
 assert.equal(config.workers_dev, true, 'Primary application Worker remains reachable on its workers.dev deployment.');
 assert.equal(Object.hasOwn(config, 'route'), false);
-assert.equal(config.routes?.length, 1, 'The connected company Worker must own exactly one explicit production admin edge route.');
-assert.equal(config.routes?.[0]?.pattern, 'admin.rcitcs.com/*');
-assert.equal(config.routes?.[0]?.zone_name, 'rcitcs.com');
-assert.notEqual(config.routes?.[0]?.custom_domain, true, 'The public Worker is a Route in front of the existing admin Custom Domain, not a replacement origin.');
+assert.equal(config.routes?.length, 2, 'Production routing must preserve the public apex Custom Domain and exactly one separate admin edge Route.');
+const publicDomain = config.routes.find((route) => route.pattern === 'rcitcs.com');
+const adminRoute = config.routes.find((route) => route.pattern === 'admin.rcitcs.com/*');
+assert.ok(publicDomain, 'Public rcitcs.com Custom Domain binding must remain declared.');
+assert.equal(publicDomain.custom_domain, true, 'Public rcitcs.com must remain a Worker Custom Domain so Cloudflare owns its DNS/certificate binding.');
+assert.ok(adminRoute, 'Dedicated admin route must remain declared independently of the public apex.');
+assert.equal(adminRoute.zone_name, 'rcitcs.com');
+assert.notEqual(adminRoute.custom_domain, true, 'The admin edge remains a Route in front of the dedicated admin origin; it must not replace the public apex binding.');
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
@@ -48,4 +52,4 @@ for (const expected of [
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: the existing company Workers Build owns the production admin edge Route, delegates it through the hardened admin entrypoint, and leaves the existing Custom Domain as the underlying origin/fallback.');
+console.log('PASS: production routing preserves the public rcitcs.com Custom Domain while the dedicated admin hostname remains isolated on its own edge Route.');

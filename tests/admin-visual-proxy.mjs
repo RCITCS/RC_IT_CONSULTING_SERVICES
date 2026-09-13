@@ -91,10 +91,14 @@ assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length,
 assert.equal(primaryConfig.main, './worker/index.js');
 assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 application Worker must remain reachable on its workers.dev production origin.');
 assert.equal(Object.hasOwn(primaryConfig, 'route'), false);
-assert.equal(primaryConfig.routes?.length, 1, 'The connected company Worker must install one production admin edge Route.');
-assert.equal(primaryConfig.routes?.[0]?.pattern, 'admin.rcitcs.com/*');
-assert.equal(primaryConfig.routes?.[0]?.zone_name, 'rcitcs.com');
-assert.notEqual(primaryConfig.routes?.[0]?.custom_domain, true, 'Route precedence is intentional; the existing dedicated Custom Domain remains the underlying origin/fallback.');
+assert.equal(primaryConfig.routes?.length, 2, 'The company Worker must preserve the public apex Custom Domain and install one separate production admin edge Route.');
+const publicDomain = primaryConfig.routes.find((route) => route.pattern === 'rcitcs.com');
+const adminRoute = primaryConfig.routes.find((route) => route.pattern === 'admin.rcitcs.com/*');
+assert.ok(publicDomain, 'The public rcitcs.com Custom Domain must remain declared.');
+assert.equal(publicDomain.custom_domain, true, 'The public apex must remain a Worker Custom Domain.');
+assert.ok(adminRoute, 'The production admin edge Route must remain declared independently.');
+assert.equal(adminRoute.zone_name, 'rcitcs.com');
+assert.notEqual(adminRoute.custom_domain, true, 'Route precedence is intentional; the dedicated admin Custom Domain remains the underlying origin/fallback.');
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
 
@@ -145,4 +149,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: Phase 12 admin routing uses the existing company Workers Build to place the hardened mobile-compatible interaction shell on the production hostname while preserving responsive UI, CSRF/origin protection and the existing Custom Domain fallback.');
+console.log('PASS: production routing preserves the public apex Custom Domain while the dedicated admin route keeps the hardened mobile-compatible interaction shell isolated from the public site.');
