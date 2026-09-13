@@ -16,10 +16,8 @@ for (const contract of [
   '.activity-wrap{overflow-x:auto!important',
   '.data-plane form[style*="grid-template-columns"]{grid-template-columns:1fr!important',
   '.identity-row{grid-template-columns:1fr!important',
-  '.workspace[aria-labelledby="jobs-title"] .activity-table{display:block!important',
-  '.workspace[aria-labelledby="applications-title"] .activity-table{display:block!important',
-  '.workspace[aria-labelledby="jobs-title"] .activity-table tbody tr{display:grid!important',
-  '.workspace[aria-labelledby="applications-title"] .activity-table tbody tr{display:grid!important',
+  '.workspace[aria-labelledby="jobs-title"] .activity-table,.workspace[aria-labelledby="applications-title"] .activity-table{display:block!important',
+  '.workspace[aria-labelledby="jobs-title"] .activity-table tbody tr,.workspace[aria-labelledby="applications-title"] .activity-table tbody tr{display:grid!important',
   'content:"Role"',
   'content:"Status"',
   'content:"Applications"',
@@ -28,8 +26,7 @@ for (const contract of [
   'content:"Documents"',
   'content:"Submitted"',
   'grid-template-columns:repeat(2,minmax(0,1fr))!important',
-  '.workspace[aria-labelledby="jobs-title"] .activity-table td[colspan]',
-  '.workspace[aria-labelledby="applications-title"] .activity-table td[colspan]'
+  '.workspace[aria-labelledby="jobs-title"] .activity-table td[colspan],.workspace[aria-labelledby="applications-title"] .activity-table td[colspan]'
 ]) {
   assert.ok(ADMIN_RESPONSIVE_STYLE.includes(contract), `Responsive admin contract missing: ${contract}`);
 }
@@ -41,10 +38,10 @@ assert.equal((once.match(/data-rc-admin-responsive/g) || []).length, 1, 'Respons
 assert.equal(injectAdminResponsiveHtml(once), once, 'Responsive enhancement must be idempotent.');
 assert.equal(injectAdminResponsiveHtml('<html><body>No head</body></html>'), '<html><body>No head</body></html>', 'Pages without a head are left unchanged.');
 
+const registerCardRule = '.workspace[aria-labelledby="jobs-title"] .activity-table,.workspace[aria-labelledby="applications-title"] .activity-table{display:block!important';
 assert.ok(
-  ADMIN_RESPONSIVE_STYLE.indexOf('.workspace[aria-labelledby="jobs-title"] .activity-table{display:block!important')
-    < ADMIN_RESPONSIVE_STYLE.indexOf('@media(max-width:640px)'),
-  'Jobs register must switch to card layout at tablet width, not only narrow phone width.'
+  ADMIN_RESPONSIVE_STYLE.indexOf(registerCardRule) < ADMIN_RESPONSIVE_STYLE.indexOf('@media(max-width:640px)'),
+  'Jobs and Applications registers must switch to card layout at tablet width, not only narrow phone width.'
 );
 assert.ok(
   ADMIN_RESPONSIVE_STYLE.includes('.workspace[aria-labelledby="jobs-title"] .activity-table tbody td:nth-child(7)>div{width:100%!important;display:grid!important'),
