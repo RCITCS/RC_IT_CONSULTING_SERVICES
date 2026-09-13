@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createDatabaseSubmissionRepository } from '../src/backend/repositories/submission-repository.js';
 import { EMAIL_IDENTITIES, EMAIL_TEMPLATE_KEYS, emailIdempotencyKey } from '../supabase/functions/_shared/email-contract.js';
 import { buildContactEmailEnvelope, dispatchContactEmail } from '../supabase/functions/_shared/contact-email-delivery.js';
+import { EmailProviderError } from '../supabase/functions/_shared/resend-email-provider.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const enquiryId = '11111111-1111-4111-8111-111111111111';
@@ -142,6 +143,50 @@ const result = await dispatchContactEmail({
 assert.equal(result.ok, true);
 assert.equal(sentState.providerMessageId, 'msg_contact_123');
 
+let failedState = null;
+const beforeFailure = Date.now();
+await assert.rejects(
+  dispatchContactEmail({
+    queue: acknowledgementQueue,
+    enquiry,
+    provider: {
+      async send() {
+        throw new EmailProviderError('temporary provider failure', {
+          code: 'rate_limit_exceeded',
+          retryable: true,
+          status: 429
+        });
+      }
+    },
+    async markSent() { return true; },
+    async markFailed(input) { failedState = input; return true; }
+  }),
+  (error) => error instanceof EmailProviderError && error.retryable === true
+);
+assert.ok(Date.parse(failedState.retryAt) >= beforeFailure + 4 * 60_000, 'Transient contact delivery must schedule a bounded retry.');
+assert.ok(Date.parse(failedState.retryAt) <= Date.now() + 6 * 60_000, 'First contact retry must stay near the five-minute policy window.');
+assert.ok(!failedState.errorMessage.includes('temporary provider failure'));
+
+failedState = null;
+await assert.rejects(
+  dispatchContactEmail({
+    queue: { ...acknowledgementQueue, attempt_count: 5 },
+    enquiry,
+    provider: {
+      async send() {
+        throw new EmailProviderError('temporary provider failure', {
+          code: 'rate_limit_exceeded',
+          retryable: true,
+          status: 429
+        });
+      }
+    },
+    async markSent() { return true; },
+    async markFailed(input) { failedState = input; return true; }
+  })
+);
+assert.equal(failedState.retryAt, null, 'Fifth failed contact attempt must become dead-letter instead of retrying forever.');
+
 const migration = await readFile(path.join(root, 'supabase/migrations/20260913213500_phase_13_contact_email_queue.sql'), 'utf8');
 assert.match(migration, /after insert on public\.contact_enquiries/i);
 assert.match(migration, /contact_acknowledgement/i);
@@ -157,4 +202,4 @@ assert.match(dispatcher, /INTERNAL_CONTACT_ALERT/);
 assert.match(dispatcher, /dispatchContactEmail/);
 assert.match(dispatcher, /contact_enquiries\?id=eq\./);
 
-console.log('Phase 13.5 production-schema persistence, contact acknowledgement/internal alert, escaping and provider-isolation checks passed.');
+console.log('Phase 13.5/13.6 contact persistence, notification authority, escaping and bounded retry checks passed.');
