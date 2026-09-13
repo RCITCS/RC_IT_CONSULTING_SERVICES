@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { dispatchAdminPasswordReset } from "../_shared/admin-password-reset-delivery.js";
 import { dispatchApplicationEmail } from "../_shared/application-email-delivery.js";
+import { dispatchContactEmail } from "../_shared/contact-email-delivery.js";
 import { EMAIL_TEMPLATE_KEYS } from "../_shared/email-contract.js";
 import { createResendEmailProvider } from "../_shared/resend-email-provider.js";
 
@@ -111,6 +112,14 @@ async function loadApplication(applicationId: string): Promise<Record<string, un
   return data.length === 1 ? data[0] : null;
 }
 
+async function loadContactEnquiry(enquiryId: string): Promise<Record<string, unknown> | null> {
+  if (!UUID.test(enquiryId)) return null;
+  const data = await rows(
+    `contact_enquiries?id=eq.${encodeURIComponent(enquiryId)}&select=id,name,email,phone,company,service,subject,message,source,created_at&limit=1`
+  );
+  return data.length === 1 ? data[0] : null;
+}
+
 async function createResetToken({ adminId, tokenHash, expiresAt }: { adminId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
   return scalarBoolean(await rpc("create_admin_password_reset_token", {
     p_admin_id: adminId,
@@ -165,6 +174,11 @@ function applicationTemplate(templateKey: string): boolean {
     || templateKey === EMAIL_TEMPLATE_KEYS.INTERNAL_APPLICATION_ALERT;
 }
 
+function contactTemplate(templateKey: string): boolean {
+  return templateKey === EMAIL_TEMPLATE_KEYS.CONTACT_ACKNOWLEDGEMENT
+    || templateKey === EMAIL_TEMPLATE_KEYS.INTERNAL_CONTACT_ALERT;
+}
+
 Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
   const path = route(url);
@@ -177,7 +191,8 @@ Deno.serve(async (request: Request) => {
       provider: "resend",
       providerConfigured: provider.configured,
       databaseConfigured: Boolean(SUPABASE_URL && API_KEY),
-      applicationNotifications: true
+      applicationNotifications: true,
+      contactNotifications: true
     });
   }
 
@@ -214,6 +229,11 @@ Deno.serve(async (request: Request) => {
       const application = await loadApplication(applicationId);
       if (!application) throw new Error("persisted application unavailable");
       result = await dispatchApplicationEmail({ queue, application, provider, markSent, markFailed });
+    } else if (contactTemplate(templateKey)) {
+      const enquiryId = String(queue.contact_enquiry_id ?? "").trim();
+      const enquiry = await loadContactEnquiry(enquiryId);
+      if (!enquiry) throw new Error("persisted contact enquiry unavailable");
+      result = await dispatchContactEmail({ queue, enquiry, provider, markSent, markFailed });
     } else {
       await markFailed({
         emailLogId: String(queue.id ?? ""),
