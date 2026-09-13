@@ -126,6 +126,9 @@ assert.match(dispatcher, /providerConfigured: provider\.configured/);
 assert.match(dispatcher, /internalAuthorized/);
 assert.match(dispatcher, /claim_transactional_email/);
 assert.match(dispatcher, /create_admin_password_reset_token/);
+assert.match(dispatcher, /p_requested_ip_hash:\s*null/);
+assert.match(dispatcher, /typeof result === "string"/);
+assert.match(dispatcher, /UUID\.test\(result\)/);
 assert.match(dispatcher, /dispatchAdminPasswordReset/);
 assert.ok(!dispatcher.includes('console.log'));
 assert.ok(!dispatcher.includes('RESEND_API_KEY = "re_'));
@@ -139,4 +142,4 @@ assert.match(adminDb, /token_generation: "at_send_time"/);
 assert.ok(!adminDb.includes('rest("email_logs"'));
 assert.ok(!adminDb.includes('RESEND_API_KEY'));
 
-console.log('Phase 13 administrator password-reset delivery, single-use token, no-auto-retry and dispatcher security checks passed.');
+console.log('Phase 13 administrator password-reset delivery, single-use token, runtime RPC contract, no-auto-retry and dispatcher security checks passed.');
