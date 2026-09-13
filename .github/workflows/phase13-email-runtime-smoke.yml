@@ -21,6 +21,7 @@ jobs:
           set -euo pipefail
           BASE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/transactional-email'
           code=$(curl -sS -o /tmp/phase13-health.json -w '%{http_code}' "${BASE}/health")
+          echo "Transactional email health: $(cat /tmp/phase13-health.json)"
           test "$code" = '200'
           grep -q '"ok":true' /tmp/phase13-health.json
           grep -q '"service":"rcitcs-transactional-email"' /tmp/phase13-health.json
