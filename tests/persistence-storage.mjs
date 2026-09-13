@@ -92,8 +92,12 @@ assert(!('authorization' in databaseCall.options.headers), 'new secret key must 
 assert(databaseCall.options.headers.prefer === 'return=representation', 'database write must require persisted representation');
 const persistedContact = JSON.parse(databaseCall.options.body);
 assert(persistedContact.id === result.body.data.id, 'API result ID must equal persisted database ID');
-assert(persistedContact.email === validContact.email && persistedContact.source_type === 'contact', 'normalized enquiry fields must be persisted');
-assert(persistedContact.privacy_consent_at === persistedContact.received_at, 'accepted contact privacy consent must retain timestamp evidence');
+assert(persistedContact.email === validContact.email && persistedContact.source === 'contact' && persistedContact.name === 'Phase Eight', 'normalized enquiry fields must be persisted to the current production schema');
+assert(persistedContact.consent === true && typeof persistedContact.consent_at === 'string' && persistedContact.consent_at.length > 0, 'accepted contact privacy consent must retain timestamp evidence');
+assert(persistedContact.metadata?.request_id && persistedContact.metadata?.received_at, 'request/receipt evidence must remain available in metadata');
+for (const retired of ['source_type', 'privacy_consent_at', 'received_at', 'request_id', 'first_name', 'last_name', 'details']) {
+  assert(!(retired in persistedContact), `retired contact column must not be written: ${retired}`);
+}
 assert(!('privacyConsent' in persistedContact), 'raw UX consent field should not be duplicated into storage');
 
 const pdf = new TextEncoder().encode('%PDF-1.7\nphase8');
