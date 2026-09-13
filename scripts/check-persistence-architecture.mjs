@@ -20,7 +20,7 @@ for (const table of tables) {
 }
 if (!migration.includes('from anon, authenticated') || !migration.includes('to service_role')) throw new Error('Phase 8 migration must revoke browser roles and explicitly grant the server role.');
 if (!migration.includes('size_bytes <= 20971520')) throw new Error('Application document metadata must enforce the 20 MiB limit.');
-if (!migration.includes('privacy_consent_at timestamptz')) throw new Error('Contact enquiry schema must retain privacy-consent timestamp evidence.');
+if (!migration.includes('privacy_consent_at timestamptz')) throw new Error('Contact enquiry schema history must retain privacy-consent timestamp evidence.');
 if (/\b(insert\s+into|update|delete\s+from)\s+storage\./i.test(migration)) throw new Error('Storage service metadata must not be mutated directly from the application migration.');
 
 const storageConfig = await readFile(path.join(root, 'supabase/config.toml'), 'utf8');
@@ -54,7 +54,18 @@ if (!databaseProvider.includes('/rest/v1/${table}?select=id') || !databaseProvid
 const application = await readFile(path.join(root, 'src/backend/application.js'), 'utf8');
 if (!application.includes('createDatabaseSubmissionRepository(providerRegistry.database)')) throw new Error('Phase 8 durable repository must be wired through the Phase 7 composition root.');
 const submissionRepository = await readFile(path.join(root, 'src/backend/repositories/submission-repository.js'), 'utf8');
-if (!submissionRepository.includes('privacy_consent_at: record.receivedAt')) throw new Error('Contact persistence must retain consent evidence.');
+for (const contract of [
+  'consent: payload.privacyConsent === true',
+  'consent_at: payload.privacyConsent === true ? record.receivedAt : null',
+  "source: 'contact'",
+  'request_id: record.requestId',
+  'received_at: record.receivedAt'
+]) {
+  if (!submissionRepository.includes(contract)) throw new Error(`Current contact persistence must retain production-schema evidence: ${contract}`);
+}
+for (const obsolete of ['first_name:', 'last_name:', 'privacy_consent_at:', 'source_type:', 'details:']) {
+  if (submissionRepository.includes(obsolete)) throw new Error(`Current contact persistence must not write retired production column: ${obsolete}`);
+}
 
 async function scanDirectory(directory) {
   const entries = await readdir(directory, { withFileTypes: true });

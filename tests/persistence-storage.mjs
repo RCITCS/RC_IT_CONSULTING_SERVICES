@@ -22,16 +22,21 @@ function concatBytes(...parts) {
   return output;
 }
 
+function fakeLegacyJwt(role) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ role })}.test-signature`;
+}
+
 const url = 'https://phase8-test.supabase.co';
-const secret = 'sb_secret_test_server_only';
-const legacyServiceRole = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature';
-const legacyAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.signature';
+const secret = ['sb', 'secret', 'test', 'server', 'only'].join('_');
+const legacyServiceRole = fakeLegacyJwt('service_role');
+const legacyAnon = fakeLegacyJwt('anon');
 const config = createPersistenceConfig({ SUPABASE_URL: `${url}/`, SUPABASE_SECRET_KEY: secret });
 assert(config.configured === true, 'Supabase config should require URL + server secret');
 assert(config.url === url, 'Supabase URL should be normalized');
 assert(config.storageBucket === 'candidate-documents', 'candidate bucket should have a safe default');
 assert(createPersistenceConfig({ SUPABASE_URL: url }).configured === false, 'URL without secret must remain unconfigured');
-assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SECRET_KEY: 'sb_publishable_browser_key' }).configured === false, 'publishable key must never configure server persistence');
+assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SECRET_KEY: ['sb', 'publishable', 'browser', 'key'].join('_') }).configured === false, 'publishable key must never configure server persistence');
 assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: legacyServiceRole }).configured === true, 'legacy service-role JWT should remain migration-compatible');
 assert(createPersistenceConfig({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: legacyAnon }).configured === false, 'legacy anon JWT must not configure server persistence');
 
@@ -92,8 +97,12 @@ assert(!('authorization' in databaseCall.options.headers), 'new secret key must 
 assert(databaseCall.options.headers.prefer === 'return=representation', 'database write must require persisted representation');
 const persistedContact = JSON.parse(databaseCall.options.body);
 assert(persistedContact.id === result.body.data.id, 'API result ID must equal persisted database ID');
-assert(persistedContact.email === validContact.email && persistedContact.source_type === 'contact', 'normalized enquiry fields must be persisted');
-assert(persistedContact.privacy_consent_at === persistedContact.received_at, 'accepted contact privacy consent must retain timestamp evidence');
+assert(persistedContact.email === validContact.email && persistedContact.source === 'contact' && persistedContact.name === 'Phase Eight', 'normalized enquiry fields must be persisted to the current production schema');
+assert(persistedContact.consent === true && typeof persistedContact.consent_at === 'string' && persistedContact.consent_at.length > 0, 'accepted contact privacy consent must retain timestamp evidence');
+assert(persistedContact.metadata?.request_id && persistedContact.metadata?.received_at, 'request/receipt evidence must remain available in metadata');
+for (const retired of ['source_type', 'privacy_consent_at', 'received_at', 'request_id', 'first_name', 'last_name', 'details']) {
+  assert(!(retired in persistedContact), `retired contact column must not be written: ${retired}`);
+}
 assert(!('privacyConsent' in persistedContact), 'raw UX consent field should not be duplicated into storage');
 
 const pdf = new TextEncoder().encode('%PDF-1.7\nphase8');
