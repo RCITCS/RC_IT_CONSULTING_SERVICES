@@ -74,31 +74,35 @@ const JOB_EDITOR_POLISH = String.raw`<style data-rc-job-editor-polish>
 .job-editor-form .field input:not([type="checkbox"]),
 .job-editor-form .field select,
 .job-editor-form .field textarea{
-  width:100%;max-width:none;border:1px solid var(--line-strong);border-radius:4px;background:#fff;color:var(--text);font:inherit;font-size:13px;line-height:1.5;box-shadow:0 1px 1px rgba(15,23,42,.02);transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease
+  width:100%;max-width:none;border:1px solid var(--line-strong);border-radius:5px;background:#fff;color:var(--text);font:inherit;font-size:13px;line-height:1.55;box-sizing:border-box;box-shadow:0 1px 1px rgba(15,23,42,.025);transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease
 }
 .job-editor-form .field input:not([type="checkbox"]),
 .job-editor-form .field select{min-height:46px;padding:10px 12px}
 .job-editor-form .field select{-webkit-appearance:none;appearance:none;padding-right:38px;background-image:linear-gradient(45deg,transparent 50%,#667085 50%),linear-gradient(135deg,#667085 50%,transparent 50%);background-position:calc(100% - 17px) 20px,calc(100% - 12px) 20px;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
-.job-editor-form .field textarea{display:block;min-height:160px;padding:13px 14px;resize:vertical;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
-.job-editor-form #job-required-skills{min-height:220px}
-.job-editor-form #job-description{min-height:360px}
-.job-editor-form #job-benefits{min-height:190px}
+.job-editor-form .field textarea{display:block;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:180px;padding:14px 15px;resize:vertical;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.job-editor-form .longform-field{margin-top:24px}
+.job-editor-form .longform-field label{display:flex;align-items:center;min-height:24px;margin-bottom:8px;font-size:13px;font-weight:730;letter-spacing:-.01em}
+.job-editor-form .longform-field .muted{margin-top:8px}
+.job-editor-form #job-required-skills{min-height:320px!important}
+.job-editor-form #job-description{min-height:520px!important}
+.job-editor-form #job-benefits{min-height:260px!important}
 .job-editor-form #job-summary,
-.job-editor-form #job-location-details{min-height:150px}
+.job-editor-form #job-location-details{min-height:180px}
 .job-editor-form .field input:not([type="checkbox"]):focus,
 .job-editor-form .field select:focus,
-.job-editor-form .field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,91,211,.10);outline:none}
+.job-editor-form .field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,91,211,.10);outline:none;background:#fff}
 .job-editor-form .field textarea::placeholder,
 .job-editor-form .field input::placeholder{color:#98a2b3}
-.job-editor-form .field .muted{margin:8px 0 0;line-height:1.5}
+.job-editor-form .field .muted{line-height:1.5}
 @media(max-width:760px){
   .job-editor-form .field input:not([type="checkbox"]),
   .job-editor-form .field select,
   .job-editor-form .field textarea{font-size:16px}
-  .job-editor-form .field textarea{min-height:180px;padding:14px}
-  .job-editor-form #job-required-skills{min-height:240px}
-  .job-editor-form #job-description{min-height:400px}
-  .job-editor-form #job-benefits{min-height:220px}
+  .job-editor-form .field textarea{width:100%!important;max-width:none!important;min-height:220px!important;padding:15px}
+  .job-editor-form .longform-field{margin-top:22px}
+  .job-editor-form #job-required-skills{min-height:300px!important}
+  .job-editor-form #job-description{min-height:480px!important}
+  .job-editor-form #job-benefits{min-height:260px!important}
 }
 </style>`;
 
@@ -149,8 +153,10 @@ function textField(id: string, label: string, name: string, current = "", requir
 }
 
 function textareaField(id: string, label: string, name: string, current = "", help = "", max = 20000, required = false): string {
-  const rows = id === "job-description" ? 14 : id === "job-required-skills" ? 8 : id === "job-benefits" ? 7 : 6;
-  return `<div class="field"><label for="${id}">${esc(label)}${required ? " *" : ""}</label><textarea id="${id}" name="${esc(name)}" rows="${rows}" maxlength="${max}"${required ? " required" : ""}>${esc(current)}</textarea>${help ? `<p class="muted">${esc(help)}</p>` : ""}</div>`;
+  const rows = id === "job-description" ? 20 : id === "job-required-skills" ? 12 : id === "job-benefits" ? 10 : 8;
+  const minHeight = id === "job-description" ? 520 : id === "job-required-skills" ? 320 : id === "job-benefits" ? 260 : 180;
+  const longform = id === "job-description" || id === "job-required-skills" || id === "job-benefits";
+  return `<div class="field${longform ? " longform-field" : ""}"><label for="${id}">${esc(label)}${required ? " *" : ""}</label><textarea id="${id}" name="${esc(name)}" rows="${rows}" maxlength="${max}" wrap="soft" spellcheck="true" style="display:block;width:100%;max-width:none;box-sizing:border-box;min-height:${minHeight}px;resize:vertical"${required ? " required" : ""}>${esc(current)}</textarea>${help ? `<p class="muted">${esc(help)}</p>` : ""}</div>`;
 }
 
 function londonDate(iso?: string | null, closing = false): string {

@@ -38,13 +38,21 @@ assert.equal(ui.includes('name="code"'), false, 'Job code must never be client-e
 assert.ok(ui.includes('Based on category and work mode · immutable'), 'Admin must be told the job code is automatic and immutable.');
 
 assert.ok(ui.includes('data-rc-job-editor-polish'), 'Job editor must ship its professional control treatment with the server-rendered form.');
-assert.ok(ui.includes('.job-editor-form #job-required-skills{min-height:220px}'), 'Required-skills editor must have a substantial desktop writing area.');
-assert.ok(ui.includes('.job-editor-form #job-description{min-height:360px}'), 'Job-description editor must have a substantial desktop writing area.');
-assert.ok(ui.includes('.job-editor-form #job-benefits{min-height:190px}'), 'Benefits editor must not collapse to a browser-default textarea.');
-assert.ok(ui.includes('.job-editor-form #job-description{min-height:400px}'), 'Job-description editor must remain comfortably sized on phone layouts.');
+assert.ok(ui.includes('.job-editor-form #job-required-skills{min-height:320px!important}'), 'Required-skills editor must provide a large desktop writing area.');
+assert.ok(ui.includes('.job-editor-form #job-description{min-height:520px!important}'), 'Job-description editor must provide a large desktop writing area.');
+assert.ok(ui.includes('.job-editor-form #job-benefits{min-height:260px!important}'), 'Benefits editor must not collapse to a browser-default textarea.');
+assert.ok(ui.includes('.job-editor-form #job-required-skills{min-height:300px!important}'), 'Required-skills editor must remain large on phone layouts.');
+assert.ok(ui.includes('.job-editor-form #job-description{min-height:480px!important}'), 'Job-description editor must remain large on phone layouts.');
+assert.ok(ui.includes('width:100%!important;max-width:none!important'), 'Long-form editors must remain full width even when surrounding admin CSS changes.');
+assert.ok(ui.includes('box-sizing:border-box'), 'Full-width authoring controls must not overflow their container because of padding/borders.');
 assert.ok(ui.includes('resize:vertical'), 'Long-form fields must remain user-resizable.');
 assert.ok(ui.includes('-webkit-appearance:none;appearance:none'), 'Job-editor selects must avoid inconsistent iOS pill styling.');
-assert.ok(ui.includes('id === "job-description" ? 14'), 'Textarea rows must provide a semantic fallback size even if CSS is unavailable.');
+assert.ok(ui.includes('id === "job-description" ? 20'), 'Job description must retain a large semantic rows fallback when CSS is unavailable.');
+assert.ok(ui.includes('id === "job-required-skills" ? 12'), 'Required skills must retain a large semantic rows fallback when CSS is unavailable.');
+assert.ok(ui.includes('const minHeight = id === "job-description" ? 520 : id === "job-required-skills" ? 320 : id === "job-benefits" ? 260 : 180;'), 'Long-form fields must have inline minimum-height fallbacks independent of stylesheet injection.');
+assert.ok(ui.includes('style="display:block;width:100%;max-width:none;box-sizing:border-box;min-height:${minHeight}px;resize:vertical"'), 'Textarea markup must carry a full-width inline fallback that survives modal extraction and validation rerenders.');
+assert.ok(ui.includes('class="field${longform ? " longform-field" : ""}"'), 'Primary authoring fields must receive the long-form presentation class.');
+assert.ok(ui.includes('wrap="soft" spellcheck="true"'), 'Long-form authoring should wrap naturally and keep browser spellcheck available.');
 assert.ok(ui.includes('<form class="job-editor-form" method="post"'), 'Professional form styles must be scoped to the job editor form itself.');
 assert.ok(ui.includes('<main class="workspace" id="main-content" aria-labelledby="job-editor-title">${JOB_EDITOR_POLISH}<div class="page-heading">'), 'Job-editor style payload must live inside the workspace so modal extraction preserves it.');
 assert.ok(interactions.includes("body.innerHTML = workspace ? workspace.innerHTML : source.innerHTML;"), 'Regression gate must reflect the modal workspace extraction contract.');
@@ -82,4 +90,4 @@ assert.ok(publicHardening.includes("'category', e.category"), 'Public Careers pr
 assert.ok(publicHardening.includes("j.opens_at is null or j.opens_at <= now()"));
 assert.ok(publicHardening.includes("j.closes_at is null or j.closes_at > now()"));
 
-console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, validation-state preservation, modal-safe professional responsive authoring controls and authoritative public category grouping.');
+console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, validation-state preservation, modal-safe full-width professional long-form authoring controls and authoritative public category grouping.');
