@@ -20,13 +20,12 @@ assert.equal(resolveWorkersBuildConfig('rcitcservices'), 'cloudflare/legacy-rcit
 assert.equal(resolveWorkersBuildConfig(''), null);
 assert.throws(() => resolveWorkersBuildConfig('unexpected-worker'), /Refusing to deploy with the wrong Wrangler configuration/);
 
-const [buildSource, publicConfigRaw, stagingRaw, productionRaw, adminConnectedRaw, adminConnectedEntrypoint] = await Promise.all([
+const [buildSource, publicConfigRaw, stagingRaw, productionRaw, legacyRaw] = await Promise.all([
   readFile(path.join(root, 'scripts/build.mjs'), 'utf8'),
   readFile(path.join(root, 'wrangler.jsonc'), 'utf8'),
   readFile(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'),
   readFile(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'),
-  readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'),
-  readFile(path.join(root, 'cloudflare/legacy-rcitcservices/index.js'), 'utf8')
+  readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8')
 ]);
 
 assert.ok(buildSource.includes("import { configureWorkersBuild } from './configure-cloudflare-workers-build.mjs';"));
@@ -35,7 +34,7 @@ assert.ok(buildSource.includes('await configureWorkersBuild();'));
 const publicConfig = JSON.parse(publicConfigRaw);
 const stagingConfig = JSON.parse(stagingRaw);
 const productionConfig = JSON.parse(productionRaw);
-const adminConnectedConfig = JSON.parse(adminConnectedRaw);
+const legacyConfig = JSON.parse(legacyRaw);
 
 assert.equal(publicConfig.name, 'rc-it-consulting-services');
 assert.deepEqual(publicConfig.secrets?.required, ['SUPABASE_SECRET_KEY']);
@@ -47,21 +46,22 @@ assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').st
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.keep_vars, true);
-assert.equal(Object.hasOwn(stagingConfig, 'secrets'), false, 'Staging admin edge must not inherit the public Worker secret requirement.');
+assert.equal(Object.hasOwn(stagingConfig, 'secrets'), false, 'Company admin edge must not inherit the public Worker secret requirement.');
+assert.deepEqual(
+  stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true], ['admin-staging.rcitcs.com', true]],
+  'The connected company admin Worker must provision both production and staging admin Custom Domains.'
+);
 
 assert.equal(productionConfig.name, 'rcitcs-admin-production');
 assert.equal(productionConfig.main, './worker/admin-only.js');
 assert.equal(productionConfig.keep_vars, true);
-assert.equal(Object.hasOwn(productionConfig, 'secrets'), false, 'Production admin edge must not inherit the public Worker secret requirement.');
+assert.equal(Object.hasOwn(productionConfig, 'secrets'), false, 'Canonical production admin edge must not inherit the public Worker secret requirement.');
 
-assert.equal(adminConnectedConfig.name, 'rcitcservices');
-assert.equal(adminConnectedConfig.workers_dev, false);
-assert.equal(adminConnectedConfig.keep_vars, true);
-assert.equal(Object.hasOwn(adminConnectedConfig, 'secrets'), false, 'Connected admin edge must not require the public Worker secret.');
-assert.equal(adminConnectedConfig.routes?.length, 1, 'Connected admin Worker must own exactly one Custom Domain.');
-assert.equal(adminConnectedConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(adminConnectedConfig.routes?.[0]?.custom_domain, true, 'Connected admin Worker must provision admin.rcitcs.com DNS/certificate as a Custom Domain.');
-assert.ok(adminConnectedEntrypoint.includes("import adminWorker from '../../worker/admin-only.js';"));
-assert.ok(adminConnectedEntrypoint.includes('export default adminWorker;'));
+assert.equal(legacyConfig.name, 'rcitcservices');
+assert.equal(legacyConfig.workers_dev, false);
+assert.equal(legacyConfig.keep_vars, true);
+assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Worker in the old Cloudflare account must not claim company production domains.');
+assert.equal(Object.hasOwn(legacyConfig, 'secrets'), false, 'Legacy Worker must not require company production secrets.');
 
-console.log('PASS: Cloudflare Workers Builds keeps rcitcs.com on the public Worker and admin.rcitcs.com on the isolated connected admin Worker without cross-target secret or route leakage.');
+console.log('PASS: rcitcs.com stays on the public Worker, admin.rcitcs.com is provisioned by the connected admin Worker in the company Cloudflare account, and the old-account Worker owns no company routes.');
