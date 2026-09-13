@@ -25,11 +25,13 @@ for (const category of requested) {
 
 assert.ok(ui.includes('<select id="job-category" name="category" required>'), 'Category must be a controlled dropdown.');
 assert.ok(ui.includes('new Map<string, string>()'), 'Category dropdown must deduplicate legacy names.');
+assert.ok(ui.includes('const categoryValue = submitted ? String((submitted as any)?.category || "") : value(source,"category_name");'), 'Validation rerenders must preserve the category the administrator actually submitted.');
 assert.equal(ui.includes('id="job-slug"'), false, 'URL slug must not be visible/editable in admin UI.');
 assert.equal(ui.includes('for="job-slug"'), false, 'URL slug label must not exist in admin UI.');
 assert.equal(ui.includes('URL slug'), false, 'Admin copy must not expose URL-slug implementation details.');
 assert.equal(ui.includes(' · /${esc(job.slug'), false, 'Jobs register must not display the internal URL slug.');
 assert.ok(ui.includes('generatedSlug(title)'), 'New vacancy URL slug must still be generated internally.');
+assert.ok(ui.includes('normalized.slice(0,140).replace(/-+$/g,"")'), 'Generated slugs must trim a separator introduced at the truncation boundary before appending the suffix.');
 assert.ok(ui.includes('type="hidden" name="slug"'), 'Existing canonical URL must be preserved internally on edit without exposing it to the administrator.');
 assert.equal(ui.includes('name="code"'), false, 'Job code must never be client-editable.');
 assert.ok(ui.includes('Based on category and work mode · immutable'), 'Admin must be told the job code is automatic and immutable.');
@@ -67,4 +69,4 @@ assert.ok(publicHardening.includes("'category', e.category"), 'Public Careers pr
 assert.ok(publicHardening.includes("j.opens_at is null or j.opens_at <= now()"));
 assert.ok(publicHardening.includes("j.closes_at is null or j.closes_at > now()"));
 
-console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, and authoritative public category grouping.');
+console.log('PASS: Phase 12 final job authoring uses controlled unique categories, server-generated immutable job codes, internal-only URL slugs, direct draft/publish, inclusive availability dates, validation-state preservation and authoritative public category grouping.');
