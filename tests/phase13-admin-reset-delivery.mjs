@@ -32,6 +32,8 @@ const queue = {
   metadata: { admin_id: adminId, reset_request_id: resetRequestId }
 };
 
+assert.equal(ADMIN_RESET_TTL_MINUTES, 30, 'Administrator reset links should remain valid for 30 minutes.');
+
 const validated = validateAdminResetQueue(queue);
 assert.equal(validated.adminId, adminId);
 assert.equal(validated.resetRequestId, resetRequestId);
@@ -120,6 +122,15 @@ assert.match(migration, /attempt_count = attempt_count \+ 1/i);
 assert.match(migration, /grant execute on function public\.claim_transactional_email\(uuid\) to service_role/i);
 assert.match(migration, /revoke execute on function public\.claim_transactional_email\(uuid\) from public, anon, authenticated/i);
 
+const dedupMigration = await readFile(path.join(root, 'supabase/migrations/20260913231500_phase_13_admin_reset_dedup.sql'), 'utf8');
+assert.match(dedupMigration, /pg_advisory_xact_lock/i);
+assert.match(dedupMigration, /admin_password_reset/i);
+assert.match(dedupMigration, /interval '60 seconds'/i);
+assert.match(dedupMigration, /status in \('queued', 'sending', 'sent'\)/i);
+assert.match(dedupMigration, /return v_id/i);
+assert.match(dedupMigration, /grant execute on function public\.enqueue_transactional_email/i);
+assert.match(dedupMigration, /revoke execute on function public\.enqueue_transactional_email/i);
+
 const dispatcher = await readFile(path.join(root, 'supabase/functions/transactional-email/index.ts'), 'utf8');
 assert.match(dispatcher, /Deno\.env\.get\("RESEND_API_KEY"\)/);
 assert.match(dispatcher, /providerConfigured: provider\.configured/);
@@ -142,4 +153,4 @@ assert.match(adminDb, /token_generation: "at_send_time"/);
 assert.ok(!adminDb.includes('rest("email_logs"'));
 assert.ok(!adminDb.includes('RESEND_API_KEY'));
 
-console.log('Phase 13 administrator password-reset delivery, single-use token, runtime RPC contract, no-auto-retry and dispatcher security checks passed.');
+console.log('Phase 13 administrator password-reset delivery, 30-minute validity, duplicate suppression, runtime RPC contract, no-auto-retry and dispatcher security checks passed.');
