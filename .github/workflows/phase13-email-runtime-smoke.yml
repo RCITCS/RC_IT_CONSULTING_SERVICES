@@ -31,6 +31,7 @@ jobs:
           grep -q '"databaseConfigured":true' /tmp/phase13-health.json
 
       - name: Verify dispatch rejects unauthenticated callers
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
@@ -43,4 +44,4 @@ jobs:
           test "$code" = '401'
           grep -q '"code":"UNAUTHORIZED"' /tmp/phase13-unauthorized.json
 
-          echo 'Phase 13 transactional email runtime configuration and internal-auth boundary verified.'
+          echo 'Phase 13 transactional email internal-auth boundary verified.'
