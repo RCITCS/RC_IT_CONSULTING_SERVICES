@@ -1,0 +1,98 @@
+name: Cloudflare Exact Deployment Gate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-exact-deployment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-production:
+    name: Verify exact main SHA and Phase 12 production boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Wait for exact main commit to reach the public production Worker
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+
+          for attempt in $(seq 1 72); do
+            code=$(curl -L -sS -o /tmp/root.html -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] \
+              && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/root.html \
+              && grep -q 'data-prerendered-path="/"' /tmp/root.html \
+              && grep -q 'application/ld+json' /tmp/root.html \
+              && grep -q 'Technology that' /tmp/root.html \
+              && ! grep -q 'Administrator sign in' /tmp/root.html; then
+              echo "Exact main SHA ${EXPECTED_SHA} is live on rcitcs.com."
+              exit 0
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo "rcitcs.com did not expose exact main SHA ${EXPECTED_SHA} within the verification window." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify Phase 12 Careers, application and SEO boundaries on production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+
+          curl -L -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
+          grep -q 'name="robots" content="index,follow"' /tmp/job.html
+          grep -q 'data-runtime-job-posting' /tmp/job.html
+          grep -q '"@type":"JobPosting"' /tmp/job.html
+          grep -q '"directApply":true' /tmp/job.html
+          grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
+
+          curl -L -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
+          grep -q 'data-career-application' /tmp/apply.html
+          grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
+          ! grep -q 'data-runtime-job-posting' /tmp/apply.html
+          ! grep -q 'SUPABASE_SECRET_KEY' /tmp/apply.html
+          ! grep -q 'sb_secret_' /tmp/apply.html
+
+          curl -L -sS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+          grep -Fq "${BASE}/careers/jobs/senior-data-engineer</loc>" /tmp/sitemap.xml
+          ! grep -q '/apply</loc>' /tmp/sitemap.xml
+
+          health_code=$(curl -L -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
+          test "$health_code" = '200'
+          grep -q '"ok":true' /tmp/health.json
+
+          echo 'Phase 12 public Careers, JobPosting, application noindex, runtime sitemap and API health verified.'
+
+      - name: Verify dedicated admin production boundary remains separate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+
+          admin_code=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/")
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -q 'Private administration for controlled operational work.' /tmp/admin.html
+          ! grep -q 'Technology that' /tmp/admin.html
+          tr -d '\r' < /tmp/admin.headers | grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1'
+          tr -d '\r' < /tmp/admin.headers | grep -qi '^cache-control:.*no-store'
+          tr -d '\r' < /tmp/admin.headers | grep -qi '^x-robots-tag:.*noindex'
+
+          session_code=$(curl -sS -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/session.json
+
+          echo 'Phase 12 dedicated admin hostname and unauthenticated session boundary verified.'
