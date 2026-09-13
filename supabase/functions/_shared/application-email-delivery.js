@@ -7,6 +7,7 @@ import {
   applicationAcknowledgementTemplate,
   internalApplicationAlertTemplate
 } from './email-templates.js';
+import { retryAtForEmailFailure } from './email-retry-policy.js';
 import { EmailProviderError } from './resend-email-provider.js';
 
 const APPLICATION_TEMPLATES = new Set([
@@ -93,7 +94,11 @@ export async function dispatchApplicationEmail({ queue, application, provider, m
       emailLogId,
       errorCode: code,
       errorMessage: 'Transactional application email delivery failed.',
-      retryAt: null
+      retryAt: retryAtForEmailFailure({
+        templateKey: queue.template_key,
+        attemptCount: queue.attempt_count,
+        error
+      })
     });
     throw error;
   }
