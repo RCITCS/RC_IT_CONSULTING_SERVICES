@@ -23,7 +23,7 @@ assert.match(contacts, /return contactDetailPage\(basePath, authState, context, 
 assert.match(contacts, /Opening this page does not change read state or workflow status/);
 assert.match(contacts, /Explicit actions only/);
 assert.match(contacts, /Contact mutations require a protected POST request/);
-assert.doesNotMatch(contacts, /reply composer|send reply/i);
+assert.match(contacts, /request\.method !== "POST" \|\| !mutationMatch/);
 
 for (const field of ['name', 'email', 'phone', 'company', 'service', 'subject', 'message', 'consent', 'consent_at', 'source']) {
   assert.match(migration, new RegExp(`'${field}'`), `Detail RPC does not project immutable field ${field}`);
@@ -39,7 +39,7 @@ for (const count of ['history_count', 'note_count', 'message_count']) assert.mat
 for (const field of ['first_read_at', 'read_at', 'resolved_at', 'closed_at', 'archived_at', 'last_activity_at', 'updated_at', 'version']) {
   assert.match(contacts, new RegExp(`enquiry\\.${field}`), `Operational context missing ${field}`);
 }
-// 14.7 may render notes, but 14.5 must not accidentally render reply/timeline arrays.
+// 14.7/14.8 may render notes and a reply composer, but the unified activity arrays are not yet rendered in 14.5.
 assert.doesNotMatch(contacts, /context\.history\s*\.map|context\.messages\s*\.map/);
 assert.match(contacts, /metadata\.intent/);
 assert.match(contacts, /metadata\.job_title/);
