@@ -1,8 +1,8 @@
 # Phase 13.7 — Production Acceptance & Closure
 
-Status: **CLOSURE REVIEW IN PROGRESS — SECURITY CREDENTIAL ROTATION PENDING**
+Status: **READY FOR FINAL MERGE / POST-MERGE VERIFICATION**
 
-This document records the production acceptance evidence for Phase 13. It must not be used to declare Phase 13 complete until every closure gate below is green and PR #71 is merged/deployed/verified.
+This document records the production acceptance evidence for Phase 13. Phase 13 is not considered closed until PR #71 is merged and the exact resulting `main` SHA passes post-merge production verification.
 
 ## Production acceptance evidence
 
@@ -77,13 +77,15 @@ Historical successfully sent administrator-reset delivery rows are intentionally
 - Provider credentials, raw reset tokens and private candidate-document URLs are not present in repository source or transactional message bodies.
 - `rcitcs.com` remains a verified Resend sending domain.
 
-### Open security blocker
+### Product Owner credential-risk acceptance
 
-A production Resend API credential was pasted into the project conversation during Phase-13 troubleshooting. Even though the value is not committed to source or database tables, the active credential must be treated as exposed. Under the RC IT Services master engineering rules, Phase 13 cannot be declared security-complete while that credential remains active. Replace the exposed credential, update every legitimate runtime/SMTP consumer, verify delivery with the replacement, then revoke the exposed key before final merge.
+During troubleshooting, the active Resend API credential was pasted into the project conversation. Credential rotation was recommended as a security hardening measure. On 2026-09-13, the Product Owner explicitly directed that the current Resend credential remain in use and that rotation not block Phase 13 closure.
+
+This is recorded as an **explicit Product Owner risk acceptance / exception**, not as evidence that credential exposure is generally safe. No credential value is stored in repository source, migration SQL, transactional logs, or this closure document. The application/database security controls themselves remain green.
 
 ## CI / runtime gates
 
-Current Phase-13 merge candidate is reconciled with current `main` and PR #71 is mergeable. Required branch gates are green:
+The Phase-13 merge candidate is reconciled with current `main` and PR #71 is mergeable. Required branch gates are green:
 
 - full architecture/test/build CI;
 - Phase-12 production runtime regression;
@@ -97,25 +99,23 @@ The production cron `rcitcs-transactional-email-sweep` remains active every minu
 
 | Review perspective | Result | Evidence / decision |
 | --- | --- | --- |
-| Product Owner | PASS | Reset, application and contact notification behavior matches approved identities and business flow. |
+| Product Owner | PASS | Reset, application and contact notification behavior matches approved identities and business flow; credential-rotation exception explicitly accepted. |
 | Solution / Software Architect | PASS | Public/admin isolation, persistence-first authority, centralized provider boundary and service-role ownership preserved. |
 | Senior Frontend | PASS | No unrelated public/admin UX redesign; recovery-cookie change is scoped to the password-recovery handoff. |
 | Backend | PASS | Durable queue, atomic claim, reset consumption, idempotency, bounded retry and stale-claim recovery proven. |
 | QA | PASS | Real production happy paths plus controlled failure/retry/idempotency/cleanup acceptance executed. |
-| Security | BLOCKED | Application/database controls pass; exposed active Resend credential must be replaced and revoked before closure. |
+| Security | PASS WITH ACCEPTED EXCEPTION | Technical controls pass and Security Advisor is clean. Product Owner explicitly accepted continued use of the current Resend credential instead of rotation for this phase. |
 | SEO | PASS | Public SEO architecture unchanged; private admin surface remains non-indexable. |
 | Performance | PASS | Provider delivery remains downstream of persistence; sweep is bounded. Advisor output is INFO-only unused-index telemetry. |
 | End User | PASS | Admin recovery completes to sign-in/dashboard; candidate/contact acknowledgements are delivered. |
 
-## Final closure steps after the security blocker is cleared
+## Final closure steps
 
-1. Verify replacement Resend credential in Supabase transactional runtime and any SMTP consumer.
-2. Run one controlled provider-health/delivery check with the replacement credential.
-3. Revoke the exposed Resend API key and verify no legitimate consumer breaks.
-4. Re-run queue health and Supabase Security Advisor.
-5. Update PR #71 with final acceptance evidence and mark ready for review.
-6. Merge PR #71 using the exact reviewed head SHA.
-7. Verify exact new `main` SHA through CI, Phase-12/Phase-13 runtime smoke and Wrangler deployment validation.
-8. Verify `rcitcs.com` and `admin.rcitcs.com` production isolation/smoke.
-9. Synchronize the company mirror to the exact primary `main` SHA and verify equality.
-10. Only then mark Phase 13.7 and Phase 13 complete.
+1. Re-run final branch gates on the closure-document head.
+2. Mark PR #71 ready for review.
+3. Merge PR #71 using the exact reviewed head SHA.
+4. Verify the exact new `main` SHA through CI, Phase-12/Phase-13 runtime smoke and Wrangler deployment validation.
+5. Verify `rcitcs.com` and `admin.rcitcs.com` production isolation/smoke.
+6. Synchronize the company mirror to the exact primary `main` SHA and verify equality.
+7. Re-check queue health and Supabase Security Advisor.
+8. Only then mark Phase 13.7 and Phase 13 complete.
