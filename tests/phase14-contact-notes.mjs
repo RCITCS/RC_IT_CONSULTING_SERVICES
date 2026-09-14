@@ -48,8 +48,9 @@ assert.doesNotMatch(migration, /metadata[^;]*v_note\.body/s);
 assert.match(migration, /revoke all on function public\.admin_add_contact_enquiry_note\(uuid,uuid,integer,text,text,text\) from public, anon, authenticated/);
 assert.match(migration, /grant execute on function public\.admin_add_contact_enquiry_note\(uuid,uuid,integer,text,text,text\) to service_role/);
 
-// Notes are not customer replies.
-assert.doesNotMatch(contacts, /reply composer|send reply/i);
-assert.doesNotMatch(contacts, /contact_enquiry_messages.*insert/i);
+// Notes remain isolated from the later customer-reply path.
+assert.match(contacts, /admin_add_contact_enquiry_note/);
+assert.match(contacts, /admin_queue_contact_enquiry_reply/);
+assert.doesNotMatch(migration, /contact_note_added[^;]*body/s);
 
 console.log('Phase 14.7 internal administrative notes, append-only persistence, escaping, CSRF/version locking, archive restrictions and no-email boundary passed.');
