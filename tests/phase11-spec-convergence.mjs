@@ -6,12 +6,13 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [prerequisite, migration, adminUi, overviewUi, securityUi, publicRepository, publicRuntime, careerInteractions] = await Promise.all([
+const [prerequisite, migration, adminUi, overviewUi, securityUi, applicationsUi, publicRepository, publicRuntime, careerInteractions] = await Promise.all([
   read('supabase/migrations/20260910151000_phase_11_legacy_schema_convergence.sql'),
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
   read('supabase/functions/admin-auth/jobs.ts'),
   read('supabase/functions/admin-auth/ui.ts'),
   read('supabase/functions/admin-auth/security.ts'),
+  read('supabase/functions/admin-auth/applications.ts'),
   read('src/backend/repositories/public-jobs-repository.js'),
   read('src/backend/runtime/public-careers.js'),
   read('src/frontend/app/interactions-careers.js')
@@ -56,10 +57,14 @@ for (const candidateLabel of [
   'Nature of working style', 'Location details'
 ]) assert.ok(adminUi.includes(candidateLabel), `Admin editor/preview omitted canonical candidate field: ${candidateLabel}`);
 
-for (const [surface, source] of [['overview', overviewUi], ['jobs', adminUi], ['security', securityUi]]) {
-  assert.ok(source.includes('${basePath}/jobs'), `Authenticated ${surface} workspace must expose Jobs navigation.`);
-  assert.ok(source.includes('>Jobs<') || source.includes('<span>Jobs</span>'));
+// Phase 11 requires Jobs to remain first-class administration navigation. Phase 14
+// centralizes navigation in ui.ts, so later workspaces may delegate rather than repeat markup.
+assert.ok(overviewUi.includes('${basePath}/jobs'));
+assert.ok(overviewUi.includes('<span>Jobs</span>'));
+for (const [surface, source] of [['security', securityUi], ['applications', applicationsUi]]) {
+  assert.ok(source.includes('adminHeader'), `Authenticated ${surface} workspace must delegate to shared admin navigation.`);
 }
+assert.ok(adminUi.includes('${basePath}/jobs'), 'Jobs workspace must preserve job-management route ownership.');
 assert.ok(overviewUi.includes('This overview is intentionally read-only'));
 assert.ok(securityUi.includes('Recruitment publishing is managed from the Jobs workspace.'));
 
@@ -74,8 +79,8 @@ const runtimeNavigationGuard = 'if (selectRole(slug)) event.preventDefault();';
 assert.ok(careerInteractions.includes(runtimeNavigationGuard));
 assert.ok(!careerInteractions.includes('event.preventDefault();\n      selectRole(slug);'));
 
-for (const source of [prerequisite,migration,adminUi,overviewUi,securityUi,publicRepository,publicRuntime,careerInteractions]) {
+for (const source of [prerequisite,migration,adminUi,overviewUi,securityUi,applicationsUi,publicRepository,publicRuntime,careerInteractions]) {
   for (const secretPattern of ['ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=','SUPABASE_SERVICE_ROLE_KEY=','sb_secret_']) assert.ok(!source.includes(secretPattern));
 }
 
-console.log('PASS: Phase 11 immutable identifiers, canonical content authority, admin navigation and public candidate rendering remain preserved under the streamlined Phase 12 authoring UX.');
+console.log('PASS: Phase 11 immutable identifiers, canonical content authority, shared admin navigation and public candidate rendering remain preserved under the streamlined Phase 12 authoring UX.');
