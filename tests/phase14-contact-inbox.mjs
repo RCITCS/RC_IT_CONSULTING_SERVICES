@@ -24,8 +24,9 @@ for (const arg of ['p_admin_id', 'p_limit', 'p_status', 'p_read_state', 'p_archi
   assert.match(contacts, new RegExp(`\\b${arg}\\b`), `Missing locked RPC argument ${arg}`);
   assert.match(migration, new RegExp(`\\b${arg}\\b`), `Migration does not define ${arg}`);
 }
-for (const obsolete of ['p_archive:', 'p_read:', 'p_cursor_last_activity_at', 'p_cursor_id']) {
-  assert.equal(contacts.includes(obsolete), false, `Obsolete RPC argument leaked into inbox adapter: ${obsolete}`);
+// These cursor argument names were superseded by the Phase-14.3 list contract.
+for (const obsolete of ['p_cursor_last_activity_at', 'p_cursor_id']) {
+  assert.equal(contacts.includes(obsolete), false, `Obsolete list RPC argument leaked into inbox adapter: ${obsolete}`);
 }
 
 assert.match(contacts, /const PAGE_LIMIT = 25/);
