@@ -79,6 +79,8 @@ assert.match(archiveBlock, /status not in \('resolved','closed','spam'\)/i);
 assert.match(archiveBlock, /'INVALID_ARCHIVE_STATE'/i);
 assert.match(archiveBlock, /archived_at = case when p_archive then now\(\) else null end/i);
 assert.match(archiveBlock, /'NO_CHANGE'/i);
+assert.match(archiveBlock, /v_event\s*:=\s*case when p_archive then 'archived' else 'restored' end/i);
+assert.match(archiveBlock, /'contact_'\s*\|\|\s*v_event/i);
 
 const noteBlock = migration.match(/create or replace function public\.admin_add_contact_enquiry_note[\s\S]*?\$\$;\n/i)?.[0] ?? '';
 assert.match(noteBlock, /char_length\(v_body\) > 10000/i);
@@ -86,7 +88,7 @@ assert.match(noteBlock, /insert into public\.contact_enquiry_notes/i);
 assert.match(noteBlock, /contact_note_added/i);
 assert.doesNotMatch(noteBlock, /enqueue_transactional_email|api\.resend\.com|RESEND_API_KEY/i);
 
-for (const literal of ['contact_status_', 'contact_archived', 'contact_restored', 'contact_note_added']) {
+for (const literal of ['contact_status_', 'contact_note_added']) {
   assert.ok(migration.includes(literal), `Missing audit/history action ${literal}`);
 }
 assert.match(migration, /jsonb_build_object\('source','phase_14_contact_admin'\)/i);
