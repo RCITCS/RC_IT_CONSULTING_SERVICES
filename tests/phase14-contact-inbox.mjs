@@ -19,7 +19,8 @@ assert.match(index, /contacts: true/);
 assert.match(index, /phase12-candidate-application-workflow/);
 
 // Only the verified Phase-14.3 list RPC may supply inbox data.
-assert.match(contacts, /\/rest\/v1\/rpc\/get_admin_contact_list/);
+assert.match(contacts, /rpc\("get_admin_contact_list"/);
+assert.match(contacts, /\/rest\/v1\/rpc\/\$\{name\}/);
 for (const arg of ['p_admin_id', 'p_limit', 'p_status', 'p_read_state', 'p_archive_state', 'p_query', 'p_before_activity', 'p_before_id']) {
   assert.match(contacts, new RegExp(`\\b${arg}\\b`), `Missing locked RPC argument ${arg}`);
   assert.match(migration, new RegExp(`\\b${arg}\\b`), `Migration does not define ${arg}`);
@@ -47,15 +48,13 @@ assert.match(contacts, /name="status"/);
 assert.match(contacts, /name="read"/);
 assert.match(contacts, /name="archive"/);
 
-// Phase 14.4 is deliberately list-only and read-only.
-assert.match(contacts, /if \(path !== "\/contacts"\) return null/);
+// Phase 14.4 list behavior remains GET-only even though 14.5 adds an exact detail route.
+assert.match(contacts, /path !== "\/contacts" && !detailMatch/);
 assert.match(contacts, /request\.method !== "GET"/);
-assert.match(contacts, /read-only in this phase/i);
 assert.doesNotMatch(contacts, /admin_set_contact_read_state/);
 assert.doesNotMatch(contacts, /admin_transition_contact_enquiry/);
 assert.doesNotMatch(contacts, /admin_set_contact_archive_state/);
 assert.doesNotMatch(contacts, /admin_add_contact_enquiry_note/);
-assert.doesNotMatch(contacts, /\/contacts\/\$\{/);
 assert.doesNotMatch(contacts, /reply composer|send reply/i);
 
 // Admin authentication and authorization remain server-authoritative.
@@ -74,6 +73,8 @@ assert.match(contacts, /item\.company/);
 assert.match(contacts, /item\.subject/);
 assert.match(contacts, /item\.status/);
 assert.match(contacts, /item\.last_activity_at/);
+assert.match(contacts, /detailHref = UUID\.test\(id\)/);
+assert.match(contacts, />View<\/a>/);
 
 // HTML uses shared escaping and existing private shell/no-index architecture.
 assert.match(contacts, /import \{ adminHeader, authPage, esc, loginPage, prettyTime, shell/);
@@ -107,4 +108,4 @@ assert.match(ui, /Open contact inbox/);
 assert.match(contacts, /Protected workspace/);
 assert.match(contacts, /Private customer data/);
 
-console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility, shared navigation and read-only boundaries passed.');
+console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility and shared navigation remain preserved after detail-workspace expansion.');
