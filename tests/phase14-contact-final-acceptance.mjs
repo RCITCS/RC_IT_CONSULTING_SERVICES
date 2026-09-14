@@ -83,7 +83,10 @@ assert.match(contacts, /Raw provider errors and arbitrary metadata are not rende
 // List/detail queries stay bounded and indexed for Phase-14 operating paths.
 assert.match(contacts, /const PAGE_LIMIT = 25/);
 assert.match(adminApi, /p_limit integer default 25/);
-assert.match(adminApi, /least\(greatest\(coalesce\(p_limit, 25\), 1\), 100\)/);
+assert.match(adminApi, /v_limit integer := coalesce\(p_limit, 25\)/);
+assert.match(adminApi, /if v_limit < 1 or v_limit > 100 then/);
+assert.match(adminApi, /limit v_limit \+ 1/);
+assert.match(adminApi, /limit v_limit/);
 const detailLimits = adminApi.match(/limit 200/g) || [];
 assert.ok(detailLimits.length >= 3, 'Detail history/notes/messages are not all bounded.');
 assert.match(fkIndexes, /contact_enquiry_notes_admin_id_idx/);
