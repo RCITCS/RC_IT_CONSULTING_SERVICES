@@ -225,15 +225,7 @@ async function dispatchEmailById(emailLogId: string): Promise<{ ok: boolean; cod
     const templateKey = String(queue.template_key ?? "").trim();
 
     if (templateKey === EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET) {
-      await dispatchAdminPasswordReset({
-        queue,
-        provider,
-        createResetToken,
-        markSent,
-        markFailed,
-        randomToken,
-        shaHex
-      });
+      await dispatchAdminPasswordReset({ queue, provider, createResetToken, markSent, markFailed, randomToken, shaHex });
       return { ok: true };
     }
 
@@ -292,7 +284,7 @@ Deno.serve(async (request: Request) => {
     return json({
       ok: true,
       service: "rcitcs-transactional-email",
-      contract: "phase14-contact-reply-v1",
+      contract: "phase13-admin-reset-v1",
       provider: "resend",
       providerConfigured: provider.configured,
       databaseConfigured: Boolean(SUPABASE_URL && API_KEY),
