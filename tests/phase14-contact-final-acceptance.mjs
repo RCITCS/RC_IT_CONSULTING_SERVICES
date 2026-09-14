@@ -42,9 +42,9 @@ for (const table of ['contact_enquiry_history', 'contact_enquiry_notes', 'contac
   assert.match(dataModel, new RegExp(`alter table public\\.${table} enable row level security`));
   assert.match(dataModel, new RegExp(`alter table public\\.${table} force row level security`));
 }
-assert.match(appendOnly, /revoke update, delete, truncate on table public\.contact_enquiry_history from service_role/);
-assert.match(appendOnly, /revoke update, delete, truncate on table public\.contact_enquiry_notes from service_role/);
-assert.match(appendOnly, /revoke update, delete, truncate on table public\.contact_enquiry_messages from service_role/);
+assert.match(appendOnly, /revoke all on table[\s\S]*public\.contact_enquiry_history,[\s\S]*public\.contact_enquiry_notes,[\s\S]*public\.contact_enquiry_messages[\s\S]*from service_role/);
+assert.match(appendOnly, /grant select, insert on table[\s\S]*public\.contact_enquiry_history,[\s\S]*public\.contact_enquiry_notes,[\s\S]*public\.contact_enquiry_messages[\s\S]*to service_role/);
+assert.match(appendOnly, /revoke all on table[\s\S]*public\.contact_enquiry_history,[\s\S]*public\.contact_enquiry_notes,[\s\S]*public\.contact_enquiry_messages[\s\S]*from public, anon, authenticated/);
 
 // The complete contact RPC surface is browser-inaccessible and service-role-only.
 for (const fn of [
