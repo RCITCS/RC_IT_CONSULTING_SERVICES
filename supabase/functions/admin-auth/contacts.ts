@@ -69,12 +69,12 @@ async function contactList(adminId: string, filters: InboxFilters): Promise<Cont
     body: JSON.stringify({
       p_admin_id: adminId,
       p_limit: PAGE_LIMIT,
+      p_status: filters.status === "all" ? null : filters.status,
+      p_read_state: filters.read,
+      p_archive_state: filters.archive,
       p_query: filters.q || null,
-      p_status: filters.status,
-      p_archive: filters.archive,
-      p_read: filters.read,
-      p_cursor_last_activity_at: filters.cursorAt,
-      p_cursor_id: filters.cursorId
+      p_before_activity: filters.cursorAt,
+      p_before_id: filters.cursorId
     })
   });
   if (!response.ok) throw new Error("contact list request failed");
