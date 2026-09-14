@@ -80,10 +80,10 @@ assert.match(archiveBlock, /'NO_CHANGE'/i);
 const noteBlock = migration.match(/create or replace function public\.admin_add_contact_enquiry_note[\s\S]*?\$\$;\n/i)?.[0] ?? '';
 assert.match(noteBlock, /char_length\(v_body\) > 10000/i);
 assert.match(noteBlock, /insert into public\.contact_enquiry_notes/i);
-assert.match(noteBlock, /contact_internal_note_added/i);
+assert.match(noteBlock, /contact_note_added/i);
 assert.doesNotMatch(noteBlock, /enqueue_transactional_email|api\.resend\.com|RESEND_API_KEY/i);
 
-for (const action of ['contact_read', 'contact_marked_unread', 'contact_status_', 'contact_archived', 'contact_restored', 'contact_internal_note_added']) {
+for (const action of ['contact_read', 'contact_marked_unread', 'contact_status_', 'contact_archived', 'contact_restored', 'contact_note_added']) {
   assert.ok(migration.includes(action), `Missing audit/history action ${action}`);
 }
 assert.match(migration, /jsonb_build_object\('source','phase_14_contact_admin'\)/i);
