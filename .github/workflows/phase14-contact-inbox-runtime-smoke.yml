@@ -1,0 +1,47 @@
+name: Phase 14 Contact Inbox Runtime Smoke
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contact-inbox-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify deployed admin health contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(curl --fail --silent --show-error --max-time 20 'https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth/health')"
+          node -e '
+            const body = JSON.parse(process.argv[1]);
+            if (body.ok !== true) throw new Error("admin health is not ok");
+            if (body.service !== "rcitcs-admin") throw new Error("unexpected admin service");
+            if (body.dashboard !== true || body.jobs !== true || body.applications !== true || body.contacts !== true) throw new Error("admin capability contract incomplete");
+            if (body.design !== "phase12-candidate-application-workflow") throw new Error("Phase 12 design contract regressed");
+          ' "$body"
+
+      - name: Verify contacts remain behind authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --max-time 20 --dump-header "$headers" --output "$body" --write-out '%{http_code}' 'https://admin.rcitcs.com/contacts')"
+          test "$status" = "200"
+          grep -qi '^x-robots-tag: .*noindex' "$headers"
+          grep -qi '^cache-control: .*no-store' "$headers"
+          grep -q 'Administrator sign in' "$body"
+          if grep -q 'id="contacts-title"' "$body"; then
+            echo 'Unauthenticated contacts inbox was rendered.' >&2
+            exit 1
+          fi
+          if grep -q 'Contact inbox' "$body"; then
+            echo 'Unauthenticated contact data surface was rendered.' >&2
+            exit 1
+          fi
