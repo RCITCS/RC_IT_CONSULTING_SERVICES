@@ -63,11 +63,12 @@ assert.doesNotMatch(migration, /jsonb_build_object\([^;]*(?:v_body|p_body|v_subj
 assert.match(migration, /revoke all on function public\.admin_queue_contact_enquiry_reply\(uuid,uuid,integer,text,text,text,text\)[\s\S]*from public, anon, authenticated/);
 assert.match(migration, /grant execute on function public\.admin_queue_contact_enquiry_reply\(uuid,uuid,integer,text,text,text,text\)[\s\S]*to service_role/);
 
-// Delivery remains on Phase-13 infrastructure; admin-auth never calls Resend directly.
+// Delivery remains on Phase-13 infrastructure; its published health contract stays backwards compatible.
 assert.match(dispatcher, /dispatchContactReplyEmail/);
 assert.match(dispatcher, /EMAIL_TEMPLATE_KEYS\.CONTACT_ADMIN_REPLY/);
 assert.match(dispatcher, /loadContactReplyMessage/);
 assert.match(dispatcher, /contactAdminReplies: true/);
+assert.match(dispatcher, /contract: "phase13-admin-reset-v1"/);
 assert.match(contacts, /transactional-email\/dispatch/);
 assert.doesNotMatch(contacts, /api\.resend\.com|createResendEmailProvider|RESEND_API_KEY/);
 assert.match(delivery, /retryAtForEmailFailure/);
@@ -113,4 +114,4 @@ assert.equal(envelope.text, message.body_text);
 assert.match(envelope.html, /Hello &lt;customer&gt;<br>Second line/);
 assert.doesNotMatch(envelope.html, /Hello <customer>/);
 
-console.log('Phase 14.8 customer reply composer, atomic persistence/queueing, fixed identity, escaping, idempotency, retry and audit-content isolation passed.');
+console.log('Phase 14.8 customer reply composer, atomic persistence/queueing, fixed identity, escaping, idempotency, retry, backwards-compatible runtime health and audit-content isolation passed.');
