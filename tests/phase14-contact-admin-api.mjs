@@ -62,6 +62,9 @@ assert.match(readBlock, /first_read_at = coalesce\(first_read_at, now\(\)\), rea
 assert.match(readBlock, /set read_at = null/i);
 assert.doesNotMatch(readBlock, /set status\s*=/i);
 assert.match(readBlock, /'NO_CHANGE'/i);
+assert.match(readBlock, /v_event\s*:=\s*'read'/i);
+assert.match(readBlock, /v_event\s*:=\s*'marked_unread'/i);
+assert.match(readBlock, /'contact_'\s*\|\|\s*v_event/i);
 
 const transitionBlock = migration.match(/create or replace function public\.admin_transition_contact_enquiry[\s\S]*?\$\$;\n/i)?.[0] ?? '';
 assert.match(transitionBlock, /v_target not in \('open','in_progress','resolved','closed','spam'\)/i);
@@ -83,8 +86,8 @@ assert.match(noteBlock, /insert into public\.contact_enquiry_notes/i);
 assert.match(noteBlock, /contact_note_added/i);
 assert.doesNotMatch(noteBlock, /enqueue_transactional_email|api\.resend\.com|RESEND_API_KEY/i);
 
-for (const action of ['contact_read', 'contact_marked_unread', 'contact_status_', 'contact_archived', 'contact_restored', 'contact_note_added']) {
-  assert.ok(migration.includes(action), `Missing audit/history action ${action}`);
+for (const literal of ['contact_status_', 'contact_archived', 'contact_restored', 'contact_note_added']) {
+  assert.ok(migration.includes(literal), `Missing audit/history action ${literal}`);
 }
 assert.match(migration, /jsonb_build_object\('source','phase_14_contact_admin'\)/i);
 assert.doesNotMatch(migration, /before_data[^;]*v_row\.message/i);
