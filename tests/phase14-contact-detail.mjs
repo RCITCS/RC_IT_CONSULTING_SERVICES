@@ -12,7 +12,6 @@ assert.match(contacts, /p_admin_id: adminId/);
 assert.match(contacts, /p_enquiry_id: enquiryId/);
 assert.match(migration, /create or replace function public\.get_admin_contact_detail/);
 
-// Detail GET route remains exact and UUID-bounded even after explicit mutation routes are added.
 assert.match(contacts, /const detailMatch = path\.match/);
 assert.match(contacts, /\[0-9a-f\]\{8\}/i);
 assert.match(contacts, /path !== "\/contacts" && !detailMatch && !mutationMatch/);
@@ -20,13 +19,11 @@ assert.match(contacts, /if \(request\.method === "GET"\)/);
 assert.match(contacts, /const enquiryId = detailMatch\[1\]\.toLowerCase\(\)/);
 assert.match(contacts, /return contactDetailPage\(basePath, authState, context, url\)/);
 
-// Opening the detail page itself has no implicit mutation. Mutations require separate POST-only routes.
+// Opening detail remains non-mutating even as later explicit POST operations are added.
 assert.match(contacts, /Opening this page does not change read state or workflow status/);
 assert.match(contacts, /Explicit actions only/);
-assert.match(contacts, /mutationMatch/);
 assert.match(contacts, /Contact mutations require a protected POST request/);
 assert.doesNotMatch(contacts, /reply composer|send reply/i);
-assert.equal(contacts.includes('admin_add_contact_enquiry_note'), false, '14.5/14.6 must not pull internal notes forward.');
 
 for (const field of ['name', 'email', 'phone', 'company', 'service', 'subject', 'message', 'consent', 'consent_at', 'source']) {
   assert.match(migration, new RegExp(`'${field}'`), `Detail RPC does not project immutable field ${field}`);
@@ -42,7 +39,8 @@ for (const count of ['history_count', 'note_count', 'message_count']) assert.mat
 for (const field of ['first_read_at', 'read_at', 'resolved_at', 'closed_at', 'archived_at', 'last_activity_at', 'updated_at', 'version']) {
   assert.match(contacts, new RegExp(`enquiry\\.${field}`), `Operational context missing ${field}`);
 }
-assert.doesNotMatch(contacts, /context\.history\s*\.map|context\.notes\s*\.map|context\.messages\s*\.map/);
+// 14.7 may render notes, but 14.5 must not accidentally render reply/timeline arrays.
+assert.doesNotMatch(contacts, /context\.history\s*\.map|context\.messages\s*\.map/);
 assert.match(contacts, /metadata\.intent/);
 assert.match(contacts, /metadata\.job_title/);
 assert.match(contacts, /metadata\.submission_type/);
