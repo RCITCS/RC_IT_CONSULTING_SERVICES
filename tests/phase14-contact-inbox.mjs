@@ -6,12 +6,14 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contacts = await readFile(path.join(root, 'supabase/functions/admin-auth/contacts.ts'), 'utf8');
 const index = await readFile(path.join(root, 'supabase/functions/admin-auth/index.ts'), 'utf8');
+const ui = await readFile(path.join(root, 'supabase/functions/admin-auth/ui.ts'), 'utf8');
 const migration = await readFile(path.join(root, 'supabase/migrations/20260914030000_phase_14_contact_admin_api.sql'), 'utf8');
 
 // The inbox must be routed inside the existing authenticated admin surface.
 assert.match(index, /import \{ handleContactRoute \} from "\.\/contacts\.ts"/);
 assert.match(index, /handleContactRoute\(\{ request, url, path, basePath, authState \}\)/);
 assert.match(index, /contacts: true/);
+assert.match(index, /phase12-candidate-application-workflow/);
 
 // Only the verified Phase-14.3 list RPC may supply inbox data.
 assert.match(contacts, /\/rest\/v1\/rpc\/get_admin_contact_list/);
@@ -70,8 +72,9 @@ assert.match(contacts, /item\.subject/);
 assert.match(contacts, /item\.status/);
 assert.match(contacts, /item\.last_activity_at/);
 
-// HTML uses shared escaping and existing private shell/no-index architecture.
-assert.match(contacts, /import \{ authPage, esc, loginPage, prettyTime, shell/);
+// HTML uses shared escaping, shared admin navigation and existing private shell/no-index architecture.
+assert.match(contacts, /import \{ adminHeader, authPage, esc, loginPage, prettyTime, shell/);
+assert.match(contacts, /adminHeader\(basePath, session, "contacts"\)/);
 assert.match(contacts, /esc\(item\.name/);
 assert.match(contacts, /esc\(item\.email/);
 assert.match(contacts, /aria-labelledby="contacts-title"/);
@@ -80,11 +83,14 @@ assert.match(contacts, /No enquiries match this view/);
 assert.match(contacts, /@media\(max-width:900px\)/);
 assert.match(contacts, /@media\(max-width:600px\)/);
 
-// Contact inbox navigation is visible in desktop and mobile on the new workspace.
-assert.match(contacts, /<span>Applications<\/span>/);
-assert.match(contacts, /<span>Contacts<\/span>/);
-assert.match(contacts, /href="\$\{basePath\}\/contacts" aria-current="page"/);
+// Overview and Contacts share one first-class desktop/mobile navigation authority.
+assert.match(ui, /export function adminHeader/);
+assert.match(ui, /<span>Applications<\/span>/);
+assert.match(ui, /<span>Contacts<\/span>/);
+assert.match(ui, /href="\$\{basePath\}\/contacts"/);
+assert.match(ui, /Open contact inbox/);
+assert.match(ui, /adminHeader\(basePath,session,"overview"\)/);
 assert.match(contacts, /Protected workspace/);
 assert.match(contacts, /Private customer data/);
 
-console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility and read-only boundaries passed.');
+console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility, shared navigation and read-only boundaries passed.');
