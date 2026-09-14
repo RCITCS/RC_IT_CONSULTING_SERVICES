@@ -39,8 +39,7 @@ for (const count of ['history_count', 'note_count', 'message_count']) assert.mat
 for (const field of ['first_read_at', 'read_at', 'resolved_at', 'closed_at', 'archived_at', 'last_activity_at', 'updated_at', 'version']) {
   assert.match(contacts, new RegExp(`enquiry\\.${field}`), `Operational context missing ${field}`);
 }
-// 14.7/14.8 may render notes and a reply composer, but the unified activity arrays are not yet rendered in 14.5.
-assert.doesNotMatch(contacts, /context\.history\s*\.map|context\.messages\s*\.map/);
+assert.match(migration, /limit 200/g);
 assert.match(contacts, /metadata\.intent/);
 assert.match(contacts, /metadata\.job_title/);
 assert.match(contacts, /metadata\.submission_type/);
