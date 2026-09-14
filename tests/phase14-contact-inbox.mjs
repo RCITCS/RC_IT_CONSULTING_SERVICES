@@ -7,6 +7,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contacts = await readFile(path.join(root, 'supabase/functions/admin-auth/contacts.ts'), 'utf8');
 const index = await readFile(path.join(root, 'supabase/functions/admin-auth/index.ts'), 'utf8');
 const ui = await readFile(path.join(root, 'supabase/functions/admin-auth/ui.ts'), 'utf8');
+const jobs = await readFile(path.join(root, 'supabase/functions/admin-auth/jobs.ts'), 'utf8');
+const applications = await readFile(path.join(root, 'supabase/functions/admin-auth/applications.ts'), 'utf8');
+const security = await readFile(path.join(root, 'supabase/functions/admin-auth/security.ts'), 'utf8');
 const migration = await readFile(path.join(root, 'supabase/migrations/20260914030000_phase_14_contact_admin_api.sql'), 'utf8');
 
 // The inbox must be routed inside the existing authenticated admin surface.
@@ -72,7 +75,7 @@ assert.match(contacts, /item\.subject/);
 assert.match(contacts, /item\.status/);
 assert.match(contacts, /item\.last_activity_at/);
 
-// HTML uses shared escaping, shared admin navigation and existing private shell/no-index architecture.
+// HTML uses shared escaping and existing private shell/no-index architecture.
 assert.match(contacts, /import \{ adminHeader, authPage, esc, loginPage, prettyTime, shell/);
 assert.match(contacts, /adminHeader\(basePath, session, "contacts"\)/);
 assert.match(contacts, /esc\(item\.name/);
@@ -83,13 +86,24 @@ assert.match(contacts, /No enquiries match this view/);
 assert.match(contacts, /@media\(max-width:900px\)/);
 assert.match(contacts, /@media\(max-width:600px\)/);
 
-// Overview and Contacts share one first-class desktop/mobile navigation authority.
-assert.match(ui, /export function adminHeader/);
-assert.match(ui, /<span>Applications<\/span>/);
-assert.match(ui, /<span>Contacts<\/span>/);
-assert.match(ui, /href="\$\{basePath\}\/contacts"/);
-assert.match(ui, /Open contact inbox/);
+// One shared desktop/mobile navigation authority must serve all affected workspaces.
+assert.match(ui, /export function adminHeader\(/);
+for (const navLabel of ['Overview', 'Jobs', 'Applications', 'Contacts', 'Security']) {
+  assert.match(ui, new RegExp(`<span>${navLabel}<\\/span>`), `Shared desktop navigation is missing ${navLabel}`);
+  assert.match(ui, new RegExp(`>${navLabel}<\\/a>`), `Shared mobile navigation is missing ${navLabel}`);
+}
+for (const [name, source, current] of [
+  ['Jobs', jobs, 'jobs'],
+  ['Applications', applications, 'applications'],
+  ['Contacts', contacts, 'contacts'],
+  ['Security', security, 'security']
+]) {
+  assert.match(source, /import \{ adminHeader,/i, `${name} does not import the shared admin navigation authority`);
+  assert.match(source, new RegExp(`adminHeader\\(basePath, session, ["']${current}["']\\)`), `${name} does not select its shared navigation state`);
+  assert.doesNotMatch(source, /function adminHeader\(/, `${name} still owns a duplicate admin header renderer`);
+}
 assert.match(ui, /adminHeader\(basePath,session,"overview"\)/);
+assert.match(ui, /Open contact inbox/);
 assert.match(contacts, /Protected workspace/);
 assert.match(contacts, /Private customer data/);
 
