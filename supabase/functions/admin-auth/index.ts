@@ -33,7 +33,7 @@ import { securityPage } from "./security.ts";
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
 const SESSION_TTL = 8 * 60 * 60;
 const IDLE_TTL = 30 * 60;
-const RECOVERY_TTL = 10 * 60;
+const RECOVERY_TTL = 30 * 60;
 const BOOTSTRAP_VERIFIER = Deno.env.get("ADMIN_BOOTSTRAP_PASSWORD_VERIFIER") ?? "";
 const ADMIN_PROXY_HEADER = "x-rcitcs-admin-proxy";
 const ADMIN_PROXY_VALUE = "cloudflare";
@@ -82,8 +82,11 @@ function authCookies(url: URL, session = "", csrf = "", maxAge = SESSION_TTL): H
 function recoveryCookies(url: URL, token = "", csrf = "", maxAge = RECOVERY_TTL): Headers {
   const headers = new Headers();
   const path = `${base(url)}/reset-password` || "/reset-password";
-  headers.append("set-cookie", `rcitcs_admin_recovery=${encodeURIComponent(token)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
-  headers.append("set-cookie", `rcitcs_admin_recovery_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict; Priority=High`);
+  // Recovery begins from a top-level link in an external mailbox. Lax permits
+  // that safe navigation handoff while Secure + HttpOnly + path scoping and
+  // server-side token/CSRF validation preserve the recovery boundary.
+  headers.append("set-cookie", `rcitcs_admin_recovery=${encodeURIComponent(token)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax; Priority=High`);
+  headers.append("set-cookie", `rcitcs_admin_recovery_csrf=${encodeURIComponent(csrf)}; Path=${path}; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax; Priority=High`);
   return headers;
 }
 
