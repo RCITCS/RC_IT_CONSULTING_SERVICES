@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const CONTACT_STATUSES = new Set(["all", "new", "open", "in_progress", "resolved", "closed", "spam"]);
 const READ_FILTERS = new Set(["all", "unread", "read"]);
 const ARCHIVE_FILTERS = new Set(["active", "archived", "all"]);
-const MUTATION_ACTIONS = new Set(["read-state", "workflow", "archive-state", "note", "reply"]);
+const MUTATION_ACTIONS = new Set(["read-state", "workflow", "archive-state", "note", "reply", "assignment"]);
 
 let MODERN_SECRET_KEY = "";
 try {
@@ -86,12 +86,21 @@ type ContactMessage = {
   created_at?: string;
 };
 
+type ContactHistoryEvent = {
+  id?: string;
+  event_type?: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  actor_admin_id?: string | null;
+  created_at?: string;
+};
+
 type ContactDetailContext = {
   ok?: boolean;
   code?: string;
   message?: string;
   enquiry?: ContactEnquiry | null;
-  history?: unknown[];
+  history?: ContactHistoryEvent[];
   notes?: ContactNote[];
   messages?: ContactMessage[];
   history_count?: number;
@@ -158,12 +167,7 @@ async function requestIpHash(request: Request): Promise<string> {
 async function dispatchQueuedEmail(emailLogId: string): Promise<boolean> {
   if (!SUPABASE_URL || !API_KEY || !UUID.test(emailLogId)) return false;
   try {
-    const headers = new Headers({
-      apikey: API_KEY,
-      authorization: `Bearer ${API_KEY}`,
-      "content-type": "application/json",
-      accept: "application/json"
-    });
+    const headers = new Headers({ apikey: API_KEY, authorization: `Bearer ${API_KEY}`, "content-type": "application/json", accept: "application/json" });
     const response = await fetch(`${SUPABASE_URL}/functions/v1/transactional-email/dispatch`, {
       method: "POST",
       headers,
@@ -300,11 +304,12 @@ function operationNotice(url: URL): { message: string; error: boolean } {
   const notices: Record<string, string> = {
     read: "Enquiry marked as read.", unread: "Enquiry marked as unread.", workflow: "Workflow status updated.",
     archived: "Enquiry archived.", restored: "Enquiry restored.", note: "Internal note added.",
+    assigned: "Enquiry assigned to you.", unassigned: "Enquiry assignment cleared.",
     reply_sent: "Reply sent and recorded.", reply_queued: "Reply recorded and queued for delivery."
   };
   const errors: Record<string, string> = {
     stale: "This enquiry changed after the page was loaded. Review the latest version before trying again.",
-    archived: "Restore the enquiry before changing its read state, workflow status, internal notes, or customer replies.",
+    archived: "Restore the enquiry before changing its read state, workflow status, assignment, internal notes, or customer replies.",
     invalid_transition: "That workflow transition is not permitted from the current status.",
     invalid_archive: "Resolve, close, or mark the enquiry as spam before archiving it.",
     validation: "The requested contact operation was invalid.",
@@ -325,14 +330,17 @@ function contactOperations(basePath: string, session: AdminSessionView, enquiry:
   if (!UUID.test(id) || !Number.isSafeInteger(version) || version < 1) return "";
   const hidden = `<input type="hidden" name="csrf" value="${esc(session.csrf)}"><input type="hidden" name="expected_version" value="${esc(version)}">`;
   if (enquiry.archived_at) {
-    return `<section class="data-plane" aria-labelledby="contact-actions-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-actions-title">Record controls</h2><p>This terminal enquiry is archived. Restore it before changing read state, workflow status, or internal notes. Replying is also disabled while archived.</p></div><span class="section-meta">Archived</span></header><div style="padding:18px"><form method="post" action="${basePath}/contacts/${esc(id)}/archive-state">${hidden}<input type="hidden" name="archive" value="0"><button class="btn secondary" type="submit">Restore enquiry</button></form></div></section>`;
+    return `<section class="data-plane" aria-labelledby="contact-actions-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-actions-title">Record controls</h2><p>This terminal enquiry is archived. Restore it before changing read state, workflow status, or internal notes. Assignment and replying are also disabled while archived.</p></div><span class="section-meta">Archived</span></header><div style="padding:18px"><form method="post" action="${basePath}/contacts/${esc(id)}/archive-state">${hidden}<input type="hidden" name="archive" value="0"><button class="btn secondary" type="submit">Restore enquiry</button></form></div></section>`;
   }
   const status = String(enquiry.status || "new");
   const targets = workflowTargets(status);
   const canArchive = ["resolved", "closed", "spam"].includes(status);
+  const assignedTo = String(enquiry.assigned_to || "");
+  const assignedToSelf = assignedTo === String(session.admin.id || "");
   const workflow = targets.length ? `<form method="post" action="${basePath}/contacts/${esc(id)}/workflow" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">${hidden}<div><label for="contact-target-status" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Change workflow status</label><select id="contact-target-status" name="target_status" required style="min-width:190px;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"><option value="">Select next status</option>${targets.map((target) => `<option value="${esc(target)}">${esc(statusLabel(target))}</option>`).join("")}</select></div><button class="btn" type="submit">Update status</button></form>` : "";
+  const assignment = `<form method="post" action="${basePath}/contacts/${esc(id)}/assignment">${hidden}<input type="hidden" name="assigned" value="${assignedTo ? "0" : "1"}"><button class="btn secondary" type="submit">${assignedTo ? (assignedToSelf ? "Unassign from me" : "Clear assignment") : "Assign to me"}</button></form>`;
   const archive = canArchive ? `<form method="post" action="${basePath}/contacts/${esc(id)}/archive-state">${hidden}<input type="hidden" name="archive" value="1"><button class="btn secondary" type="submit">Archive enquiry</button></form>` : `<span class="muted">Archiving becomes available after Resolve, Close, or Spam.</span>`;
-  return `<section class="data-plane" aria-labelledby="contact-actions-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-actions-title">Workflow controls</h2><p>Every mutation is version-checked, validated by PostgreSQL, and recorded in history and the administrative audit stream.</p></div><span class="section-meta">Server-authoritative</span></header><div style="padding:18px;display:flex;gap:16px;align-items:end;justify-content:space-between;flex-wrap:wrap"><div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><form method="post" action="${basePath}/contacts/${esc(id)}/read-state">${hidden}<input type="hidden" name="read" value="${enquiry.read_at ? "0" : "1"}"><button class="btn secondary" type="submit">${enquiry.read_at ? "Mark unread" : "Mark read"}</button></form>${workflow}</div><div>${archive}</div></div></section>`;
+  return `<section class="data-plane" aria-labelledby="contact-actions-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-actions-title">Workflow controls</h2><p>Every mutation is version-checked, validated by PostgreSQL, and recorded in history and the administrative audit stream.</p></div><span class="section-meta">Server-authoritative</span></header><div style="padding:18px;display:flex;gap:16px;align-items:end;justify-content:space-between;flex-wrap:wrap"><div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><form method="post" action="${basePath}/contacts/${esc(id)}/read-state">${hidden}<input type="hidden" name="read" value="${enquiry.read_at ? "0" : "1"}"><button class="btn secondary" type="submit">${enquiry.read_at ? "Mark unread" : "Mark read"}</button></form>${assignment}${workflow}</div><div>${archive}</div></div></section>`;
 }
 
 function internalNotes(basePath: string, session: AdminSessionView, context: ContactDetailContext, enquiry: ContactEnquiry): string {
@@ -360,18 +368,59 @@ function contactReplyComposer(basePath: string, session: AdminSessionView, enqui
   return `<section class="data-plane" aria-labelledby="contact-reply-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-reply-title">Reply to customer</h2><p>Send from the approved company identity. The reply is persisted before delivery and remains traceable through the transactional email queue.</p></div><span class="section-meta">contact@rcitcs.com</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-bottom:16px">${fact("To", enquiry.email || "—", true)}${fact("From", "contact@rcitcs.com", true)}${fact("Reply-To", "contact@rcitcs.com", true)}</div><form method="post" action="${basePath}/contacts/${esc(id)}/reply"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><input type="hidden" name="expected_version" value="${esc(version)}"><div class="field"><label for="contact-reply-subject">Subject</label><input id="contact-reply-subject" name="subject" value="${esc(replySubject(enquiry))}" maxlength="${REPLY_SUBJECT_MAX}" required style="display:block;width:100%;box-sizing:border-box"></div><div class="field"><label for="contact-reply-body">Message</label><textarea id="contact-reply-body" name="body" maxlength="${REPLY_BODY_MAX}" rows="8" required placeholder="Write the customer-facing response." style="display:block;width:100%;min-height:180px;box-sizing:border-box;resize:vertical"></textarea><p class="muted">Customer-facing message. Do not include passwords, private candidate documents, internal notes, or secrets.</p></div><button class="btn" type="submit">Send reply</button></form></div></section>`;
 }
 
+function timelineEventLabel(event: ContactHistoryEvent): string {
+  const labels: Record<string, string> = {
+    created: "Enquiry received",
+    read: "Marked read",
+    marked_unread: "Marked unread",
+    status_changed: "Workflow status changed",
+    archived: "Enquiry archived",
+    restored: "Enquiry restored",
+    note_added: "Internal note added",
+    assigned: "Assigned to administrator",
+    unassigned: "Assignment cleared"
+  };
+  return labels[String(event.event_type || "")] || statusLabel(String(event.event_type || "activity"));
+}
+
+function contactActivityTimeline(context: ContactDetailContext): string {
+  const history = Array.isArray(context.history) ? context.history : [];
+  const messages = Array.isArray(context.messages) ? context.messages : [];
+  const activities: { at: string; html: string }[] = [];
+
+  for (const event of history) {
+    if (event.event_type === "reply_queued") continue;
+    const at = String(event.created_at || "");
+    const from = String(event.from_status || "");
+    const to = String(event.to_status || "");
+    const statusChange = from && to && from !== to ? `<div class="activity-type">${esc(statusLabel(from))} → ${esc(statusLabel(to))}</div>` : "";
+    activities.push({ at, html: `<article style="padding:14px 0;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><strong style="font-size:11px">${esc(timelineEventLabel(event))}</strong><time class="muted" datetime="${esc(at)}">${esc(prettyTime(at))}</time></div>${statusChange}</article>` });
+  }
+
+  for (const message of messages) {
+    const at = String(message.created_at || "");
+    const delivery = statusLabel(String(message.delivery_status || "queued"));
+    activities.push({ at, html: `<article style="padding:16px 0;border-top:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><strong style="font-size:11px">Outbound customer reply</strong><time class="muted" datetime="${esc(at)}">${esc(prettyTime(at))}</time></div><div class="activity-type">${esc(message.sender_email || "contact@rcitcs.com")} → ${esc(message.recipient_email || "")}</div><div style="margin-top:8px;font-weight:700;font-size:12px">${esc(message.subject || "Reply")}</div><div style="margin-top:7px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.65">${esc(message.body_text || "")}</div><div style="margin-top:8px;font-size:10px;color:var(--muted);font-weight:700">Delivery: ${esc(delivery)}${message.sent_at ? ` · Sent ${esc(prettyTime(String(message.sent_at)))}` : ""}</div></article>` });
+  }
+
+  activities.sort((a, b) => Date.parse(b.at || "1970-01-01") - Date.parse(a.at || "1970-01-01"));
+  const body = activities.length ? activities.map((item) => item.html).join("") : `<div class="empty">No operational activity has been recorded yet.</div>`;
+  return `<section class="data-plane" aria-labelledby="contact-activity-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-activity-title">Activity &amp; reply history</h2><p>Bounded operational history and persisted outbound customer communication. Raw provider errors and arbitrary metadata are not rendered.</p></div><span class="section-meta">Newest first</span></header><div style="padding:18px">${body}</div></section>`;
+}
+
 function contactDetailPage(basePath: string, session: AdminSessionView, context: ContactDetailContext, url: URL): Response {
   const enquiry = context.enquiry || {};
   const message = String(enquiry.message || "");
   const source = String(enquiry.source || "contact");
   const readState = enquiry.read_at ? "Read" : "Unread";
   const archiveState = enquiry.archived_at ? "Archived" : "Active";
+  const assignmentState = enquiry.assigned_to ? (String(enquiry.assigned_to) === String(session.admin.id || "") ? "Assigned to you" : "Assigned") : "Unassigned";
   const consentState = enquiry.consent ? "Recorded" : "Not recorded";
   const version = Number(enquiry.version || 1);
   const counts = { history: Number(context.history_count || 0), notes: Number(context.note_count || 0), messages: Number(context.message_count || 0) };
   const notice = operationNotice(url);
   const noticeHtml = notice.message ? `<div class="msg ${notice.error ? "error" : "ok"}" role="status">${esc(notice.message)}</div>` : "";
-  return shell("Contact enquiry", `<div class="admin-shell">${adminHeader(basePath, session, "contacts")}${workspaceBar("Enquiry detail", "Immutable intake · operational context")}<main class="workspace" id="main-content" aria-labelledby="contact-detail-title"><div class="page-heading"><div><div class="eyebrow">Contact record</div><h1 id="contact-detail-title">${esc(enquiry.name || "Contact enquiry")}</h1><p>${esc(enquiry.subject || "General enquiry")}</p></div><div class="snapshot"><strong>${statusBadge(String(enquiry.status || "new"))}</strong>${esc(readState)} · ${esc(archiveState)}<br>Version ${esc(version)}</div></div>${noticeHtml}<div class="actions" style="margin:0 0 14px"><a class="btn secondary" href="${basePath}/contacts">Back to contact inbox</a></div><section class="data-plane" aria-labelledby="original-enquiry-title"><header class="section-header"><div><h2 id="original-enquiry-title">Original enquiry</h2><p>Accepted customer-submitted evidence is immutable after intake.</p></div><span class="section-meta">Read-only evidence</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin-bottom:16px">${fact("Name", enquiry.name)}${fact("Email", enquiry.email)}${fact("Phone", enquiry.phone || "—")}${fact("Company", enquiry.company || "—")}${fact("Service / topic", enquiry.service || "—")}${fact("Source", source)}${fact("Privacy consent", consentState)}${dateFact("Consent recorded", enquiry.consent_at)}</div><div style="padding:16px;border:1px solid var(--line);background:var(--surface-subtle)"><span style="display:block;color:var(--muted);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer message</span><div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7;color:var(--text)">${esc(message || "No message content was stored.")}</div></div></div></section>${detailOperationalMetadata(enquiry)}<section class="data-plane" aria-labelledby="contact-operations-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-operations-title">Operational context</h2><p>Current server-authoritative state. Opening this page does not change read state or workflow status.</p></div><span class="section-meta">Explicit actions only</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px">${fact("Workflow status", statusLabel(String(enquiry.status || "new")), true)}${fact("Read state", readState, true)}${fact("Archive state", archiveState, true)}${fact("History events", counts.history, true)}${fact("Internal notes", counts.notes, true)}${fact("Outbound replies", counts.messages, true)}${dateFact("Received", enquiry.created_at)}${dateFact("First reviewed", enquiry.first_read_at)}${dateFact("Currently read since", enquiry.read_at)}${dateFact("Resolved", enquiry.resolved_at)}${dateFact("Closed", enquiry.closed_at)}${dateFact("Archived", enquiry.archived_at)}${dateFact("Last activity", enquiry.last_activity_at)}${dateFact("Record updated", enquiry.updated_at)}</div></div></section>${contactOperations(basePath, session, enquiry)}${internalNotes(basePath, session, context, enquiry)}${contactReplyComposer(basePath, session, enquiry)}<div class="readonly-note"><span>Customer replies are persisted and dispatched through the transactional email authority. The unified conversation timeline is added in the next Phase 14 subphase.</span></div><div class="footerline"><span>RC IT Services · Private contact record</span><span>Escaped customer content · Immutable intake · Version ${esc(version)}</span></div></main><style>@media(max-width:600px){#main-content .page-heading{align-items:flex-start}}</style></div>`);
+  return shell("Contact enquiry", `<div class="admin-shell">${adminHeader(basePath, session, "contacts")}${workspaceBar("Enquiry detail", "Immutable intake · operational context")}<main class="workspace" id="main-content" aria-labelledby="contact-detail-title"><div class="page-heading"><div><div class="eyebrow">Contact record</div><h1 id="contact-detail-title">${esc(enquiry.name || "Contact enquiry")}</h1><p>${esc(enquiry.subject || "General enquiry")}</p></div><div class="snapshot"><strong>${statusBadge(String(enquiry.status || "new"))}</strong>${esc(readState)} · ${esc(archiveState)}<br>${esc(assignmentState)} · Version ${esc(version)}</div></div>${noticeHtml}<div class="actions" style="margin:0 0 14px"><a class="btn secondary" href="${basePath}/contacts">Back to contact inbox</a></div><section class="data-plane" aria-labelledby="original-enquiry-title"><header class="section-header"><div><h2 id="original-enquiry-title">Original enquiry</h2><p>Accepted customer-submitted evidence is immutable after intake.</p></div><span class="section-meta">Read-only evidence</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin-bottom:16px">${fact("Name", enquiry.name)}${fact("Email", enquiry.email)}${fact("Phone", enquiry.phone || "—")}${fact("Company", enquiry.company || "—")}${fact("Service / topic", enquiry.service || "—")}${fact("Source", source)}${fact("Privacy consent", consentState)}${dateFact("Consent recorded", enquiry.consent_at)}</div><div style="padding:16px;border:1px solid var(--line);background:var(--surface-subtle)"><span style="display:block;color:var(--muted);font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Customer message</span><div style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.7;color:var(--text)">${esc(message || "No message content was stored.")}</div></div></div></section>${detailOperationalMetadata(enquiry)}<section class="data-plane" aria-labelledby="contact-operations-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-operations-title">Operational context</h2><p>Current server-authoritative state. Opening this page does not change read state or workflow status.</p></div><span class="section-meta">Explicit actions only</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px">${fact("Workflow status", statusLabel(String(enquiry.status || "new")), true)}${fact("Read state", readState, true)}${fact("Archive state", archiveState, true)}${fact("Assignment", assignmentState, true)}${fact("History events", counts.history, true)}${fact("Internal notes", counts.notes, true)}${fact("Outbound replies", counts.messages, true)}${dateFact("Received", enquiry.created_at)}${dateFact("First reviewed", enquiry.first_read_at)}${dateFact("Currently read since", enquiry.read_at)}${dateFact("Resolved", enquiry.resolved_at)}${dateFact("Closed", enquiry.closed_at)}${dateFact("Archived", enquiry.archived_at)}${dateFact("Last activity", enquiry.last_activity_at)}${dateFact("Record updated", enquiry.updated_at)}</div></div></section>${contactOperations(basePath, session, enquiry)}${internalNotes(basePath, session, context, enquiry)}${contactReplyComposer(basePath, session, enquiry)}${contactActivityTimeline(context)}<div class="readonly-note"><span>Original customer intake remains immutable. Workflow, assignment, notes, replies and delivery evidence are retained as separate operational records.</span></div><div class="footerline"><span>RC IT Services · Private contact record</span><span>Escaped customer content · Immutable intake · Version ${esc(version)}</span></div></main><style>@media(max-width:600px){#main-content .page-heading{align-items:flex-start}}</style></div>`);
 }
 
 function contactDetailError(basePath: string, session: AdminSessionView, title: string, message: string, status: number): Response {
@@ -389,7 +438,7 @@ function mutationErrorCode(code: unknown): string {
 
 export async function handleContactRoute({ request, url, path, basePath, authState }: { request: Request; url: URL; path: string; basePath: string; authState: any | null; }): Promise<Response | null> {
   const detailMatch = path.match(/^\/contacts\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
-  const mutationMatch = path.match(/^\/contacts\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(read-state|workflow|archive-state|note|reply)$/i);
+  const mutationMatch = path.match(/^\/contacts\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(read-state|workflow|archive-state|note|reply|assignment)$/i);
   if (path !== "/contacts" && !detailMatch && !mutationMatch) return null;
   if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
   if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>Contact administration requires active super administrator authority.</p>", 403);
@@ -449,6 +498,12 @@ export async function handleContactRoute({ request, url, path, basePath, authSta
     const archive = requested === "1";
     result = await rpc("admin_set_contact_archive_state", { ...auditBase, p_archive: archive });
     notice = archive ? "archived" : "restored";
+  } else if (action === "assignment") {
+    const requested = String(form.get("assigned") ?? "");
+    if (requested !== "0" && requested !== "1") return redirect(`${basePath}/contacts/${enquiryId}?error=validation`);
+    const assigned = requested === "1";
+    result = await rpc("admin_set_contact_assignment", { ...auditBase, p_assigned: assigned });
+    notice = assigned ? "assigned" : "unassigned";
   } else if (action === "note") {
     const body = String(form.get("body") ?? "").trim();
     if (body.length < 1 || body.length > NOTE_MAX) return redirect(`${basePath}/contacts/${enquiryId}?error=note_validation`);
