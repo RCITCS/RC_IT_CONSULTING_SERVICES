@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { dispatchAdminPasswordReset } from "../_shared/admin-password-reset-delivery.js";
 import { dispatchApplicationEmail } from "../_shared/application-email-delivery.js";
 import { dispatchContactEmail } from "../_shared/contact-email-delivery.js";
+import { dispatchContactReplyEmail } from "../_shared/contact-reply-email-delivery.js";
 import { EMAIL_TEMPLATE_KEYS } from "../_shared/email-contract.js";
 import { createResendEmailProvider } from "../_shared/resend-email-provider.js";
 
@@ -144,6 +145,14 @@ async function loadContactEnquiry(enquiryId: string): Promise<Record<string, unk
   return data.length === 1 ? data[0] : null;
 }
 
+async function loadContactReplyMessage(emailLogId: string): Promise<Record<string, unknown> | null> {
+  if (!UUID.test(emailLogId)) return null;
+  const data = await rows(
+    `contact_enquiry_messages?email_log_id=eq.${encodeURIComponent(emailLogId)}&select=id,enquiry_id,direction,sender_email,recipient_email,reply_to_email,subject,body_text,idempotency_key,email_log_id,created_by_admin_id,created_at&limit=1`
+  );
+  return data.length === 1 ? data[0] : null;
+}
+
 async function createResetToken({ adminId, tokenHash, expiresAt }: { adminId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
   const result = await rpc("create_admin_password_reset_token", {
     p_admin_id: adminId,
@@ -244,6 +253,13 @@ async function dispatchEmailById(emailLogId: string): Promise<{ ok: boolean; cod
       return { ok: true };
     }
 
+    if (templateKey === EMAIL_TEMPLATE_KEYS.CONTACT_ADMIN_REPLY) {
+      const message = await loadContactReplyMessage(String(queue.id ?? ""));
+      if (!message) throw new Error("persisted contact reply message unavailable");
+      await dispatchContactReplyEmail({ queue, message, provider, markSent, markFailed });
+      return { ok: true };
+    }
+
     await markFailed({
       emailLogId: String(queue.id ?? ""),
       errorCode: "UNSUPPORTED_EMAIL_TEMPLATE",
@@ -276,12 +292,13 @@ Deno.serve(async (request: Request) => {
     return json({
       ok: true,
       service: "rcitcs-transactional-email",
-      contract: "phase13-admin-reset-v1",
+      contract: "phase14-contact-reply-v1",
       provider: "resend",
       providerConfigured: provider.configured,
       databaseConfigured: Boolean(SUPABASE_URL && API_KEY),
       applicationNotifications: true,
       contactNotifications: true,
+      contactAdminReplies: true,
       retryScheduler: true,
       monitoring: true
     });
