@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260914023500_phase_14_contact_admin_data_model.sql');
+const privilegeFixPath = path.join(root, 'supabase/migrations/20260914024500_phase_14_contact_append_only_privileges.sql');
 const migration = await readFile(migrationPath, 'utf8');
+const privilegeFix = await readFile(privilegeFixPath, 'utf8');
 
 // Forward-only migration safety: historical/legacy columns are preserved.
 assert.doesNotMatch(migration, /drop\s+table\s+public\.contact_enquiries/i);
@@ -89,11 +91,19 @@ for (const table of ['contact_enquiry_history', 'contact_enquiry_notes', 'contac
   assert.match(migration, new RegExp(`create policy deny_browser_access on public\\.${table}`, 'i'));
 }
 assert.match(migration, /revoke all on table public\.contact_enquiry_history, public\.contact_enquiry_notes, public\.contact_enquiry_messages[\s\S]*from public, anon, authenticated/i);
-assert.match(migration, /grant select, insert on table public\.contact_enquiry_history, public\.contact_enquiry_notes, public\.contact_enquiry_messages[\s\S]*to service_role/i);
+
+// Production default privileges can pre-grant service_role more rights than a later
+// GRANT narrows. The corrective migration must explicitly revoke broad inherited rights
+// before restoring SELECT + INSERT only, keeping these domains append-only.
+assert.match(privilegeFix, /revoke all on table[\s\S]*contact_enquiry_history[\s\S]*contact_enquiry_notes[\s\S]*contact_enquiry_messages[\s\S]*from service_role/i);
+assert.match(privilegeFix, /grant select, insert on table[\s\S]*contact_enquiry_history[\s\S]*contact_enquiry_notes[\s\S]*contact_enquiry_messages[\s\S]*to service_role/i);
+assert.doesNotMatch(privilegeFix, /grant[^;]*\bupdate\b/i);
+assert.doesNotMatch(privilegeFix, /grant[^;]*\bdelete\b/i);
 
 // Existing private contact boundary is explicitly reasserted; Phase-13 email trigger is not replaced.
 assert.match(migration, /revoke all on table public\.contact_enquiries from anon, authenticated/i);
 assert.doesNotMatch(migration, /drop trigger[^;]*contact_enquiry_email/i);
 assert.doesNotMatch(migration, /RESEND_API_KEY|api\.resend\.com|http_post/i);
+assert.doesNotMatch(privilegeFix, /RESEND_API_KEY|api\.resend\.com|http_post/i);
 
-console.log('Phase 14.2 contact data-model convergence, immutability, history, notes, replies, RLS and query-index checks passed.');
+console.log('Phase 14.2 contact data-model convergence, immutability, append-only privileges, history, notes, replies, RLS and query-index checks passed.');
