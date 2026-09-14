@@ -12,7 +12,7 @@ for (const rpc of ['admin_set_contact_read_state', 'admin_transition_contact_enq
   assert.match(migration, new RegExp(`create or replace function public\\.${rpc}`), `Database authority missing ${rpc}`);
 }
 
-assert.match(contacts, /read-state\|workflow\|archive-state\|note/);
+assert.match(contacts, /read-state\|workflow\|archive-state\|note\|reply/);
 assert.match(contacts, /Contact mutations require a protected POST request/);
 assert.match(contacts, /if \(request\.method !== "POST" \|\| !mutationMatch\)/);
 assert.match(contacts, /await csrfOk\(authState, String\(form\.get\("csrf"\)/);
@@ -76,7 +76,7 @@ assert.doesNotMatch(contacts, /\/rest\/v1\/contact_enquiry_history/);
 assert.match(migration, /insert into public\.contact_enquiry_history/);
 assert.match(migration, /insert into public\.audit_logs/);
 
-// 14.7 may coexist, but 14.6 still must not send a customer reply.
-assert.doesNotMatch(contacts, /reply composer|send reply/i);
+// Later explicit reply handling must remain a separate branch and may not alter the legal workflow graph.
+assert.match(contacts, /action === "reply"|admin_queue_contact_enquiry_reply/);
 
 console.log('Phase 14.6 read/unread, legal workflow transitions, archive/restore, CSRF, optimistic concurrency, audit and explicit recovery contract passed.');
