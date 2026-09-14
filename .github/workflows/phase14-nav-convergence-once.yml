@@ -1,10 +1,9 @@
 name: Phase 14 Navigation Convergence Once
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-    types: [opened, synchronize]
+      - phase-14-contact-enquiry-administration
     paths:
       - .github/workflows/phase14-nav-convergence-once.yml
 
@@ -13,18 +12,20 @@ permissions:
 
 jobs:
   converge:
-    if: github.event.pull_request.head.ref == 'phase-14-contact-enquiry-administration'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout Phase 14 branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: phase-14-contact-enquiry-administration
           fetch-depth: 0
 
-      - name: Replace Jobs legacy navigation with shared authority
-        shell: python
+      - name: Converge Jobs navigation and regression coverage
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 <<'PY'
           from pathlib import Path
 
           jobs_path = Path('supabase/functions/admin-auth/jobs.ts')
@@ -32,31 +33,29 @@ jobs:
           old_import = 'import { esc, prettyTime, shell, type AdminSessionView } from "./ui.ts";'
           new_import = 'import { adminHeader, esc, prettyTime, shell, type AdminSessionView } from "./ui.ts";'
           if old_import not in jobs:
-              raise SystemExit('Expected Jobs import boundary not found')
+              raise SystemExit('Expected legacy Jobs import not found')
           jobs = jobs.replace(old_import, new_import, 1)
           start = jobs.find('function icon(')
           end = jobs.find('function workspaceBar(', start)
           if start < 0 or end < 0 or end <= start:
-              raise SystemExit('Expected legacy Jobs header block not found')
+              raise SystemExit('Expected legacy Jobs navigation block not found')
           jobs = jobs[:start] + jobs[end:]
           if 'function adminHeader(' in jobs or 'function icon(' in jobs:
               raise SystemExit('Legacy Jobs navigation renderer remains')
           if 'adminHeader(basePath, session, "jobs")' not in jobs:
-              raise SystemExit('Jobs pages are not using shared adminHeader')
+              raise SystemExit('Jobs does not use shared adminHeader')
           jobs_path.write_text(jobs)
 
           test_path = Path('tests/phase14-contact-inbox.mjs')
           test = test_path.read_text()
-          marker = "console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility and read-only boundaries passed.');"
+          marker = "console.log('Phase 14.4 contact inbox routing, RPC contract, privacy, filtering, keyset pagination, accessibility, shared navigation and read-only boundaries passed.');"
           if marker not in test:
               raise SystemExit('Phase 14.4 test marker not found')
           assertions = r'''
-// All affected administration workspaces must converge on the shared navigation authority.
-const ui = await readFile(path.join(root, 'supabase/functions/admin-auth/ui.ts'), 'utf8');
+// All affected administration workspaces converge on the shared navigation authority.
 const jobs = await readFile(path.join(root, 'supabase/functions/admin-auth/jobs.ts'), 'utf8');
 const applications = await readFile(path.join(root, 'supabase/functions/admin-auth/applications.ts'), 'utf8');
 const security = await readFile(path.join(root, 'supabase/functions/admin-auth/security.ts'), 'utf8');
-assert.match(ui, /export function adminHeader\(/);
 for (const navLabel of ['Overview', 'Jobs', 'Applications', 'Contacts', 'Security']) {
   assert.match(ui, new RegExp(`<span>${navLabel}<\\/span>`), `Shared desktop navigation is missing ${navLabel}`);
   assert.match(ui, new RegExp(`>${navLabel}<\\/a>`), `Shared mobile navigation is missing ${navLabel}`);
@@ -67,19 +66,20 @@ for (const [name, source, current] of [
   ['Contacts', contacts, 'contacts'],
   ['Security', security, 'security']
 ]) {
-  assert.match(source, /import \{ adminHeader,/i, `${name} does not import the shared admin navigation authority`);
+  assert.match(source, /import \{ adminHeader,/i, `${name} does not import shared admin navigation`);
   assert.match(source, new RegExp(`adminHeader\\(basePath, session, ["']${current}["']\\)`), `${name} does not select its shared navigation state`);
   assert.doesNotMatch(source, /function adminHeader\(/, `${name} still owns a duplicate admin header renderer`);
 }
 '''
           test = test.replace(marker, assertions + '\n' + marker, 1)
           test_path.write_text(test)
+          PY
 
-      - name: Remove one-shot workflow from resulting commit
-        run: rm .github/workflows/phase14-nav-convergence-once.yml
-
-      - name: Commit convergence
+      - name: Remove one-shot workflow and commit
+        shell: bash
         run: |
+          set -euo pipefail
+          rm .github/workflows/phase14-nav-convergence-once.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add supabase/functions/admin-auth/jobs.ts tests/phase14-contact-inbox.mjs .github/workflows/phase14-nav-convergence-once.yml
