@@ -1,4 +1,4 @@
-import { esc, prettyTime, shell, type AdminSessionView } from "./ui.ts";
+import { adminHeader, esc, prettyTime, shell, type AdminSessionView } from "./ui.ts";
 
 export type JobRecord = {
   id?: string;
@@ -112,15 +112,6 @@ function icon(name: "overview" | "jobs" | "security" | "signout" | "info"): stri
   if (name === "security") return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 19 6v5c0 4.6-2.7 7.8-7 9.5C7.7 18.8 5 15.6 5 11V6l7-2.5Z"/><path d="m9.2 12 1.8 1.8 3.8-4"/></svg>`;
   if (name === "signout") return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H5v14h5M14.5 8.5 18 12l-3.5 3.5M9 12h9"/></svg>`;
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg>`;
-}
-
-function adminHeader(basePath: string, session: AdminSessionView, current: "jobs" | "overview" | "security"): string {
-  const currentAttr = (name: string) => name === current ? ' aria-current="page"' : "";
-  return `<header class="global-header"><div class="global-header-inner">
-    <div class="product-brand"><div class="brandmark" aria-hidden="true">RC</div><div class="brand-copy"><strong>RC IT Services</strong><span>Enterprise Administration</span></div></div>
-    <nav class="primary-nav" aria-label="Administration"><a href="${basePath || "/"}"${currentAttr("overview")}>${icon("overview")}<span>Overview</span></a><a href="${basePath}/jobs"${currentAttr("jobs")}>${icon("jobs")}<span>Jobs</span></a><a href="${basePath}/change-password"${currentAttr("security")}>${icon("security")}<span>Security</span></a></nav>
-    <div class="header-actions"><span class="header-account">${esc(session.admin.email)}</span><form class="header-signout" method="post" action="${basePath}/logout"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><button type="submit" aria-label="Sign out" title="Sign out">${icon("signout")}</button></form><details class="mobile-nav"><summary>Menu</summary><div class="mobile-menu"><a href="${basePath || "/"}"${currentAttr("overview")}>Overview</a><a href="${basePath}/jobs"${currentAttr("jobs")}>Jobs</a><a href="${basePath}/change-password"${currentAttr("security")}>Security</a><form method="post" action="${basePath}/logout"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><button type="submit">Sign out</button></form></div></details></div>
-  </div></header>`;
 }
 
 function workspaceBar(label: string): string {
