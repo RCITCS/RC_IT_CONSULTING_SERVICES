@@ -196,7 +196,7 @@ Deno.serve(async (request: Request) => {
   const clientHash = await ipHash(request);
 
   try {
-    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, applications: true, contacts: true, design: "phase14-contact-inbox" });
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, applications: true, contacts: true, design: "phase12-candidate-application-workflow" });
 
     if (!["GET", "POST"].includes(request.method)) {
       const headers = privateHeaders();
