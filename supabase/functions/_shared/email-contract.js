@@ -1,6 +1,7 @@
 export const EMAIL_TEMPLATE_KEYS = Object.freeze({
   CONTACT_ACKNOWLEDGEMENT: 'contact_acknowledgement',
   INTERNAL_CONTACT_ALERT: 'internal_contact_alert',
+  CONTACT_ADMIN_REPLY: 'contact_admin_reply',
   APPLICATION_ACKNOWLEDGEMENT: 'application_acknowledgement',
   INTERNAL_APPLICATION_ALERT: 'internal_application_alert',
   ADMIN_PASSWORD_RESET: 'admin_password_reset',
@@ -56,6 +57,7 @@ export function emailIdempotencyKey(templateKey, entityType, entityId) {
 export function fixedSenderForTemplate(templateKey) {
   switch (templateKey) {
     case EMAIL_TEMPLATE_KEYS.CONTACT_ACKNOWLEDGEMENT:
+    case EMAIL_TEMPLATE_KEYS.CONTACT_ADMIN_REPLY:
       return EMAIL_IDENTITIES.contact;
     case EMAIL_TEMPLATE_KEYS.APPLICATION_ACKNOWLEDGEMENT:
       return EMAIL_IDENTITIES.career;

@@ -28,6 +28,7 @@ import {
 } from "./ui.ts";
 import { handleJobRoute } from "./job-routes.ts";
 import { handleApplicationRoute } from "./applications.ts";
+import { handleContactRoute } from "./contacts.ts";
 import { securityPage } from "./security.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
@@ -195,7 +196,7 @@ Deno.serve(async (request: Request) => {
   const clientHash = await ipHash(request);
 
   try {
-    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, applications: true, design: "phase12-candidate-application-workflow" });
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "rcitcs-admin", dashboard: true, jobs: true, applications: true, contacts: true, design: "phase12-candidate-application-workflow" });
 
     if (!["GET", "POST"].includes(request.method)) {
       const headers = privateHeaders();
@@ -308,13 +309,15 @@ Deno.serve(async (request: Request) => {
     if (jobResponse) return jobResponse;
     const applicationResponse = await handleApplicationRoute({ request, url, path, basePath, authState, clientHash, userAgent });
     if (applicationResponse) return applicationResponse;
+    const contactResponse = await handleContactRoute({ request, url, path, basePath, authState });
+    if (contactResponse) return contactResponse;
 
     if (request.method === "GET" && path === "/session") return authState ? json({ authenticated: true, email: authState.admin.email, role: authState.admin.role, expires_at: authState.expires_at }) : json({ authenticated: false }, 401);
 
     if (request.method === "POST" && path === "/logout") {
       if (!authState) return loginPage(basePath, "Your session has expired.", true);
       const form = await request.formData();
-      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload and try again.</p>", 403);
+      if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the administration page and try again.</p>", 403);
       await revokeSession(authState.id);
       await audit("admin_logout", authState.admin.id, clientHash, userAgent, {});
       const headers = authCookies(url, "", "", 0);
