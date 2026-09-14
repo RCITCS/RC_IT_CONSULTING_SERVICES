@@ -34,7 +34,9 @@ for (const action of ['read-state', 'workflow', 'archive-state', 'note', 'reply'
 }
 
 // Original intake remains immutable; operational state lives in dedicated columns/tables.
-assert.match(dataModel, /contact_enquiries_original_intake_immutable/);
+assert.match(dataModel, /create or replace function public\.guard_contact_enquiry_update\(\)/);
+assert.match(dataModel, /raise exception 'accepted contact enquiry intake is immutable'/);
+assert.match(dataModel, /create trigger contact_enquiries_guard_update[\s\S]*before update on public\.contact_enquiries[\s\S]*execute function public\.guard_contact_enquiry_update\(\)/);
 for (const table of ['contact_enquiry_history', 'contact_enquiry_notes', 'contact_enquiry_messages']) {
   assert.match(dataModel, new RegExp(`create table if not exists public\\.${table}`));
   assert.match(dataModel, new RegExp(`alter table public\\.${table} enable row level security`));
