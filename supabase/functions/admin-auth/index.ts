@@ -30,11 +30,18 @@ import { handleJobRoute } from "./job-routes.ts";
 import { handleApplicationRoute } from "./applications.ts";
 import { handleContactRoute } from "./contacts.ts";
 import { securityPage } from "./security.ts";
+import { consumeAuthRateLimit } from "./rate-limit.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
 const SESSION_TTL = 8 * 60 * 60;
 const IDLE_TTL = 30 * 60;
 const RECOVERY_TTL = 30 * 60;
+const LOGIN_IP_ATTEMPT_LIMIT = 10;
+const LOGIN_GLOBAL_ATTEMPT_LIMIT = 25;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const RESET_IP_ATTEMPT_LIMIT = 6;
+const RESET_GLOBAL_ATTEMPT_LIMIT = 10;
+const RESET_WINDOW_SECONDS = 60 * 60;
 const BOOTSTRAP_VERIFIER = Deno.env.get("ADMIN_BOOTSTRAP_PASSWORD_VERIFIER") ?? "";
 const ADMIN_PROXY_HEADER = "x-rcitcs-admin-proxy";
 const ADMIN_PROXY_VALUE = "cloudflare";
@@ -240,6 +247,22 @@ Deno.serve(async (request: Request) => {
     if (await requestTooLarge(request, path)) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
 
     if (request.method === "POST" && path === "/login") {
+      const [networkLimit, globalLimit] = await Promise.all([
+        consumeAuthRateLimit("login_ip", clientHash, LOGIN_IP_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS),
+        consumeAuthRateLimit("login_global", "global", LOGIN_GLOBAL_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS)
+      ]);
+      if (!networkLimit.allowed || !globalLimit.allowed) {
+        if (networkLimit.just_limited || globalLimit.just_limited) {
+          await audit("admin_login_rate_limit_blocked", null, clientHash, userAgent, {
+            source: "phase_16_atomic_rate_limit",
+            network_limited: !networkLimit.allowed,
+            global_limited: !globalLimit.allowed
+          });
+        }
+        const headers = new Headers();
+        headers.set("retry-after", String(Math.max(networkLimit.retry_after, globalLimit.retry_after, 1)));
+        return authPage("Sign in limited", "<h1>Too many sign-in attempts</h1><div class=\"msg error\">Try again later.</div>", 429, headers);
+      }
       if (await failedCount(clientHash) >= 5) {
         const headers = new Headers();
         headers.set("retry-after", "900");
@@ -280,7 +303,11 @@ Deno.serve(async (request: Request) => {
 
     if (request.method === "GET" && path === "/forgot-password") return forgotPage(basePath);
     if (request.method === "POST" && path === "/forgot-password") {
-      if (await resetRequestCount(clientHash) < 3) {
+      const [networkLimit, globalLimit] = await Promise.all([
+        consumeAuthRateLimit("reset_ip", clientHash, RESET_IP_ATTEMPT_LIMIT, RESET_WINDOW_SECONDS),
+        consumeAuthRateLimit("reset_global", "global", RESET_GLOBAL_ATTEMPT_LIMIT, RESET_WINDOW_SECONDS)
+      ]);
+      if (networkLimit.allowed && globalLimit.allowed && await resetRequestCount(clientHash) < 3) {
         const form = await request.formData();
         const email = String(form.get("email") ?? "").trim().toLowerCase();
         if (email === ADMIN_EMAIL) {
@@ -290,6 +317,12 @@ Deno.serve(async (request: Request) => {
             await audit("admin_password_reset_requested", admin.id, clientHash, userAgent, { delivery: "phase_13_queue" });
           }
         }
+      } else if (networkLimit.just_limited || globalLimit.just_limited) {
+        await audit("admin_password_reset_rate_limit_blocked", null, clientHash, userAgent, {
+          source: "phase_16_atomic_rate_limit",
+          network_limited: !networkLimit.allowed,
+          global_limited: !globalLimit.allowed
+        });
       }
       return forgotPage(basePath, true);
     }
