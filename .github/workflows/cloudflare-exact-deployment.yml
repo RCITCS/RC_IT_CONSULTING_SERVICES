@@ -103,9 +103,9 @@ jobs:
           grep -q 'Administrator sign in' /tmp/admin.html
           grep -q 'Private administration for controlled operational work.' /tmp/admin.html
           ! grep -q 'Technology that' /tmp/admin.html
-          tr -d '\r' < /tmp/admin.headers | grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1'
-          tr -d '\r' < /tmp/admin.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin.headers | grep -qi '^x-robots-tag:.*noindex'
+          grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
 
           session_code=$(curl -sS -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
