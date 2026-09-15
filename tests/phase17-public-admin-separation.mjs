@@ -9,8 +9,8 @@ import publicWorker, {
 } from '../worker/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const root = path.resolve(here, '..');
-const source = fs.readFileSync(path.join(root, 'worker/index.js'), 'utf8');
+const rootDir = path.resolve(here, '..');
+const source = fs.readFileSync(path.join(rootDir, 'worker/index.js'), 'utf8');
 
 function publicAlias(url, init = {}) {
   return publicAdminAliasRedirect(new Request(url, init));
@@ -21,16 +21,16 @@ assert.equal(publicAlias('https://rcitcs.com/about-us'), null, 'Ordinary public 
 assert.equal(publicAlias('https://admin.rcitcs.com/admin'), null, 'Dedicated admin host must not enter the public-host alias redirect.');
 assert.equal(publicAlias('https://admin-staging.rcitcs.com/admin'), null, 'Staging admin host must not enter the public-host alias redirect.');
 
-const root = publicAlias('https://rcitcs.com/admin');
-assert.equal(root.status, 308);
-assert.equal(root.headers.get('location'), 'https://admin.rcitcs.com/');
-assert.match(root.headers.get('cache-control') || '', /no-store/i);
-assert.match(root.headers.get('x-robots-tag') || '', /noindex/i);
-assert.equal(root.headers.get('x-content-type-options'), 'nosniff');
-assert.equal(root.headers.get('x-frame-options'), 'DENY');
-assert.match(root.headers.get('content-security-policy') || '', /default-src 'none'/);
-assert.match(root.headers.get('strict-transport-security') || '', /max-age=31536000/);
-assert.equal(await root.text(), '');
+const rootResponse = publicAlias('https://rcitcs.com/admin');
+assert.equal(rootResponse.status, 308);
+assert.equal(rootResponse.headers.get('location'), 'https://admin.rcitcs.com/');
+assert.match(rootResponse.headers.get('cache-control') || '', /no-store/i);
+assert.match(rootResponse.headers.get('x-robots-tag') || '', /noindex/i);
+assert.equal(rootResponse.headers.get('x-content-type-options'), 'nosniff');
+assert.equal(rootResponse.headers.get('x-frame-options'), 'DENY');
+assert.match(rootResponse.headers.get('content-security-policy') || '', /default-src 'none'/);
+assert.match(rootResponse.headers.get('strict-transport-security') || '', /max-age=31536000/);
+assert.equal(await rootResponse.text(), '');
 
 const head = publicAlias('https://rcitcs.com/admin/jobs?view=open', { method: 'HEAD' });
 assert.equal(head.status, 308);
