@@ -66,7 +66,7 @@ assert.match(auditDoc, /exactly two active Worker applications/i);
 assert.match(auditDoc, /`admin\.rcitcs\.com\/\*` \| Route/);
 assert.match(auditDoc, /`admin\.rcitcs\.com` \| Production Custom Domain/);
 assert.match(auditDoc, /`www\.rcitcs\.com` as a Production Custom Domain/);
-assert.match(auditDoc, /no public A, AAAA, or CNAME answer for `www\.rcitcs\.com`/i);
+assert.match(auditDoc, /public DNS returns no A, AAAA, or CNAME answer for `www\.rcitcs\.com`/i);
 assert.match(auditDoc, /Cloudflare displays a configuration-drift warning/);
 assert.match(auditDoc, /Workers Builds: rcitcservices/);
 assert.match(auditDoc, /20d349f3f75ab611adb3f987188636e7/);
