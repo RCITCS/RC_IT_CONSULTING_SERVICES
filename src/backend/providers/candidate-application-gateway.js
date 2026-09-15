@@ -3,8 +3,6 @@ import { BackendError, providerUnavailable } from '../core/errors.js';
 import { createSupabaseHttpClient } from './supabase-http.js';
 
 const ALLOWED_PUBLIC_ORIGINS = new Set([
-  'https://rc-it-consulting-services.rcitcservices.workers.dev',
-  'https://rc-it-services.vercel.app',
   'https://www.rcitcs.com',
   'https://rcitcs.com'
 ]);
@@ -23,17 +21,11 @@ function normalizedOrigin(value) {
 
 function trustedClientIp(runtime, headers) {
   if (runtime === 'cloudflare-workers') return headerValue(headers, 'cf-connecting-ip').trim();
-  if (runtime === 'vercel') {
-    return headerValue(headers, 'x-vercel-forwarded-for').split(',')[0].trim()
-      || headerValue(headers, 'x-forwarded-for').split(',')[0].trim()
-      || headerValue(headers, 'x-real-ip').trim();
-  }
   return '';
 }
 
 function proxyName(runtime) {
   if (runtime === 'cloudflare-workers') return 'cloudflare';
-  if (runtime === 'vercel') return 'vercel';
   return '';
 }
 
