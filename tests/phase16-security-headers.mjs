@@ -46,15 +46,22 @@ for (const fragment of [
   "headers.set('referrer-policy', 'no-referrer')",
   "headers.set('cross-origin-resource-policy', 'same-origin')",
   "async function proxyAdminResponse(upstream, requestMethod, publicBase)",
-  "const isHtml = contentType.includes('text/html')",
+  "const declaredHtml = contentType.toLowerCase().includes('text/html')",
+  "adminTextualCandidate(contentType)",
+  "looksLikeAdminHtml(bodyText)",
   "let body = bodyForbidden ? null : upstream.body",
-  "const bodyText = await upstream.text()",
+  "headers.set('content-type', 'text/html; charset=utf-8')",
   "return await proxyAdminResponse(upstream, request.method, publicBase)"
 ]) assert.ok(worker.includes(fragment), `Cloudflare admin boundary missing header/stream control: ${fragment}`);
 
-const textRead = worker.indexOf("const bodyText = await upstream.text()");
-const htmlBranch = worker.indexOf("if (!bodyForbidden && isHtml)");
-assert.ok(textRead > htmlBranch, "upstream text decoding must occur only inside the HTML branch");
+const declaredBranch = worker.indexOf("if (!bodyForbidden && declaredHtml)");
+const declaredRead = worker.indexOf("body = enhanceAdminHtml(await upstream.text(), publicBase)");
+const textualBranch = worker.indexOf("else if (!bodyForbidden && adminTextualCandidate(contentType))");
+const textualRead = worker.indexOf("const bodyText = await upstream.text()", textualBranch);
+const binaryDefault = worker.indexOf("let body = bodyForbidden ? null : upstream.body");
+assert.ok(binaryDefault >= 0, "binary/private responses must retain the upstream stream as the default body path");
+assert.ok(declaredBranch > binaryDefault && declaredRead > declaredBranch, "declared HTML may be decoded only inside the declared-HTML branch");
+assert.ok(textualBranch > declaredRead && textualRead > textualBranch, "media-type recovery may decode only text-like responses inside the bounded textual branch");
 assert.ok(!worker.includes("const bodyText = request.method === 'HEAD' ? '' : await upstream.text()"), "gateway must not buffer/decode every admin response as text");
 
-console.log("Phase 16.9 security headers, cookies, private caching and binary streaming: PASS");
+console.log("Phase 16.9 security headers, cookies, private caching, bounded HTML recovery and binary streaming: PASS");
