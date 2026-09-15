@@ -74,6 +74,10 @@ for (const fragment of [
   "Previous page",
   "Next page",
   "20 pages × 25 rows",
+  "Invalid or overlong date ranges are safely reset.",
+  "const spanDays = Math.floor((toTime - fromTime) / 86400000)",
+  "if (toTime < fromTime || spanDays > 366)",
+  "Recruitment publishing is managed from the Jobs workspace.",
   "tabindex=\"0\"",
   "raw IP hashes",
   "full internal UUIDs"
