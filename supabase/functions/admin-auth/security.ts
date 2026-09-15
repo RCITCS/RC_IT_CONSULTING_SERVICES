@@ -41,6 +41,17 @@ function auditFilters(params?: URLSearchParams): SecurityAuditFilters {
   const actor = ["all", "administrator", "system"].includes(rawActor)
     ? rawActor as SecurityAuditFilters["actor"]
     : "all";
+  let fromDate = cleanDate(String(params?.get("from") ?? ""));
+  let toDate = cleanDate(String(params?.get("to") ?? ""));
+  if (fromDate && toDate) {
+    const fromTime = Date.parse(`${fromDate}T00:00:00Z`);
+    const toTime = Date.parse(`${toDate}T00:00:00Z`);
+    const spanDays = Math.floor((toTime - fromTime) / 86400000);
+    if (toTime < fromTime || spanDays > 366) {
+      fromDate = "";
+      toDate = "";
+    }
+  }
 
   return {
     page,
@@ -49,8 +60,8 @@ function auditFilters(params?: URLSearchParams): SecurityAuditFilters {
     entityType: cleanKey(String(params?.get("entity") ?? ""), 64),
     outcome,
     actor,
-    fromDate: cleanDate(String(params?.get("from") ?? "")),
-    toDate: cleanDate(String(params?.get("to") ?? ""))
+    fromDate,
+    toDate
   };
 }
 
@@ -103,7 +114,7 @@ function filterForm(basePath: string, filters: SecurityAuditFilters): string {
 <div><label for="audit-from" style="display:block;font-size:10px;font-weight:700;margin-bottom:6px">From date</label><input id="audit-from" name="from" type="date" value="${esc(filters.fromDate)}" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"></div>
 <div><label for="audit-to" style="display:block;font-size:10px;font-weight:700;margin-bottom:6px">To date</label><input id="audit-to" name="to" type="date" value="${esc(filters.toDate)}" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"></div>
 <div class="actions" style="margin:0"><button class="btn" type="submit">Apply filters</button><a class="btn secondary" href="${basePath}/change-password">Reset</a></div>
-</div><p class="muted" style="margin:10px 0 0">Search is prefix-only across stable action and resource keys. Date boundaries use Europe/London. The server caps the viewer at 20 pages × 25 rows.</p></form>`;
+</div><p class="muted" style="margin:10px 0 0">Search is prefix-only across stable action and resource keys. Date boundaries use Europe/London. Invalid or overlong date ranges are safely reset. The server caps the viewer at 20 pages × 25 rows.</p></form>`;
 }
 
 function securityActivity(
@@ -164,7 +175,7 @@ ${adminHeader(basePath, session, "security")}
 <div class="page-heading"><div><div class="eyebrow">Identity &amp; access</div><h1 id="security-title">Security &amp; access</h1><p>Account controls, session authority and bounded security activity for the RC IT Services administration workspace.</p></div><div class="snapshot"><strong>Active session</strong>${esc(prettyTime(session.expires_at))}<br>Europe/London</div></div>
 <div class="operations-frame">
 <section class="data-plane" aria-labelledby="password-title"><header class="section-header"><div><h2 id="password-title">Change administrator password</h2><p>Current-password verification is required. A successful change revokes the active session.</p></div><span class="section-meta">Credential control</span></header><div style="padding:22px;max-width:720px">${notice}<form method="post" action="${basePath}/change-password"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><div class="field"><label for="current">Current password</label><input id="current" name="current" type="password" autocomplete="current-password" maxlength="256" required></div><div class="field"><label for="next">New password</label><input id="next" name="next" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="field"><label for="confirm">Confirm new password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="actions"><button class="btn" type="submit">Update password</button><a class="btn secondary" href="${basePath || "/"}">Cancel</a></div><p class="muted">Minimum 12 characters with uppercase, lowercase, number and symbol.</p></form></div></section>
-<aside class="side-plane" aria-label="Security status"><section class="side-section" aria-labelledby="identity-title"><div class="side-title"><h2 id="identity-title">Account authority</h2><span>Verified session</span></div><div class="identity-list"><div class="identity-row"><span>Account</span><strong>${esc(session.admin.email)}</strong></div><div class="identity-row"><span>Role</span><strong class="role-text">${esc(session.admin.role)}</strong></div><div class="identity-row"><span>Session expires</span><strong>${esc(prettyTime(session.expires_at))}</strong></div></div></section><section class="side-section" aria-labelledby="controls-title"><div class="side-title"><h3 id="controls-title">Security controls</h3><span>Protected</span></div><div class="readonly-note">${infoIcon()}<span>Authentication, password verification, CSRF validation, session revocation and audit projection authority are enforced server-side. Audit filtering never grants browser database access.</span></div><div class="side-actions"><a class="btn secondary" href="${basePath || "/"}">Return to overview</a><a class="btn secondary" href="${basePath}/jobs">Open job management</a></div></section></aside>
+<aside class="side-plane" aria-label="Security status"><section class="side-section" aria-labelledby="identity-title"><div class="side-title"><h2 id="identity-title">Account authority</h2><span>Verified session</span></div><div class="identity-list"><div class="identity-row"><span>Account</span><strong>${esc(session.admin.email)}</strong></div><div class="identity-row"><span>Role</span><strong class="role-text">${esc(session.admin.role)}</strong></div><div class="identity-row"><span>Session expires</span><strong>${esc(prettyTime(session.expires_at))}</strong></div></div></section><section class="side-section" aria-labelledby="controls-title"><div class="side-title"><h3 id="controls-title">Security controls</h3><span>Protected</span></div><div class="readonly-note">${infoIcon()}<span>Authentication, password verification, CSRF validation, session revocation and audit projection authority are enforced server-side. Recruitment publishing is managed from the Jobs workspace. Audit filtering never grants browser database access.</span></div><div class="side-actions"><a class="btn secondary" href="${basePath || "/"}">Return to overview</a><a class="btn secondary" href="${basePath}/jobs">Open job management</a></div></section></aside>
 </div>
 ${securityActivity(basePath, auditContext, filters, auditUnavailable)}
 <div class="footerline"><span>RC IT Services · Private administration</span><span>No-cache · No-index · Server-authoritative · Audit payload redacted</span></div>
