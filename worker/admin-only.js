@@ -14,6 +14,7 @@ const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
+export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';
 
 export function rewriteAdminEdgeReference(value = '') {
   let rewritten = String(value).replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, '');
@@ -43,9 +44,14 @@ function copyResponseHeaders(source) {
   return headers;
 }
 
+function setBuildMarkers(headers) {
+  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
+  headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);
+}
+
 function markAdminBuildSurface(response) {
   const headers = copyResponseHeaders(response.headers);
-  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
+  setBuildMarkers(headers);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -170,7 +176,8 @@ function adminInteractionResponse() {
       'x-content-type-options': 'nosniff',
       'x-robots-tag': 'noindex, nofollow, noarchive',
       'cross-origin-resource-policy': 'same-origin',
-      'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE
+      'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE,
+      'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX
     }
   });
 }
@@ -182,19 +189,52 @@ function allowAdminInteractions(csp = '') {
   return directives.join('; ');
 }
 
+function looksLikeHtml(value = '') {
+  return /^\s*(?:<!doctype\s+html\b|<html\b)/i.test(String(value));
+}
+
+function textualCandidate(contentType = '') {
+  const normalized = contentType.toLowerCase();
+  return normalized === '' || normalized.startsWith('text/') || normalized.includes('application/xhtml+xml');
+}
+
+function enhancedHtmlResponse(response, body) {
+  const rewritten = rewriteAdminEdgeReference(body);
+  const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(rewritten));
+  const headers = copyResponseHeaders(response.headers);
+  headers.set('content-type', 'text/html; charset=utf-8');
+  headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
+  headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
+  setBuildMarkers(headers);
+  return new Response(enhanced, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 export async function enhanceAdminResponse(response, requestMethod) {
-  const contentType = response.headers.get('content-type') || '';
-  if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status) || !contentType.toLowerCase().includes('text/html')) {
+  if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status)) {
     return markAdminBuildSurface(response);
   }
 
-  const body = rewriteAdminEdgeReference(await response.text());
-  const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(body));
+  const contentType = response.headers.get('content-type') || '';
+  const declaredHtml = contentType.toLowerCase().includes('text/html');
+  if (declaredHtml) {
+    return enhancedHtmlResponse(response, await response.text());
+  }
+
+  // Some upstream/edge combinations can strip or downgrade the media type while
+  // leaving an HTML document body intact. Only sniff responses that are already
+  // textual (or have no media type); binary/private documents remain streamed.
+  if (!textualCandidate(contentType)) return markAdminBuildSurface(response);
+
+  const body = await response.text();
+  if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body);
+
   const headers = copyResponseHeaders(response.headers);
-  headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
-  headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
-  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
-  return new Response(enhanced, {
+  setBuildMarkers(headers);
+  return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers

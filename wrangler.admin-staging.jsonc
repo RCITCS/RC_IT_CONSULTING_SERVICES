@@ -6,7 +6,8 @@
   "workers_dev": false,
   "keep_vars": true,
   "vars": {
-    "RC_ADMIN_BUILD_SURFACE": "phase16-security-closure-v1"
+    "RC_ADMIN_BUILD_SURFACE": "phase16-security-closure-v1",
+    "RC_ADMIN_HTML_MEDIA_FIX": "phase16-html-content-type-v1"
   },
   "routes": [
     {
