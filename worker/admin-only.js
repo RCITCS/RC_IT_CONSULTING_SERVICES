@@ -11,6 +11,7 @@ const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
 export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
+export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 
 function copyResponseHeaders(source) {
   const headers = new Headers(source);
@@ -25,6 +26,16 @@ function copyResponseHeaders(source) {
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
   return headers;
+}
+
+function markAdminBuildSurface(response) {
+  const headers = copyResponseHeaders(response.headers);
+  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
 }
 
 function headerMatchesOrigin(value, url) {
@@ -143,7 +154,8 @@ function adminInteractionResponse() {
       'cache-control': 'no-store, max-age=0, must-revalidate',
       'x-content-type-options': 'nosniff',
       'x-robots-tag': 'noindex, nofollow, noarchive',
-      'cross-origin-resource-policy': 'same-origin'
+      'cross-origin-resource-policy': 'same-origin',
+      'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE
     }
   });
 }
@@ -158,7 +170,7 @@ function allowAdminInteractions(csp = '') {
 async function enhanceAdminResponse(response, requestMethod) {
   const contentType = response.headers.get('content-type') || '';
   if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status) || !contentType.toLowerCase().includes('text/html')) {
-    return response;
+    return markAdminBuildSurface(response);
   }
 
   const body = await response.text();
@@ -166,6 +178,7 @@ async function enhanceAdminResponse(response, requestMethod) {
   const headers = copyResponseHeaders(response.headers);
   headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
   headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
+  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
   return new Response(enhanced, {
     status: response.status,
     statusText: response.statusText,
