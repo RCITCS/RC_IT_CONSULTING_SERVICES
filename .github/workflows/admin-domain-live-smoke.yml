@@ -44,6 +44,7 @@ jobs:
             local admin="$1"
             local label="$2"
             local expected_release="${3:-}"
+            local expected_build_surface="${4:-}"
             local host="${admin#https://}"
             local body="/tmp/${label}-admin.html"
             local headers="/tmp/${label}-admin.headers"
@@ -54,20 +55,27 @@ jobs:
             for attempt in $(seq 1 40); do
               code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$admin/" || true)
               title=$(grep -o '<title>[^<]*' "$body" 2>/dev/null | head -n1 || true)
-              release=$(tr -d '\r' < "$headers" | awk -F': *' 'tolower($1)=="x-rc-admin-edge-release" {print $2}' | tail -n1)
-              echo "${label} attempt=${attempt} status=${code} release=${release:-none} ${title}"
+              release=$(awk -F': *' 'tolower($1)=="x-rc-admin-edge-release" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
+              build_surface=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
+              echo "${label} attempt=${attempt} status=${code} release=${release:-none} build=${build_surface:-none} ${title}"
 
               release_ok=1
               if [[ -n "$expected_release" && "$release" != "$expected_release" ]]; then
                 release_ok=0
               fi
+              build_surface_ok=1
+              if [[ -n "$expected_build_surface" && "$build_surface" != "$expected_build_surface" ]]; then
+                build_surface_ok=0
+              fi
 
               if [[ "$code" == '200' ]] \
                 && [[ "$release_ok" == '1' ]] \
+                && [[ "$build_surface_ok" == '1' ]] \
                 && grep -q 'Administrator sign in' "$body" \
                 && grep -q 'Private administration for controlled operational work.' "$body" \
                 && ! grep -q 'Technology that' "$body" \
-                && ! grep -q 'data-prerendered-path="/"' "$body"; then
+                && ! grep -q 'data-prerendered-path="/"' "$body" \
+                && ! grep -q '/functions/v1/admin-auth' "$body"; then
                 passed=1
                 break
               fi
@@ -81,9 +89,9 @@ jobs:
               return
             fi
 
-            tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store' || failures=$((failures + 1))
-            tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex' || failures=$((failures + 1))
-            tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY' || failures=$((failures + 1))
+            grep -qi '^cache-control:.*no-store' "$headers" || failures=$((failures + 1))
+            grep -qi '^x-robots-tag:.*noindex' "$headers" || failures=$((failures + 1))
+            grep -qi '^x-frame-options: *DENY' "$headers" || failures=$((failures + 1))
 
             session_code=$(curl -sS -D "/tmp/${label}-session.headers" -o "/tmp/${label}-session.json" -w '%{http_code}' "$admin/session" || true)
             if [[ "$session_code" != '401' ]] || ! grep -q '"authenticated":false' "/tmp/${label}-session.json"; then
@@ -106,8 +114,8 @@ jobs:
                 failures=$((failures + 1))
               fi
 
-              if ! tr -d '\r' < "$headers" | grep -qi "^content-security-policy:.*script-src 'self'" \
-                || ! tr -d '\r' < "$headers" | grep -qi "^content-security-policy:.*connect-src 'self'"; then
+              if ! grep -qi "^content-security-policy:.*script-src 'self'" "$headers" \
+                || ! grep -qi "^content-security-policy:.*connect-src 'self'" "$headers"; then
                 echo 'Production admin CSP does not narrowly permit the same-origin interaction script and fetch navigation.' >&2
                 failures=$((failures + 1))
               fi
@@ -121,8 +129,8 @@ jobs:
                 echo "Production admin interaction script is missing or stale; status=${interaction_code}." >&2
                 failures=$((failures + 1))
               fi
-              tr -d '\r' < /tmp/admin-interactions.headers | grep -qi '^cache-control:.*no-store' || failures=$((failures + 1))
-              tr -d '\r' < /tmp/admin-interactions.headers | grep -qi '^cross-origin-resource-policy: *same-origin' || failures=$((failures + 1))
+              grep -qi '^cache-control:.*no-store' /tmp/admin-interactions.headers || failures=$((failures + 1))
+              grep -qi '^cross-origin-resource-policy: *same-origin' /tmp/admin-interactions.headers || failures=$((failures + 1))
 
               mobile_code=$(curl -sS -o /tmp/admin-mobile-compatible.html -w '%{http_code}' \
                 -X POST \
@@ -147,7 +155,7 @@ jobs:
             fi
           }
 
-          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-job-authoring-v1'
+          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-job-authoring-v1' 'phase16-security-closure-v1'
 
           echo '--- Staging admin DNS diagnostic ---'
           diagnose_dns 'admin-staging.rcitcs.com'
@@ -175,4 +183,4 @@ jobs:
             exit 1
           fi
 
-          echo 'Production dedicated-admin hostname, mobile register CSS, progressive History API/modal interaction shell, exact edge release and cross-origin boundary verified.'
+          echo 'Production dedicated-admin hostname, Phase 16 build ownership, mobile register CSS, progressive History API/modal interaction shell, exact edge release and cross-origin boundary verified.'
