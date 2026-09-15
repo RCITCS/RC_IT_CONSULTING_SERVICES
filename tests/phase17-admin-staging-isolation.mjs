@@ -59,7 +59,10 @@ assert.equal(livePolicyResponse.status, 503, 'Staging policy must intercept muta
 assert.equal(livePolicyResponse.headers.get('x-rc-admin-staging-state'), 'intentionally-unavailable');
 assert.equal(livePolicyResponse.headers.has('set-cookie'), false);
 
-assert.ok(source.indexOf('isAdminStagingUnavailable(host, env)') < source.indexOf('normalizeAdminBrowserPost(request)'), 'Staging isolation must run before admin auth/runtime processing.');
+assert.ok(
+  source.indexOf('if (isAdminStagingUnavailable(host, env))') < source.indexOf('request = await normalizeAdminBrowserPost(request)'),
+  'Staging isolation must run before admin auth/runtime processing.'
+);
 
 console.log('Phase 17.5 admin staging isolation contract: PASS');
 console.log('admin-staging.rcitcs.com is intentionally unavailable until an independently isolated staging data/runtime plane is approved.');
