@@ -29,30 +29,39 @@ jobs:
           verify_admin_root() {
             local origin="$1"
             local label="$2"
+            local expected_build_surface="${3:-}"
             local body="/tmp/${label}-admin-root.html"
             local headers="/tmp/${label}-admin-root.headers"
 
             for attempt in $(seq 1 40); do
               code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "${origin}/" || true)
+              build_surface=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
+              build_surface_ok=1
+              if [[ -n "$expected_build_surface" && "$build_surface" != "$expected_build_surface" ]]; then
+                build_surface_ok=0
+              fi
+
               if [[ "$code" == '200' ]] \
+                && [[ "$build_surface_ok" == '1' ]] \
                 && grep -q '<!doctype html>' "$body" \
                 && grep -q 'Administrator sign in' "$body" \
                 && grep -q 'Private administration for controlled operational work.' "$body" \
                 && grep -q 'action="/login"' "$body" \
                 && ! grep -q 'action="/admin/login"' "$body" \
+                && ! grep -q '/functions/v1/admin-auth' "$body" \
                 && ! grep -q 'Technology that moves business forward' "$body" \
                 && ! grep -q 'data-prerendered-path="/"' "$body"; then
-                tr -d '\r' < "$headers" | grep -qi '^cache-control:.*no-store'
-                tr -d '\r' < "$headers" | grep -qi '^x-robots-tag:.*noindex'
-                tr -d '\r' < "$headers" | grep -qi '^x-frame-options: *DENY'
-                tr -d '\r' < "$headers" | grep -qi '^content-security-policy:'
-                echo "${label} dedicated admin root verified on attempt ${attempt}."
+                grep -qi '^cache-control:.*no-store' "$headers"
+                grep -qi '^x-robots-tag:.*noindex' "$headers"
+                grep -qi '^x-frame-options: *DENY' "$headers"
+                grep -qi '^content-security-policy:' "$headers"
+                echo "${label} dedicated admin root verified on attempt ${attempt}; build=${build_surface:-none}."
                 return 0
               fi
 
               if [[ "$attempt" == '40' ]]; then
                 echo "${label} did not converge to the dedicated admin portal." >&2
-                echo "Last HTTP status: ${code}" >&2
+                echo "Last HTTP status: ${code}; build=${build_surface:-none}" >&2
                 sed -n '1,40p' "$body" >&2 || true
                 return 1
               fi
@@ -60,7 +69,7 @@ jobs:
             done
           }
 
-          verify_admin_root "$ADMIN" production
+          verify_admin_root "$ADMIN" production 'phase16-security-closure-v1'
 
           if getent ahosts admin-staging.rcitcs.com >/dev/null 2>&1; then
             verify_admin_root "$ADMIN_STAGING" staging
@@ -78,27 +87,32 @@ jobs:
           test "$applications_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-apps.html
           ! grep -q 'Technology that moves business forward' /tmp/admin-apps.html
-          tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin-apps.headers | grep -qi '^x-robots-tag:.*noindex'
+          ! grep -q '/functions/v1/admin-auth' /tmp/admin-apps.html
+          grep -qi '^cache-control:.*no-store' /tmp/admin-apps.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-apps.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-apps.headers
 
           jobs_code=$(curl -sS -D /tmp/admin-jobs.headers -o /tmp/admin-jobs.html -w '%{http_code}' "${ADMIN}/jobs")
           test "$jobs_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-jobs.html
-          tr -d '\r' < /tmp/admin-jobs.headers | grep -qi '^cache-control:.*no-store'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-jobs.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-jobs.headers
 
           session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/admin-session.json
-          tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-session.headers
 
           rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
             -H 'Origin: https://example.invalid' \
-            -d 'email=x&password=x' \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=x&password=x' \
             "${ADMIN}/login")
           test "$rejected_code" = '403'
           grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-          echo 'Production admin routes remain private and host-local.'
+          echo 'Production admin routes remain private, dedicated-edge owned and host-local.'
 
       - name: Diagnose public apex separation when provisioned
         shell: bash
@@ -113,8 +127,8 @@ jobs:
 
           alias_code=$(curl -sS -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin")
           test "$alias_code" = '308'
-          tr -d '\r' < /tmp/public-admin.headers | grep -qi '^location: *https://admin\.rcitcs\.com/'
-          tr -d '\r' < /tmp/public-admin.headers | grep -qi '^cache-control:.*no-store'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/public-admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/public-admin.headers
 
           post_code=$(curl -sS -o /tmp/public-admin-post.txt -w '%{http_code}' -X POST \
             -H 'content-type: application/x-www-form-urlencoded' \
