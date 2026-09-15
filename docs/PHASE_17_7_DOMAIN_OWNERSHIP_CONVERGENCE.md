@@ -1,8 +1,10 @@
 # Phase 17.7 — Worker / Custom Domain / Route Ownership Convergence
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **17.7 COMPLETE — branch-level ownership convergence closed; final-main live activation remains mandatory for overall Phase-17 closure**
 
 Depends on: Phase 17.6 closure SHA `fc6a53f217b58ba2c80880fd02fedf8bf9e856a9`.
+
+Verified implementation SHA: `78b8730c6a8a7f6817164f33f592675700b39578`.
 
 ## Objective
 
@@ -113,11 +115,35 @@ The Phase-17 branch is not promoted to production solely to make a PR check pass
 - runtime admin responses propagate the environment ownership marker;
 - the Phase 17.1 historical overlap remains preserved as audit evidence.
 
-`.github/workflows/phase17-domain-ownership-convergence.yml` additionally dry-runs all canonical Wrangler candidates and enforces the final-main live owner markers.
+Historical ownership assertions in `tests/admin-job-management.mjs`, `tests/admin-portal-domain-separation.mjs`, and `tests/admin-visual-proxy.mjs` were updated only where they encoded the superseded Phase-16 staging/production overlap. Their Phase-11/12 job-authoring, proxy, authentication, session, navigation and security assertions remain intact.
+
+`.github/workflows/phase17-domain-ownership-convergence.yml` additionally builds production assets, dry-runs all canonical Wrangler candidates, classifies the current live control plane read-only on pull requests, preserves public/admin separation, and enforces the final-main live owner markers.
+
+## Exact-head acceptance evidence
+
+Implementation SHA `78b8730c6a8a7f6817164f33f592675700b39578` passed all 13 required pull-request workflow families:
+
+- RC IT Services CI
+- Wrangler Deployment Validation
+- Phase 17.7 Domain Ownership Convergence
+- Phase 17 Domain Baseline
+- Phase 17.2 Public Production Domain
+- Phase 17.3 WWW Canonical Redirect
+- Phase 17.4 Production Admin Domain
+- Phase 17.5 Admin Staging Isolation
+- Phase 17.6 Public Admin Separation
+- Phase 12 Runtime Smoke
+- Phase 13 Email Runtime Smoke
+- Phase 13 Secret Availability
+- Phase 14 Contact Inbox Runtime Smoke
+
+The full RC IT Services CI completed architecture, smoke, backend, persistence, admin-auth, dashboard, visual-proxy, route-rendering, design-system, performance-routing, SEO, production-build, performance-budget, SEO-build and Cloudflare configuration checks successfully.
+
+The dedicated 17.7 gate additionally passed the source ownership contract, production asset build, all three canonical Wrangler dry-runs, read-only pre-merge control-plane classification and public-host isolation checks. The final-main live owner-marker step is intentionally skipped on pull requests and is mandatory after eventual merge/deployment.
 
 ## Safety properties
 
-17.7 does not:
+17.7 did not:
 
 - redesign the public or admin UI;
 - change authentication/RBAC/session authority;
@@ -126,7 +152,8 @@ The Phase-17 branch is not promoted to production solely to make a PR check pass
 - change TLS/HSTS policy beyond preserving existing headers;
 - change `workers.dev` exposure;
 - rewrite the Phase 17.1 audit ledger;
-- merge the draft Phase-17 PR.
+- merge the draft Phase-17 PR;
+- claim that the unmerged branch has already changed the live Cloudflare ownership topology.
 
 ## Explicit deferrals
 
@@ -136,16 +163,10 @@ The Phase-17 branch is not promoted to production solely to make a PR check pass
 - email-domain DNS verification — 17.11
 - redirect/canonical-host minimization — 17.12
 
-## Closure criteria
+## Closure decision
 
-17.7 may close at branch level only when:
+**Module 17.7 is CLOSED at branch level.**
 
-- one-owner source topology is complete;
-- all impacted historical regression tests are updated without deleting audit evidence;
-- production/staging runtime ownership markers are regression-tested;
-- all three canonical Wrangler candidates compile;
-- the dedicated 17.7 workflow passes;
-- full inherited CI/security/runtime gates remain green;
-- the PR remains draft and `main` remains unchanged.
+The source-of-truth topology is converged, affected historical tests were reconciled without deleting audit history, production/staging ownership markers are regression-locked, all canonical Wrangler candidates compile, and the entire exact-head inherited test/build/security suite is green.
 
-Final Phase-17 closure remains prohibited until the post-main live gate proves that the Cloudflare control plane is actually serving `admin.rcitcs.com` from the production admin Worker and `admin-staging.rcitcs.com` from the isolated staging Worker.
+Overall Phase-17 closure remains prohibited until the eventual final-main deployment proves the live Cloudflare control plane is actually serving `admin.rcitcs.com` from the production admin Worker and `admin-staging.rcitcs.com` from the isolated staging Worker. That live activation requirement is already enforced by the 17.7 final-main workflow gate.
