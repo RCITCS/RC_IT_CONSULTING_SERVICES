@@ -1,6 +1,6 @@
 # Phase 17 — Domain & Subdomain Baseline
 
-Status: **17.1 OPEN — control-plane inventory still required**
+Status: **17.1 COMPLETE — read-only control-plane inventory closed**
 
 Baseline source commit: `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847`
 
@@ -16,126 +16,262 @@ The Phase 17 invariant is:
 
 No DNS record, Worker route, Custom Domain, build target, or legacy binding may be removed merely because it appears old. Dependency proof is required first.
 
-## 17.1 evidence ledger
+## 17.1 closure decision
 
-### Source-controlled Worker declarations
+Module 17.1 is closed after a read-only audit of repository declarations, public DNS/runtime behavior, and the authoritative Cloudflare control plane on 2026-09-15.
+
+No production DNS record, Worker route, Custom Domain, Worker setting, build configuration, secret, database object, email record, or application runtime behavior was changed during the audit.
+
+The audit deliberately records conflicts rather than resolving them. Resolution belongs to later Phase-17 modules.
+
+## Cloudflare account and zone ownership
+
+The authoritative Cloudflare dashboard established:
+
+- the account contains exactly one managed domain: `rcitcs.com`;
+- `rcitcs.com` zone status is **Active**;
+- DNS setup is **Full**;
+- registrar is Cloudflare and registration status is **Active**;
+- Zone ID: `cf815244b9dbd51a490747f597867c68`;
+- Account ID: `3fdd024f6fbc25c03ed4481352576540`;
+- the Workers account subdomain is `rcitcservices.workers.dev`;
+- both active RC IT Workers and the `rcitcs.com` zone are in this same Cloudflare account.
+
+These IDs are account/zone identifiers, not credentials. No API token or secret value was exposed or copied during the audit.
+
+## Active Worker inventory
+
+Cloudflare Workers & Pages showed **exactly two Worker applications** in the account:
+
+| Worker | Cloudflare state | Repository / build ownership | 17.1 interpretation |
+| --- | --- | --- | --- |
+| `rc-it-consulting-services` | exists and active | connected to `RCITCS/RC_IT_CONSULTING_SERVICES` | active public Worker and current route participant for production admin |
+| `rcitcs-admin-staging` | exists and active | connected to `RCITCS/RC_IT_CONSULTING_SERVICES` | active admin Worker currently owning both admin Custom Domains |
+| `rcitcs-admin-production` | **not present in this Cloudflare account** | source-controlled config exists only | intended future canonical production-admin config, not an active Worker today |
+| `rcitcservices` | **not present as a Worker application** | legacy source config exists only | `rcitcservices.workers.dev` is the account subdomain, not a Worker named `rcitcservices` |
+
+No additional untracked RC IT Worker was shown in the authoritative account inventory.
+
+## Active Worker Routes and Custom Domains
+
+### `rc-it-consulting-services`
+
+Cloudflare shows:
+
+| Binding | Type | Zone |
+| --- | --- | --- |
+| `admin.rcitcs.com/*` | Route | `rcitcs.com` |
+| `www.rcitcs.com` | Production Custom Domain | `rcitcs.com` |
+| `rcitcs.com` | Production Custom Domain | `rcitcs.com` |
+
+Its production and preview `workers.dev` URLs are **enabled**.
+
+### `rcitcs-admin-staging`
+
+Cloudflare shows:
+
+| Binding | Type | Zone |
+| --- | --- | --- |
+| `admin-staging.rcitcs.com/*` | Route | `rcitcs.com` |
+| `admin-staging.rcitcs.com` | Production Custom Domain | `rcitcs.com` |
+| `admin.rcitcs.com` | Production Custom Domain | `rcitcs.com` |
+
+Its production and preview `workers.dev` URLs are **disabled**.
+
+### Ownership conflict recorded for later convergence
+
+`admin.rcitcs.com` currently participates in two Cloudflare mechanisms at the same time:
+
+- `admin.rcitcs.com/*` is a Worker Route to `rc-it-consulting-services`;
+- `admin.rcitcs.com` is a Production Custom Domain on `rcitcs-admin-staging`.
+
+This is the central production-admin ownership conflict to resolve in later Phase-17 modules. Nothing was removed during 17.1.
+
+## Authoritative DNS record inventory
+
+Cloudflare DNS showed **13 total active records** for the zone.
+
+Application/domain-relevant state:
+
+| Hostname | Record/control-plane state | Proxy state |
+| --- | --- | --- |
+| `rcitcs.com` | Worker record bound to `rc-it-consulting-services` | Proxied |
+| `admin.rcitcs.com` | Worker record bound to `rcitcs-admin-staging` | Proxied |
+| `admin-staging.rcitcs.com` | Worker record bound to `rcitcs-admin-staging` | Proxied |
+| `www.rcitcs.com` | no row in the DNS record table even though the public Worker shows it as a Production Custom Domain | no published DNS answer at audit time |
+| `links.rcitcs.com` | Resend CNAME to `links1.resend-dns.com` | DNS only, 1 hour |
+| apex MX | three Cloudflare Email Routing MX records | DNS only, Auto |
+| `send.rcitcs.com` MX | Amazon SES feedback endpoint used by mail delivery | DNS only, 1 hour |
+| TXT/DKIM/SPF | Cloudflare Email Routing, Google verification, and Resend/Amazon SES-related records | DNS only |
+
+The apex Cloudflare Email Routing MX records observed were:
+
+- `route2.mx.cloudflare.net` priority 55;
+- `route1.mx.cloudflare.net` priority 59;
+- `route3.mx.cloudflare.net` priority 68.
+
+The apex TXT surface observed includes:
+
+- Google site verification;
+- `v=spf1 include:_spf.mx.cloudflare.net ~all`.
+
+Cloudflare also surfaced a recommendation to add DMARC. That is evidence for the later email-domain verification/security module, not a 17.1 mutation.
+
+No old Vercel/Pages/third-party web-hosting pointer was visible in the complete 13-record inventory. The non-Worker external records were mail/verification records.
+
+## `www.rcitcs.com` mismatch
+
+The audit corrected the earlier assumption that `www` was simply absent.
+
+Authoritative Cloudflare state is internally inconsistent:
+
+- `rc-it-consulting-services` lists `www.rcitcs.com` as a **Production Custom Domain**;
+- the DNS record table has no `www` row;
+- Cloudflare itself warns that visitors cannot reach `www.rcitcs.com`;
+- the public DNS snapshot returned no A, AAAA, or CNAME answer for `www.rcitcs.com`.
+
+Therefore 17.1 records `www` as **configured at the Worker Custom Domain layer but not externally reachable**. Module 17.3 must repair the canonical `www` strategy rather than assuming a clean unprovisioned state.
+
+## Cloudflare Builds ownership
+
+### Public Worker
+
+`rc-it-consulting-services` Builds state:
+
+- repository: `RCITCS/RC_IT_CONSULTING_SERVICES`;
+- production branch: `main`;
+- root directory: `/`;
+- no separate build command;
+- version command: `npx wrangler versions upload`;
+- a configured deploy command is present;
+- non-production branch builds are enabled;
+- dedicated build API token is configured;
+- build-time Supabase secret/storage/URL configuration is present;
+- no deploy hooks;
+- build cache enabled.
+
+Its active deployment at audit time:
+
+- Version ID `bacd55c6`;
+- 100% traffic;
+- source branch `main`;
+- source commit `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847`;
+- active deployment error rate shown as 0% at capture time;
+- 76 saved Worker versions were shown.
+
+### Connected admin Worker
+
+`rcitcs-admin-staging` Builds state:
+
+- repository: `RCITCS/RC_IT_CONSULTING_SERVICES`;
+- production branch: `main`;
+- root directory: `/`;
+- build command: `npm run build`;
+- deploy command: `npx wrangler deploy`;
+- version command: `npx wrangler versions upload`;
+- non-production branch builds are enabled;
+- dedicated `rcitcs-admin-staging` build token is configured;
+- no build variables or secrets configured;
+- no deploy hooks;
+- build cache enabled.
+
+Cloudflare displays an explicit configuration-drift warning instructing the repository root `wrangler.jsonc` to use:
+
+```json
+{
+  "name": "rcitcs-admin-staging"
+}
+```
+
+That warning conflicts with the repository ownership model where the root `wrangler.jsonc` is the public Worker configuration and staging has a separate Wrangler configuration. This is an ownership/build-root convergence finding for later Phase-17 work, not something changed during 17.1.
+
+Its active deployment at audit time:
+
+- Version ID `895c5744`;
+- 100% traffic;
+- source branch `main`;
+- latest successful build source `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847`;
+- 45 saved Worker versions were shown.
+
+A high dashboard error-rate percentage was visible for this Worker during capture. 17.1 does not classify it as a defect because the metric can include deliberate rejection/smoke-test traffic; runtime interpretation remains separate from the ownership audit.
+
+## Source-controlled Worker declarations
 
 | Surface | Source-controlled Worker | workers.dev | Declared custom domains | Baseline interpretation |
 | --- | --- | ---: | --- | --- |
-| Public corporate | `rc-it-consulting-services` | enabled | `rcitcs.com` | Public production Worker declaration |
-| Admin production canonical config | `rcitcs-admin-production` | disabled | `admin.rcitcs.com` | Intended canonical production-admin ownership |
-| Connected admin deployment config carried from Phase 16 | `rcitcs-admin-staging` | disabled | `admin.rcitcs.com`, `admin-staging.rcitcs.com` | Known ownership overlap carried into Phase 17 |
-| Legacy Worker | `rcitcservices` | source config only | no company-domain route in the checked-in legacy config | Must not be assumed deleted; account-level proof still required |
+| Public corporate | `rc-it-consulting-services` | enabled | `rcitcs.com` | active public production Worker declaration |
+| Admin production canonical config | `rcitcs-admin-production` | disabled | `admin.rcitcs.com` | intended canonical production-admin ownership, but Worker absent from current Cloudflare account |
+| Connected admin deployment config carried from Phase 16 | `rcitcs-admin-staging` | disabled | `admin.rcitcs.com`, `admin-staging.rcitcs.com` | active Worker and current Custom Domain owner for both admin hostnames |
+| Legacy Worker | `rcitcservices` | source config only | no company-domain route in checked-in legacy config | not present as an active Worker in the audited account |
 
-The duplicate source declaration for `admin.rcitcs.com` is a **known Phase-17 convergence finding**, not an accidental discovery to delete immediately. Phase 16 deliberately used the connected `rcitcs-admin-staging` deployment target for both admin hostnames while retaining `rcitcs-admin-production` as the intended canonical production configuration.
+The duplicate source declaration for `admin.rcitcs.com` remains a **known Phase-17 convergence finding**. Phase 16 deliberately used the connected `rcitcs-admin-staging` deployment target while retaining `rcitcs-admin-production` as the intended canonical production configuration.
 
-### Application-level hostname behavior
+## Application-level hostname behavior
 
-The checked-in runtime currently establishes these boundaries:
+The checked-in runtime and live baseline establish these boundaries:
 
 - `rcitcs.com/admin` and `rcitcs.com/admin/*`:
-  - GET/HEAD: `308` to `https://admin.rcitcs.com/...`.
+  - GET/HEAD: `308` to `https://admin.rcitcs.com/...`;
   - non-GET/HEAD: rejected with `404`; the public host does not process admin credentials.
 - `admin.rcitcs.com` and `admin-staging.rcitcs.com` are recognized as dedicated admin hosts.
 - the public Worker's internal `*.workers.dev/admin` compatibility path remains implemented.
 - the dedicated admin Worker proxies the private admin runtime and rewrites raw upstream admin-auth references before returning browser content.
 
-### Exact-main production evidence from 2026-09-15
+## Exact-main production baseline
 
-The Phase-16 closure SHA `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847` passed the production gates that establish this Phase-17 baseline:
+The Phase-16 closure SHA `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847` established the pre-change production baseline:
 
-- `https://rcitcs.com/` served the exact Phase-16 closure SHA and the corporate public application.
-- `https://admin.rcitcs.com/` rendered the private admin sign-in surface with the Phase-16 build/media markers.
-- `https://admin-staging.rcitcs.com/` was provisioned and rendered the same Phase-16 admin release markers.
-- `GET https://rcitcs.com/admin` returned `308` to `https://admin.rcitcs.com/`.
-- `POST https://rcitcs.com/admin/login` returned `404`.
-- the production admin surface preserved `text/html`, `no-store`, `noindex`, CSP, framing protection, host-local routes, unauthenticated session rejection, and hostile-origin POST rejection.
+- `https://rcitcs.com/` served the corporate public application;
+- `https://admin.rcitcs.com/` rendered the private admin sign-in surface;
+- `https://admin-staging.rcitcs.com/` was live and rendered the same Phase-16 admin release markers;
+- `GET https://rcitcs.com/admin` returned `308` to `https://admin.rcitcs.com/`;
+- `POST https://rcitcs.com/admin/login` returned `404`;
+- production admin preserved `text/html`, `no-store`, `noindex`, CSP, framing protection, host-local routes, unauthenticated session rejection, and hostile-origin POST rejection.
 
-This proves runtime behavior. It **does not prove Cloudflare account ownership or the complete DNS/control-plane state**.
+The Phase-17 read-only baseline workflow additionally established:
 
-### Phase-17.1 read-only audit evidence from 2026-09-15
+- apex public DNS resolution through Cloudflare;
+- `admin.rcitcs.com` and `admin-staging.rcitcs.com` public DNS resolution through Cloudflare;
+- `www.rcitcs.com` public DNS non-resolution;
+- live `200` on apex, production admin, and staging admin before Phase-17 mutations.
 
-The dedicated `Phase 17 Domain Baseline` GitHub Actions gate passed without mutating Cloudflare or production data. It established:
+## Public DNS snapshot
 
-- `rcitcs.com`: public DNS resolution present through Cloudflare; live corporate surface returned `200`.
-- `admin.rcitcs.com`: public DNS resolution present through Cloudflare; admin surface returned `200` with Phase-16 HTML/cache/indexing/build protections.
-- `admin-staging.rcitcs.com`: public DNS resolution present through Cloudflare; admin surface returned `200` with the same Phase-16 build marker as production.
-- `www.rcitcs.com`: **no public DNS resolution at the audit time**. There is therefore no live `www` canonical redirect today.
-- `GET https://rcitcs.com/admin`: `308` to `https://admin.rcitcs.com/`.
-- `POST https://rcitcs.com/admin/login`: `404`.
+Before any Phase-17 domain changes, the external DNS snapshot observed:
 
-The Phase-17 PR head also passed the inherited full architecture/test/build gate, Wrangler dry-run validation for the public Worker plus both admin Worker configurations and the Cloudflare Builds admin root, Phase-12 deployed candidate/admin boundary smoke, Phase-13 secret-presence and transactional-email runtime gates, and Phase-14 authenticated contact-inbox runtime smoke.
+- authoritative nameservers `max.ns.cloudflare.com` and `venus.ns.cloudflare.com`;
+- Cloudflare SOA authority;
+- apex Cloudflare anycast A/AAAA answers;
+- `admin.rcitcs.com` and `admin-staging.rcitcs.com` on the same Cloudflare anycast surface;
+- no public CNAME answer for apex/admin/staging;
+- no public A, AAAA, or CNAME answer for `www.rcitcs.com`;
+- Cloudflare Email Routing MX records;
+- Google site-verification and Cloudflare SPF TXT records;
+- no public apex CAA answer at capture time.
 
-### Public DNS snapshot
+## Hostname inventory at 17.1 closure
 
-A second read-only Phase-17 baseline run captured the externally published DNS surface before any domain changes:
-
-- authoritative nameservers:
-  - `max.ns.cloudflare.com`
-  - `venus.ns.cloudflare.com`
-- SOA authority: Cloudflare (`max.ns.cloudflare.com` / `dns.cloudflare.com`).
-- `rcitcs.com` public A answers:
-  - `104.21.38.16`
-  - `172.67.217.18`
-- `rcitcs.com` public AAAA answers:
-  - `2606:4700:3030::ac43:d912`
-  - `2606:4700:3031::6815:2610`
-- `admin.rcitcs.com` and `admin-staging.rcitcs.com` publish the same Cloudflare anycast A/AAAA surface.
-- `rcitcs.com`, `admin.rcitcs.com`, and `admin-staging.rcitcs.com` expose no public CNAME answer.
-- `www.rcitcs.com` exposes no public A, AAAA, or CNAME answer.
-- apex MX currently uses Cloudflare Email Routing:
-  - `route2.mx.cloudflare.net` priority 55
-  - `route1.mx.cloudflare.net` priority 59
-  - `route3.mx.cloudflare.net` priority 68
-- apex TXT observed during the snapshot:
-  - Google site-verification token
-  - `v=spf1 include:_spf.mx.cloudflare.net ~all`
-- no public apex CAA answer was observed.
-
-These public DNS answers strongly establish Cloudflare delegation and current external reachability. They **cannot reveal** whether an A/AAAA result is backed by a proxied DNS object versus a Worker Custom Domain, the internal orange-cloud/proxy state, hidden origin values, inactive/stale records, Worker Routes, Custom Domain ownership, Builds ownership, or Cloudflare account/zone identifiers.
-
-Public DNS non-resolution for `www` is therefore runtime evidence, not a substitute for inspecting the authoritative Cloudflare zone. The control-plane audit must still prove whether `www` is genuinely absent from the active zone and whether any stale/disabled/historical binding exists.
-
-## Hostname inventory
-
-| Hostname / endpoint | Purpose | Source state | Live baseline | 17.1 status |
-| --- | --- | --- | --- | --- |
-| `rcitcs.com` | public production | declared on public Worker | DNS present; Cloudflare A/AAAA; corporate site `200`; exact-main public site previously verified | runtime evidenced; control-plane owner proof open |
-| `www.rcitcs.com` | public alias/canonical redirect candidate | no checked-in Worker-domain declaration found at baseline | **no public A/AAAA/CNAME; no public resolution** | control-plane absence proof open; provisioning belongs to 17.3 after 17.1 closes |
-| `admin.rcitcs.com` | production admin | declared by production config and Phase-16 connected staging config | Cloudflare A/AAAA; admin portal `200` verified | ownership convergence open |
-| `admin-staging.rcitcs.com` | admin staging | declared by Phase-16 connected staging config | Cloudflare A/AAAA; live `200`; same Phase-16 release as production | isolation/product decision open |
-| `rc-it-consulting-services.rcitcservices.workers.dev` | public Worker compatibility endpoint | `workers_dev` enabled | exercised by existing CI | exposure decision deferred to 17.10 |
-| raw Supabase admin Edge Function | private admin upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
-| raw Supabase candidate Edge Function | candidate upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
-
-## Evidence still required before 17.1 can close
-
-The following must come from the authoritative Cloudflare account/control plane. Repository configuration, public DNS resolution, and public HTTP behavior are insufficient substitutes:
-
-1. Cloudflare account and zone containing `rcitcs.com`, including authoritative zone/account ownership and zone ID/account ID evidence.
-2. Complete active DNS object inventory for relevant RC IT hostnames, including record type, target/content, TTL, proxy state, and any duplicate/conflicting host objects.
-3. Active Worker inventory and account ownership for:
-   - `rc-it-consulting-services`
-   - `rcitcs-admin-production`
-   - `rcitcs-admin-staging`
-   - `rcitcservices`
-   - any untracked RC IT Worker still bound to a company hostname.
-4. Active Worker Routes versus Custom Domains for each RC IT hostname.
-5. Cloudflare Builds project ownership and production branch/build-root mapping for public and admin deployments.
-6. Confirmation of any stale Worker-domain bindings or old hosting pointers that are still active.
-7. Authoritative control-plane confirmation that `www.rcitcs.com` is absent/unprovisioned today, consistent with the public DNS result.
+| Hostname / endpoint | Current authoritative state | 17.1 disposition |
+| --- | --- | --- |
+| `rcitcs.com` | Production Custom Domain / Worker DNS object owned by `rc-it-consulting-services`; live public site | identified; 17.2 will converge public production ownership without redesign |
+| `www.rcitcs.com` | listed as public Worker Production Custom Domain but no DNS table row/public resolution | identified broken/incomplete state; repair deferred to 17.3 |
+| `admin.rcitcs.com` | Custom Domain on `rcitcs-admin-staging` plus Route to `rc-it-consulting-services` | competing ownership identified; convergence deferred to 17.4/17.7 |
+| `admin-staging.rcitcs.com` | Custom Domain and Route on `rcitcs-admin-staging`; same Phase-16 release as production | identified; true staging isolation deferred to 17.5 |
+| `rc-it-consulting-services.rcitcservices.workers.dev` | enabled production/preview compatibility surface | identified; exposure decision deferred to 17.10 |
+| raw Supabase admin Edge Function | private admin upstream referenced server-side | exposure decision deferred to 17.10 |
+| raw Supabase candidate Edge Function | candidate upstream referenced server-side | exposure decision deferred to 17.10 |
 
 ## 17.1 closure gate
 
-Module 17.1 may be marked complete only when all of the following are true:
+All 17.1 requirements are satisfied:
 
-- every production/staging/public alias hostname has an identified current owner or explicitly evidenced absence;
+- every production/staging/public-alias hostname has an identified current owner or explicitly recorded inconsistent state;
 - Cloudflare account/zone ownership is evidenced;
 - active Workers, Routes, Custom Domains, Builds projects, and DNS records are inventoried;
-- proxied versus DNS-only state is known;
-- stale/competing bindings are identified without deleting them prematurely;
+- proxied versus DNS-only state is known for the active DNS inventory;
+- stale/competing bindings are identified without premature deletion;
 - live pre-change behavior is recorded;
-- the evidence distinguishes current runtime truth from historical documentation;
-- no production behavior has been changed during the audit.
+- current control-plane/runtime truth is distinguished from historical source intent;
+- no production behavior changed during the audit.
 
-Until then, status remains **17.1 OPEN** and work must not advance to 17.2.
+**Module 17.1 is COMPLETE. Do not alter this baseline retroactively. Phase 17.2 may begin only after this closure commit passes exact-head CI.**
