@@ -1,7 +1,9 @@
+import { CANDIDATE_MESSAGE_TEMPLATE_OPTIONS } from "../_shared/candidate-message-templates.js";
 import { esc, prettyTime } from "./ui.ts";
 
 export const CANDIDATE_MESSAGE_SUBJECT_MAX = 300;
 export const CANDIDATE_MESSAGE_BODY_MAX = 10000;
+export const CANDIDATE_STATUS_NOTES_MAX = 2000;
 
 const SAFE_DELIVERY_STATES = new Set([
   "queued",
@@ -16,10 +18,29 @@ const SAFE_DELIVERY_STATES = new Set([
   "draft"
 ]);
 
+const STATUS_TRANSITIONS: Record<string, readonly string[]> = Object.freeze({
+  submitted: Object.freeze(["under_review", "rejected", "withdrawn", "archived"]),
+  under_review: Object.freeze(["shortlisted", "interview", "assessment", "rejected", "withdrawn", "archived"]),
+  shortlisted: Object.freeze(["under_review", "interview", "assessment", "rejected", "withdrawn", "archived"]),
+  interview: Object.freeze(["under_review", "assessment", "offer", "rejected", "withdrawn", "archived"]),
+  assessment: Object.freeze(["under_review", "interview", "offer", "rejected", "withdrawn", "archived"]),
+  offer: Object.freeze(["hired", "rejected", "withdrawn", "archived"]),
+  hired: Object.freeze(["archived"]),
+  rejected: Object.freeze(["under_review", "archived"]),
+  withdrawn: Object.freeze(["under_review", "archived"]),
+  archived: Object.freeze(["restore"])
+});
+
 function deliveryLabel(value: unknown): string {
   const state = String(value ?? "queued").trim().toLowerCase();
   const safe = SAFE_DELIVERY_STATES.has(state) ? state : "queued";
   return safe.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function statusLabel(value: unknown): string {
+  const state = String(value ?? "").trim().toLowerCase();
+  if (state === "restore") return "Restore prior stage";
+  return state.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function messageDirection(value: unknown): string {
@@ -74,7 +95,16 @@ type CandidateMessageDraft = {
   requestId?: string;
   preview?: boolean;
   validationError?: string;
+  templateKey?: string;
 };
+
+function templatePicker(basePath: string, applicationId: string, selectedKey: string): string {
+  const links = CANDIDATE_MESSAGE_TEMPLATE_OPTIONS.map((option) => {
+    const selected = selectedKey === option.key;
+    return `<a class="btn secondary" style="min-height:32px;padding:6px 9px;font-size:10px" href="${basePath}/applications/${esc(applicationId)}?template=${encodeURIComponent(option.key)}#candidate-message-compose-title"${selected ? ' aria-current="true"' : ""}>${esc(option.label)}</a>`;
+  }).join("");
+  return `<div style="margin-bottom:14px"><div class="activity-type" style="margin-bottom:7px">Controlled templates</div><div class="actions" style="margin:0;gap:6px;flex-wrap:wrap">${links}</div><p class="muted" style="margin:8px 0 0;font-size:10px">Templates use only persisted candidate/job fields. Review and preview the message before sending.</p></div>`;
+}
 
 export function renderCandidateMessageComposer(
   basePath: string,
@@ -89,8 +119,9 @@ export function renderCandidateMessageComposer(
   const requestId = String(draft.requestId ?? crypto.randomUUID());
   const preview = draft.preview === true;
   const error = String(draft.validationError ?? "").trim();
+  const templateKey = String(draft.templateKey ?? "");
 
-  const composeForm = `<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px">
+  const composeForm = `${templatePicker(basePath, applicationId, templateKey)}<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px">
     <input type="hidden" name="csrf" value="${esc(csrf)}">
     <input type="hidden" name="request_id" value="${esc(requestId)}">
     <input type="hidden" name="intent" value="preview">
@@ -122,4 +153,31 @@ export function renderCandidateMessageComposer(
   </section>`;
 
   return `${composeForm}${confirmation}`;
+}
+
+export function renderCandidateStatusWorkflow(basePath: string, csrf: string, application: any): string {
+  const applicationId = String(application?.id ?? "");
+  const current = String(application?.status ?? "submitted").trim().toLowerCase();
+  const version = Number(application?.version ?? 0);
+  const allowed = STATUS_TRANSITIONS[current] ?? [];
+  const options = allowed.map((status) => `<option value="${esc(status)}">${esc(statusLabel(status))}</option>`).join("");
+  const prior = current === "archived" ? String(application?.archived_from_status ?? "under_review") : "";
+
+  if (!Number.isSafeInteger(version) || version < 1 || !applicationId || !allowed.length) {
+    return `<div class="empty">Recruitment-stage workflow is unavailable for this application. Reload the record before attempting a change.</div>`;
+  }
+
+  return `<form method="post" action="${basePath}/applications/${esc(applicationId)}/status" style="display:grid;gap:10px">
+    <input type="hidden" name="csrf" value="${esc(csrf)}">
+    <input type="hidden" name="expected_version" value="${esc(version)}">
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <div class="identity-row"><span>Current stage</span><strong>${esc(statusLabel(current))}</strong></div>
+      <div class="identity-row"><span>Record version</span><strong>${esc(version)}</strong></div>
+    </div>
+    ${current === "archived" ? `<div class="msg" role="status">Restore returns this application to <strong>${esc(statusLabel(prior))}</strong>. No email is sent.</div>` : ""}
+    <div><label for="candidate-target-status" style="display:block;font-size:10px;font-weight:750;margin-bottom:5px">Next stage</label><select id="candidate-target-status" name="target_status" required style="width:100%;min-height:40px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"><option value="">Select a permitted stage</option>${options}</select></div>
+    <div><label for="candidate-status-notes" style="display:block;font-size:10px;font-weight:750;margin-bottom:5px">Internal transition note <span style="font-weight:500;color:var(--muted)">(optional)</span></label><textarea id="candidate-status-notes" name="notes" maxlength="${CANDIDATE_STATUS_NOTES_MAX}" rows="3" style="width:100%;border:1px solid var(--line-strong);border-radius:3px;padding:10px;resize:vertical;line-height:1.5"></textarea></div>
+    <p class="muted" style="margin:0;font-size:10px"><strong>Status and email are separate operations.</strong> Updating the recruitment stage never sends candidate email automatically.</p>
+    <div class="actions" style="margin:0"><button class="btn secondary" type="submit">Update stage</button></div>
+  </form>`;
 }
