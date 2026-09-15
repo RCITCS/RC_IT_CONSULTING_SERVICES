@@ -57,23 +57,27 @@ assert.match(domainSmoke, /https:\/\/rcitcs\.com/);
 assert.match(domainSmoke, /test "\$alias_code" = '308'/);
 assert.match(domainSmoke, /test "\$post_code" = '404'/);
 
-// Phase 17.1 audit ledger. The primary account inventory is complete, but
-// exact-head CI exposed a second Cloudflare account/build surface involving
-// the legacy rcitcservices Worker. These assertions prevent the blocker from
-// being silently lost before cross-account ownership is classified.
-assert.match(auditDoc, /Status: \*\*17\.1 OPEN — secondary Cloudflare ownership surface discovered during closure CI\*\*/);
-assert.match(auditDoc, /exactly two Worker applications in this account/i);
+// Phase 17.1 authoritative control-plane findings. These assertions protect
+// the accepted audit ledger and the account boundary from silent regression.
+assert.match(auditDoc, /Status: \*\*17\.1 COMPLETE — read-only control-plane inventory closed\*\*/);
+assert.match(auditDoc, /Account ID: `3fdd024f6fbc25c03ed4481352576540`/);
+assert.match(auditDoc, /exactly two active Worker applications/i);
 assert.match(auditDoc, /`admin\.rcitcs\.com\/\*` \| Route/);
 assert.match(auditDoc, /`admin\.rcitcs\.com` \| Production Custom Domain/);
 assert.match(auditDoc, /`www\.rcitcs\.com` as a Production Custom Domain/);
 assert.match(auditDoc, /Cloudflare displays a configuration-drift warning/);
 assert.match(auditDoc, /Workers Builds: rcitcservices/);
 assert.match(auditDoc, /20d349f3f75ab611adb3f987188636e7/);
-assert.match(auditDoc, /different Cloudflare account/);
-assert.match(auditDoc, /Module 17\.1 remains OPEN/);
+assert.match(auditDoc, /separate\/main Cloudflare account/i);
+assert.match(auditDoc, /`infinexit\.com`/);
+assert.match(auditDoc, /`nxnlogistics\.com`/);
+assert.match(auditDoc, /does not manage the `rcitcs\.com` zone/i);
+assert.match(auditDoc, /stale cross-account GitHub\/Cloudflare build integration/i);
+assert.match(auditDoc, /do not deploy RC IT to account `20d349f3f75ab611adb3f987188636e7`/i);
 assert.match(auditDoc, /No production behavior was changed during this audit/);
+assert.match(auditDoc, /Module 17\.1 is COMPLETE/);
 
 console.log('Phase 17.1 source/domain baseline and control-plane evidence ledger: PASS');
-console.log('PRIMARY ACCOUNT: inventory complete; admin ownership overlap and broken www state recorded without mutation.');
-console.log('OPEN BLOCKER: exact-head Cloudflare GitHub App check targets secondary account 20d349f3f75ab611adb3f987188636e7 and Worker rcitcservices.');
-console.log('NEXT GATE: classify the secondary account read-only before 17.1 can close or 17.2 can begin.');
+console.log('CLIENT ACCOUNT: rcitcs.com ownership inventory complete; admin overlap and broken www state recorded without mutation.');
+console.log('CROSS-ACCOUNT: personal account 20d349f3f75ab611adb3f987188636e7 is outside the rcitcs.com ownership boundary and prohibited as an RC IT deployment target.');
+console.log('NEXT GATE: do not begin 17.2 until this exact branch head passes CI.');
