@@ -2,7 +2,29 @@ import runtime from '../src/backend/runtime/worker.js';
 import { createCandidateApplicationGateway } from '../src/backend/providers/candidate-application-gateway.js';
 import adminWorker from './admin-only.js';
 
+const PUBLIC_PRODUCTION_ORIGIN = 'https://rcitcs.com';
+const WWW_PUBLIC_HOST = 'www.rcitcs.com';
 const DEDICATED_ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
+
+export function canonicalPublicRedirect(request) {
+  const incoming = new URL(request.url);
+  if (incoming.hostname.toLowerCase() !== WWW_PUBLIC_HOST) return null;
+
+  // Assign path/query onto a trusted origin instead of resolving an untrusted
+  // path as a URL reference. This preserves encoded paths and query strings
+  // while preventing a leading // path from becoming an open redirect.
+  const target = new URL(PUBLIC_PRODUCTION_ORIGIN);
+  target.pathname = incoming.pathname;
+  target.search = incoming.search;
+
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: target.toString(),
+      'x-content-type-options': 'nosniff'
+    }
+  });
+}
 
 export function legacyAdminRedirect(request) {
   const url = new URL(request.url);
@@ -36,6 +58,9 @@ export function legacyAdminRedirect(request) {
 
 export default {
   async fetch(request, env, ctx) {
+    const canonical = canonicalPublicRedirect(request);
+    if (canonical) return canonical;
+
     const legacy = legacyAdminRedirect(request);
     if (legacy) return legacy;
 
