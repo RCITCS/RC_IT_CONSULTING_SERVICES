@@ -13,6 +13,7 @@ assert.equal(activeConfig.main, "./worker/admin-only.js", "the active admin Work
 assert.equal(activeConfig.workers_dev, false, "the active admin Worker must remain Custom-Domain only");
 assert.equal(activeConfig.keep_vars, true, "the active admin Worker must preserve managed runtime bindings");
 assert.equal(activeConfig.vars?.RC_ADMIN_BUILD_SURFACE, "phase16-security-closure-v1", "the active connected admin build must carry the Phase 16 deployment marker");
+assert.equal(activeConfig.vars?.RC_ADMIN_HTML_MEDIA_FIX, "phase16-html-content-type-v1", "the connected admin Worker must carry the media-type repair deployment marker");
 assert.deepEqual(
   activeConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [["admin.rcitcs.com", true], ["admin-staging.rcitcs.com", true]],
@@ -41,10 +42,13 @@ assert.ok(canonicalConfig.routes?.some((route) => route.pattern === "admin.rcitc
 for (const fragment of [
   "export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';",
   "export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';",
+  "export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';",
   "headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);",
   "headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);",
+  "headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);",
   "'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE",
+  "'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX",
   "return markAdminBuildSurface(response);"
-]) assert.ok(adminWorker.includes(fragment), `active admin runtime lost Phase 16 edge ownership contract: ${fragment}`);
+]) assert.ok(adminWorker.includes(fragment), `active admin runtime lost Phase 16 edge ownership/media-type contract: ${fragment}`);
 
-console.log("Phase 16 active company-admin Cloudflare ownership contract: PASS");
+console.log("Phase 16 active company-admin Cloudflare ownership/media-type contract: PASS");
