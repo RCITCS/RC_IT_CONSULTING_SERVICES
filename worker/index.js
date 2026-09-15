@@ -8,6 +8,36 @@ const WWW_PUBLIC_HOST = 'www.rcitcs.com';
 const PUBLIC_ADMIN_BASE = '/admin';
 const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com';
 const DEDICATED_ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
+const HTTPS_ENFORCED_HOSTS = new Set([
+  PUBLIC_PRODUCTION_HOST,
+  WWW_PUBLIC_HOST,
+  ...DEDICATED_ADMIN_HOSTS
+]);
+export const TRANSPORT_SECURITY_POLICY = 'max-age=31536000; includeSubDomains; preload';
+
+function secureTransportResponse(response) {
+  const headers = new Headers(response.headers);
+  headers.set('strict-transport-security', TRANSPORT_SECURITY_POLICY);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+export function forceHttps(request) {
+  const incoming = new URL(request.url);
+  if (incoming.protocol !== 'http:' || !HTTPS_ENFORCED_HOSTS.has(incoming.hostname.toLowerCase())) return null;
+  incoming.protocol = 'https:';
+  return secureTransportResponse(new Response(null, {
+    status: 308,
+    headers: {
+      location: incoming.toString(),
+      'cache-control': 'no-store, max-age=0, must-revalidate',
+      'x-content-type-options': 'nosniff'
+    }
+  }));
+}
 
 export function canonicalPublicRedirect(request) {
   const incoming = new URL(request.url);
@@ -20,13 +50,13 @@ export function canonicalPublicRedirect(request) {
   target.pathname = incoming.pathname;
   target.search = incoming.search;
 
-  return new Response(null, {
+  return secureTransportResponse(new Response(null, {
     status: 308,
     headers: {
       location: target.toString(),
       'x-content-type-options': 'nosniff'
     }
-  });
+  }));
 }
 
 function publicAdminAliasHeaders() {
@@ -39,7 +69,7 @@ function publicAdminAliasHeaders() {
     'x-frame-options': 'DENY',
     'referrer-policy': 'no-referrer',
     'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload'
+    'strict-transport-security': TRANSPORT_SECURITY_POLICY
   });
 }
 
@@ -84,7 +114,8 @@ export function legacyAdminRedirect(request) {
     'cache-control': 'no-store, max-age=0, must-revalidate',
     'x-robots-tag': 'noindex, nofollow, noarchive',
     'x-content-type-options': 'nosniff',
-    'referrer-policy': 'no-referrer'
+    'referrer-policy': 'no-referrer',
+    'strict-transport-security': TRANSPORT_SECURITY_POLICY
   });
 
   // Existing Phase 11 bookmarks/sessions may still live under /admin. Move only
@@ -103,6 +134,9 @@ export function legacyAdminRedirect(request) {
 
 export default {
   async fetch(request, env, ctx) {
+    const httpsRedirect = forceHttps(request);
+    if (httpsRedirect) return httpsRedirect;
+
     const canonical = canonicalPublicRedirect(request);
     if (canonical) return canonical;
 
@@ -114,10 +148,10 @@ export default {
 
     const host = new URL(request.url).hostname.toLowerCase();
     if (DEDICATED_ADMIN_HOSTS.has(host)) {
-      return adminWorker.fetch(request, env, ctx);
+      return secureTransportResponse(await adminWorker.fetch(request, env, ctx));
     }
 
-    return runtime.fetch(request, env, ctx);
+    return secureTransportResponse(await runtime.fetch(request, env, ctx));
   },
   scheduled(_controller, env, ctx) {
     const gateway = createCandidateApplicationGateway({ env, runtime: 'cloudflare-workers' });
