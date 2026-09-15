@@ -4,6 +4,7 @@
 // exact mirrored main commit that Cloudflare builds.
 import adminWorker from '../../worker/admin-only.js';
 
+const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 const RECOVERY_COOKIE_NAMES = [
   'rcitcs_admin_recovery=',
   'rcitcs_admin_recovery_csrf='
@@ -26,16 +27,19 @@ function rewriteRecoveryCookie(cookie) {
     .replace(/Max-Age=600(?=;|$)/gi, 'Max-Age=1800');
 }
 
-function adaptRecoveryCookieHandoff(response) {
+function adaptProductionAdminResponse(response) {
   const cookies = setCookieValues(response.headers);
-  if (!cookies.length) return response;
-
-  const rewritten = cookies.map(rewriteRecoveryCookie);
-  if (rewritten.every((cookie, index) => cookie === cookies[index])) return response;
-
   const headers = new Headers(response.headers);
-  headers.delete('set-cookie');
-  for (const cookie of rewritten) headers.append('set-cookie', cookie);
+
+  if (cookies.length) {
+    headers.delete('set-cookie');
+    for (const cookie of cookies.map(rewriteRecoveryCookie)) headers.append('set-cookie', cookie);
+  }
+
+  // This marker is emitted only by the dedicated Cloudflare production-admin
+  // build root. It lets production acceptance distinguish the intended edge
+  // proxy from a direct/raw Supabase admin-auth response.
+  headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
 
   return new Response(response.body, {
     status: response.status,
@@ -47,6 +51,6 @@ function adaptRecoveryCookieHandoff(response) {
 export default {
   async fetch(request, env, ctx) {
     const response = await adminWorker.fetch(request, env, ctx);
-    return adaptRecoveryCookieHandoff(response);
+    return adaptProductionAdminResponse(response);
   }
 };
