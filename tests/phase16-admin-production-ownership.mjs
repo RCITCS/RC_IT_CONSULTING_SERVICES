@@ -28,8 +28,13 @@ assert.ok(
 assert.equal(publicConfig.name, "rc-it-consulting-services");
 assert.deepEqual(
   publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
-  [["rcitcs.com", true]],
-  "the public Worker must own only the public apex and must not reconcile admin-domain ownership"
+  [["rcitcs.com", true], ["www.rcitcs.com", true]],
+  "the public Worker may own the approved public apex/www pair but must not reconcile admin-domain ownership"
+);
+assert.equal(
+  publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ""))),
+  false,
+  "Phase 16 admin ownership isolation must survive later public-alias convergence"
 );
 
 assert.equal(legacyConfig.name, "rcitcservices");
