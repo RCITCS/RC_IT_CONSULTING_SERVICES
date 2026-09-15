@@ -29,19 +29,19 @@ begin
     raise exception 'administrator is not eligible' using errcode = '42501';
   end if;
 
-  select coalesce(jsonb_agg(to_jsonb(q) order by q.created_at desc, q.id desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(q) order by q.created_at desc, q.event_ref desc), '[]'::jsonb)
   into v_events
   from (
     select
-      l.id,
+      left(l.id::text, 8) as event_ref,
       l.created_at,
       l.action,
       l.entity_type,
-      l.entity_id,
+      case when l.entity_id is null then null else left(l.entity_id::text, 8) end as entity_ref,
       l.outcome,
       case
         when l.admin_id is null then 'System / unauthenticated'
-        else coalesce(nullif(a.full_name, ''), a.email, 'Administrator')
+        else coalesce(nullif(a.full_name, ''), 'Administrator')
       end as actor_label,
       case when l.request_id is null then null else left(l.request_id::text, 8) end as request_ref,
       case when l.session_id is null then null else left(l.session_id::text, 8) end as session_ref,
@@ -77,6 +77,6 @@ grant execute on function public.get_admin_audit_activity(uuid, integer)
   to service_role;
 
 comment on function public.get_admin_audit_activity(uuid, integer) is
-  'Phase 16.4 bounded redacted audit projection for the active RC IT Services super administrator. Never returns raw IP hashes, user agents, before/after payloads, or metadata.';
+  'Phase 16.4 bounded redacted audit projection for the active RC IT Services super administrator. Never returns full internal UUIDs, raw IP hashes, user agents, before/after payloads, or metadata.';
 
 notify pgrst, 'reload schema';
