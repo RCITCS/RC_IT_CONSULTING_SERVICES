@@ -110,8 +110,13 @@ assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.keep_vars, true);
-assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must provision production admin DNS/TLS.');
-assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must preserve staging admin DNS/TLS.');
+assert.equal(stagingConfig.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
+assert.equal(stagingConfig.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.deepEqual(
+  stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin-staging.rcitcs.com', true]],
+  'Staging admin Worker must preserve only staging DNS/TLS ownership after Phase 17.7 convergence.'
+);
 
 assert.equal(legacyConfig.name, 'rcitcservices');
 assert.equal(legacyConfig.workers_dev, false);
@@ -121,13 +126,19 @@ assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker m
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
-assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The canonical production admin config remains ready for a future dedicated build migration.');
+assert.equal(productionAdminConfig.keep_vars, true);
+assert.equal(productionAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
+assert.deepEqual(
+  productionAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true]],
+  'Canonical production admin Worker must provision only admin.rcitcs.com DNS/TLS ownership.'
+);
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
-assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
+assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method, env);'));
+assert.ok(adminOnlySource.includes("headers.set('x-rc-admin-environment', environment);"));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
 assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1'"));
 assert.ok(adminOnlySource.includes('ADMIN_INTERACTION_PATH'));
@@ -149,4 +160,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: public apex/www delivery and admin delivery remain isolated, with admin.rcitcs.com provisioned by the connected company admin Worker and the old Cloudflare account holding no company routes.');
+console.log('PASS: public apex/www delivery and dedicated production/staging admin delivery remain isolated under the Phase 17.7 one-owner topology, with no legacy Cloudflare route claiming company domains.');
