@@ -10,18 +10,33 @@ import {
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
+const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
+const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 
+export function rewriteAdminEdgeReference(value = '') {
+  let rewritten = String(value).replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, '');
+  rewritten = rewritten.replaceAll(`${ADMIN_UPSTREAM_BASE}/`, '/');
+  rewritten = rewritten.replaceAll(ADMIN_UPSTREAM_BASE, '/');
+  return rewritten || '/';
+}
+
+function cookieValues(source) {
+  if (typeof source.getSetCookie === 'function') return source.getSetCookie();
+  const combined = source.get('set-cookie');
+  return combined ? combined.split(/,(?=[^;,]+=)/g).map((value) => value.trim()) : [];
+}
+
 function copyResponseHeaders(source) {
   const headers = new Headers(source);
-  if (typeof source.getSetCookie === 'function') {
-    const cookies = source.getSetCookie();
-    if (cookies.length) {
-      headers.delete('set-cookie');
-      for (const cookie of cookies) headers.append('set-cookie', cookie);
-    }
+  const cookies = cookieValues(source);
+  if (cookies.length) {
+    headers.delete('set-cookie');
+    for (const cookie of cookies) headers.append('set-cookie', rewriteAdminEdgeReference(cookie));
   }
+  const location = headers.get('location');
+  if (location) headers.set('location', rewriteAdminEdgeReference(location));
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
@@ -167,13 +182,13 @@ function allowAdminInteractions(csp = '') {
   return directives.join('; ');
 }
 
-async function enhanceAdminResponse(response, requestMethod) {
+export async function enhanceAdminResponse(response, requestMethod) {
   const contentType = response.headers.get('content-type') || '';
   if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status) || !contentType.toLowerCase().includes('text/html')) {
     return markAdminBuildSurface(response);
   }
 
-  const body = await response.text();
+  const body = rewriteAdminEdgeReference(await response.text());
   const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(body));
   const headers = copyResponseHeaders(response.headers);
   headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
