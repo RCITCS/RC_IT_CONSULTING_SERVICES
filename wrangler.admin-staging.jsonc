@@ -13,10 +13,6 @@
   },
   "routes": [
     {
-      "pattern": "admin.rcitcs.com",
-      "custom_domain": true
-    },
-    {
       "pattern": "admin-staging.rcitcs.com",
       "custom_domain": true
     }
