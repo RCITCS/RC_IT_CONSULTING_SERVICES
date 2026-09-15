@@ -1,5 +1,8 @@
 import { esc, prettyTime } from "./ui.ts";
 
+export const CANDIDATE_MESSAGE_SUBJECT_MAX = 300;
+export const CANDIDATE_MESSAGE_BODY_MAX = 10000;
+
 const SAFE_DELIVERY_STATES = new Set([
   "queued",
   "sending",
@@ -63,4 +66,60 @@ export function renderCandidateCommunicationHistory(messages: unknown): string {
 
 export function candidateCommunicationCount(messages: unknown): number {
   return Array.isArray(messages) ? Math.min(messages.length, 100) : 0;
+}
+
+type CandidateMessageDraft = {
+  subject?: string;
+  body?: string;
+  requestId?: string;
+  preview?: boolean;
+  validationError?: string;
+};
+
+export function renderCandidateMessageComposer(
+  basePath: string,
+  csrf: string,
+  application: any,
+  draft: CandidateMessageDraft = {}
+): string {
+  const applicationId = String(application?.id ?? "");
+  const recipient = String(application?.email ?? "").trim();
+  const subject = String(draft.subject ?? "");
+  const body = String(draft.body ?? "");
+  const requestId = String(draft.requestId ?? crypto.randomUUID());
+  const preview = draft.preview === true;
+  const error = String(draft.validationError ?? "").trim();
+
+  const composeForm = `<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px">
+    <input type="hidden" name="csrf" value="${esc(csrf)}">
+    <input type="hidden" name="request_id" value="${esc(requestId)}">
+    <input type="hidden" name="intent" value="preview">
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <div class="identity-row"><span>From</span><strong>careers@rcitcs.com</strong></div>
+      <div class="identity-row"><span>To</span><strong>${esc(recipient || "Persisted candidate email unavailable")}</strong></div>
+    </div>
+    <div><label for="candidate-message-subject" style="display:block;font-size:10px;font-weight:750;margin-bottom:5px">Subject</label><input id="candidate-message-subject" name="subject" required maxlength="${CANDIDATE_MESSAGE_SUBJECT_MAX}" value="${esc(subject)}" style="width:100%;min-height:40px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px"></div>
+    <div><label for="candidate-message-body" style="display:block;font-size:10px;font-weight:750;margin-bottom:5px">Message</label><textarea id="candidate-message-body" name="body" required maxlength="${CANDIDATE_MESSAGE_BODY_MAX}" rows="9" style="width:100%;border:1px solid var(--line-strong);border-radius:3px;padding:10px;resize:vertical;line-height:1.55">${esc(body)}</textarea></div>
+    ${error ? `<div class="msg error" role="alert">${esc(error)}</div>` : ""}
+    <div class="actions" style="margin:0"><button class="btn primary" type="submit">Preview message</button></div>
+  </form>`;
+
+  if (!preview) return composeForm;
+
+  const confirmation = `<section aria-labelledby="candidate-message-preview-title" style="margin-top:18px;border-top:1px solid var(--line);padding-top:18px">
+    <div class="eyebrow">Final preview</div>
+    <h3 id="candidate-message-preview-title" style="margin:5px 0 12px;font-size:15px">${esc(subject)}</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;font-size:11px;margin-bottom:12px"><div><span style="color:var(--muted)">From</span><br><strong>careers@rcitcs.com</strong></div><div><span style="color:var(--muted)">To</span><br><strong>${esc(recipient)}</strong></div></div>
+    <div style="white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;border:1px solid var(--line);background:var(--surface-subtle);font-size:12px;line-height:1.65">${esc(body)}</div>
+    <form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="margin-top:14px">
+      <input type="hidden" name="csrf" value="${esc(csrf)}">
+      <input type="hidden" name="request_id" value="${esc(requestId)}">
+      <input type="hidden" name="intent" value="send">
+      <input type="hidden" name="subject" value="${esc(subject)}">
+      <textarea name="body" hidden>${esc(body)}</textarea>
+      <div class="actions" style="margin:0"><button class="btn primary" type="submit">Send candidate email</button><a class="btn secondary" href="${basePath}/applications/${esc(applicationId)}">Cancel</a></div>
+    </form>
+  </section>`;
+
+  return `${composeForm}${confirmation}`;
 }
