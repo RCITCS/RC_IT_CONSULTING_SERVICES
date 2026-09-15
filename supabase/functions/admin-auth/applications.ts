@@ -1,5 +1,12 @@
-import { adminHeader, authPage, esc, loginPage, prettyTime, shell, type AdminSessionView } from "./ui.ts";
-import { candidateCommunicationCount, renderCandidateCommunicationHistory } from "./candidate-communication.ts";
+import { shaHex } from "./crypto.js";
+import { adminHeader, authPage, esc, loginPage, prettyTime, privateHeaders, shell, type AdminSessionView } from "./ui.ts";
+import {
+  CANDIDATE_MESSAGE_BODY_MAX,
+  CANDIDATE_MESSAGE_SUBJECT_MAX,
+  candidateCommunicationCount,
+  renderCandidateCommunicationHistory,
+  renderCandidateMessageComposer
+} from "./candidate-communication.ts";
 
 const SUPABASE_URL = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
 const LEGACY_SERVICE_ROLE_KEY = String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
@@ -37,6 +44,39 @@ async function rpc(name: string, payload: Record<string, unknown>): Promise<any>
   if (!response.ok) throw new Error(`application admin rpc ${name} failed`);
   const body = await response.json();
   return Array.isArray(body) && body.length === 1 ? body[0] : body;
+}
+
+async function csrfOk(state: any, submitted: string): Promise<boolean> {
+  return Boolean(submitted) && submitted === state.csrf && await shaHex(submitted) === state.csrf_token_hash;
+}
+
+function redirect(location: string): Response {
+  const headers = privateHeaders();
+  headers.set("location", location);
+  return new Response(null, { status: 303, headers });
+}
+
+async function dispatchQueuedEmail(emailLogId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !API_KEY || !UUID.test(emailLogId)) return false;
+  try {
+    const headers = new Headers({
+      apikey: API_KEY,
+      authorization: `Bearer ${API_KEY}`,
+      "content-type": "application/json",
+      accept: "application/json"
+    });
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/transactional-email/dispatch`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ emailLogId }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) return false;
+    const body = await response.json().catch(() => null);
+    return body?.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 async function auditDownload(adminId: string, applicationId: string, documentId: string, ipHash: string, userAgent: string) {
@@ -87,6 +127,33 @@ function filterApplications(rows: any[], query: string, status: string): any[] {
   });
 }
 
+function messageNotice(url: URL): { message: string; error: boolean } {
+  const notice = url.searchParams.get("notice");
+  const error = url.searchParams.get("error");
+  if (notice === "message_sent") return { message: "Candidate email was persisted and delivery was confirmed by the transactional email service.", error: false };
+  if (notice === "message_queued") return { message: "Candidate email was persisted and queued. Immediate delivery was not confirmed; the transactional email retry scheduler retains delivery authority.", error: false };
+  if (error === "archived") return { message: "Restore the application before contacting this candidate.", error: true };
+  if (error === "invalid_recipient") return { message: "The persisted candidate email address is not valid for outbound delivery.", error: true };
+  if (error === "validation") return { message: "The candidate message did not pass server-side validation.", error: true };
+  if (error === "conflict") return { message: "This message request conflicts with an existing idempotent operation. Reload the application before retrying.", error: true };
+  if (error === "forbidden") return { message: "Your administrator session is not authorized for this operation.", error: true };
+  if (error === "not_found") return { message: "The candidate application no longer exists.", error: true };
+  if (error) return { message: "The candidate message could not be queued. No delivery success was recorded.", error: true };
+  return { message: "", error: false };
+}
+
+function mutationErrorCode(code: unknown): string {
+  const map: Record<string, string> = {
+    ARCHIVED: "archived",
+    INVALID_RECIPIENT: "invalid_recipient",
+    VALIDATION: "validation",
+    IDEMPOTENCY_CONFLICT: "conflict",
+    FORBIDDEN: "forbidden",
+    NOT_FOUND: "not_found"
+  };
+  return map[String(code || "")] || "failed";
+}
+
 function listPage(basePath: string, session: AdminSessionView, context: any, query: string, status: string): Response {
   const applications = Array.isArray(context?.applications) ? context.applications : [];
   const visible = filterApplications(applications, query, status);
@@ -94,16 +161,18 @@ function listPage(basePath: string, session: AdminSessionView, context: any, que
   return shell("Applications", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate applications")}<main class="workspace" id="main-content" aria-labelledby="applications-title"><div class="page-heading"><div><div class="eyebrow">Candidate intake</div><h1 id="applications-title">Applications</h1><p>Review persisted candidate submissions, private recruitment documents and recorded communication.</p></div><div class="snapshot"><strong>${applications.length} persisted applications</strong>Maximum 200 newest records<br>Server-authoritative</div></div><section class="data-plane"><header class="section-header"><div><h2>Application register</h2><p>Every application remains tied to its immutable job snapshot and public reference.</p></div><a class="btn secondary" href="${basePath}/jobs">View jobs</a></header><div style="padding:14px 18px;border-bottom:1px solid var(--line)"><form method="get" action="${basePath}/applications" style="display:grid;grid-template-columns:minmax(220px,1fr) minmax(160px,.35fr) auto;gap:8px;align-items:end"><div><label for="application-search" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Search</label><input id="application-search" name="q" value="${esc(query)}" placeholder="Candidate, email, reference, job" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px"></div><div><label for="application-status" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Status</label><select id="application-status" name="status" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"><option value="all">All</option>${["submitted","under_review","shortlisted","interview","assessment","offer","hired","rejected","withdrawn","archived"].map((item) => `<option value="${item}"${status === item ? " selected" : ""}>${esc(item.replaceAll("_", " "))}</option>`).join("")}</select></div><button class="btn secondary" type="submit">Filter</button></form></div><div class="activity-wrap"><table class="activity-table" style="min-width:980px;table-layout:auto"><thead><tr><th>Candidate</th><th>Job</th><th>Status</th><th>Docs</th><th>Reference</th><th style="text-align:right">Submitted</th></tr></thead><tbody>${rows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private candidate data</span><span>No-cache · No-index · Authenticated administration</span></div></main></div>`);
 }
 
-function detailPage(basePath: string, session: AdminSessionView, selected: any, communication: any): Response {
+function detailPage(basePath: string, session: AdminSessionView, selected: any, communication: any, url: URL, draft: any = {}): Response {
   if (!selected) return authPage("Application not found", `<h1>Application not found</h1><p>The requested candidate application does not exist or is outside your authority.</p><a class="btn secondary" href="${basePath}/applications">Back to applications</a>`, 404);
   const documents = Array.isArray(selected.documents) ? selected.documents : [];
   const history = Array.isArray(selected.history) ? selected.history : [];
   const messages = Array.isArray(communication?.messages) ? communication.messages : [];
   const messageCount = candidateCommunicationCount(messages);
+  const notice = messageNotice(url);
+  const noticeHtml = notice.message ? `<div class="msg ${notice.error ? "error" : "ok"}" role="status">${esc(notice.message)}</div>` : "";
   const documentRows = documents.length ? documents.map((doc: any) => `<tr><td><strong>${esc(doc.kind === "resume" ? "Resume / CV" : "Cover letter")}</strong></td><td>${esc(doc.original_filename || "document")}</td><td>${esc(doc.mime_type || "")}</td><td>${esc(formatBytes(doc.size_bytes))}</td><td><a class="btn secondary" style="min-height:32px;padding:6px 9px;font-size:10px" href="${basePath}/applications/${esc(selected.id)}/documents/${esc(doc.id)}">Download securely</a></td></tr>`).join("") : `<tr><td colspan="5"><div class="empty">No private documents are recorded for this application.</div></td></tr>`;
   const historyRows = history.length ? history.map((item: any) => `<tr><td>${esc(String(item.event_type || "event").replaceAll("_", " "))}</td><td>${esc(item.from_status || "—")}</td><td>${esc(item.to_status || "—")}</td><td>${esc(prettyTime(String(item.created_at || "")))}</td></tr>`).join("") : `<tr><td colspan="4"><div class="empty">No application history is recorded.</div></td></tr>`;
-  const link = (url: unknown, label: string) => String(url || "").startsWith("https://") ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : "—";
-  return shell("Application detail", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate application detail")}<main class="workspace" id="main-content"><div class="page-heading"><div><div class="eyebrow">${esc(selected.public_reference || "Application")}</div><h1>${esc(candidateName(selected))}</h1><p>${esc(selected.job_title || "Unknown role")} · ${esc(selected.job_code || "")}</p></div><div class="snapshot"><strong>${badge(String(selected.status || "submitted"))}</strong>Submitted ${esc(prettyTime(String(selected.submitted_at || "")))}</div></div><div class="operations-frame"><section class="data-plane"><header class="section-header"><div><h2>Candidate &amp; job record</h2><p>Persisted identity, job snapshot and recruitment consent.</p></div><a class="btn secondary" href="${basePath}/applications">Back to register</a></header><div style="padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px"><div class="identity-row"><span>Email</span><strong>${esc(selected.email || "")}</strong></div><div class="identity-row"><span>Phone</span><strong>${esc(selected.phone || "—")}</strong></div><div class="identity-row"><span>Location</span><strong>${esc(selected.location || "—")}</strong></div><div class="identity-row"><span>Job</span><strong>${esc(selected.job_title || "")}</strong></div><div class="identity-row"><span>Job code</span><strong>${esc(selected.job_code || "")}</strong></div><div class="identity-row"><span>Reference</span><strong>${esc(selected.public_reference || "")}</strong></div><div class="identity-row"><span>LinkedIn</span><strong>${link(selected.linkedin_url, "Open profile")}</strong></div><div class="identity-row"><span>Portfolio</span><strong>${link(selected.portfolio_url, "Open website")}</strong></div><div class="identity-row"><span>Consent</span><strong>${selected.consent === true ? "Recorded" : "Missing"}</strong></div><div class="identity-row"><span>Consent time</span><strong>${esc(prettyTime(String(selected.consent_at || "")))}</strong></div></div>${selected.cover_letter_text ? `<div style="padding:0 18px 18px"><h2 style="font-size:13px;color:var(--ink)">Cover-letter message</h2><div style="white-space:pre-wrap;border-left:3px solid var(--accent);padding:12px 14px;background:var(--surface-subtle);font-size:12px;line-height:1.6">${esc(selected.cover_letter_text)}</div></div>` : ""}</section><aside class="side-plane"><section class="side-section"><div class="side-title"><h2>Communication</h2><span>${esc(messageCount)} recorded</span></div><p class="muted">Candidate communication history is available from the server-authoritative message log. Outbound compose remains disabled until the next Phase 15 gate.</p></section></aside></div><section class="activity-plane" aria-labelledby="candidate-communication-title"><header class="section-header"><div><h2 id="candidate-communication-title">Candidate communication</h2><p>Bounded history of persisted recruitment email. Delivery state is correlated with the transactional email queue; raw provider errors are not exposed here.</p></div><span class="section-meta">Latest ${esc(messageCount)} of 100 maximum</span></header><div style="padding:0 18px">${renderCandidateCommunicationHistory(messages)}</div></section><section class="activity-plane"><header class="section-header"><div><h2>Private documents</h2><p>Downloads are streamed through this authenticated administration route; object paths and service credentials are never rendered to the browser.</p></div><span class="section-meta">${documents.length} documents</span></header><div class="activity-wrap"><table class="activity-table" style="min-width:800px;table-layout:auto"><thead><tr><th>Type</th><th>File</th><th>MIME</th><th>Size</th><th>Action</th></tr></thead><tbody>${documentRows}</tbody></table></div></section><section class="activity-plane"><header class="section-header"><div><h2>Application history</h2><p>Persisted recruitment events for this submission.</p></div></header><div class="activity-wrap"><table class="activity-table"><thead><tr><th>Event</th><th>From</th><th>To</th><th>Time</th></tr></thead><tbody>${historyRows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private application record</span><span>No-cache · Authenticated retrieval only</span></div></main></div>`);
+  const link = (value: unknown, label: string) => String(value || "").startsWith("https://") ? `<a class="link" href="${esc(value)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : "—";
+  return shell("Application detail", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate application detail")}<main class="workspace" id="main-content"><div class="page-heading"><div><div class="eyebrow">${esc(selected.public_reference || "Application")}</div><h1>${esc(candidateName(selected))}</h1><p>${esc(selected.job_title || "Unknown role")} · ${esc(selected.job_code || "")}</p></div><div class="snapshot"><strong>${badge(String(selected.status || "submitted"))}</strong>Submitted ${esc(prettyTime(String(selected.submitted_at || "")))}</div></div>${noticeHtml}<div class="operations-frame"><section class="data-plane"><header class="section-header"><div><h2>Candidate &amp; job record</h2><p>Persisted identity, job snapshot and recruitment consent.</p></div><a class="btn secondary" href="${basePath}/applications">Back to register</a></header><div style="padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px"><div class="identity-row"><span>Email</span><strong>${esc(selected.email || "")}</strong></div><div class="identity-row"><span>Phone</span><strong>${esc(selected.phone || "—")}</strong></div><div class="identity-row"><span>Location</span><strong>${esc(selected.location || "—")}</strong></div><div class="identity-row"><span>Job</span><strong>${esc(selected.job_title || "")}</strong></div><div class="identity-row"><span>Job code</span><strong>${esc(selected.job_code || "")}</strong></div><div class="identity-row"><span>Reference</span><strong>${esc(selected.public_reference || "")}</strong></div><div class="identity-row"><span>LinkedIn</span><strong>${link(selected.linkedin_url, "Open profile")}</strong></div><div class="identity-row"><span>Portfolio</span><strong>${link(selected.portfolio_url, "Open website")}</strong></div><div class="identity-row"><span>Consent</span><strong>${selected.consent === true ? "Recorded" : "Missing"}</strong></div><div class="identity-row"><span>Consent time</span><strong>${esc(prettyTime(String(selected.consent_at || "")))}</strong></div></div>${selected.cover_letter_text ? `<div style="padding:0 18px 18px"><h2 style="font-size:13px;color:var(--ink)">Cover-letter message</h2><div style="white-space:pre-wrap;border-left:3px solid var(--accent);padding:12px 14px;background:var(--surface-subtle);font-size:12px;line-height:1.6">${esc(selected.cover_letter_text)}</div></div>` : ""}</section><aside class="side-plane"><section class="side-section"><div class="side-title"><h2>Communication</h2><span>${esc(messageCount)} recorded</span></div><p class="muted">Outbound email is previewed before confirmation, then persisted and queued server-side before any provider dispatch is attempted.</p></section></aside></div><section class="data-plane" aria-labelledby="candidate-message-compose-title" style="margin-top:14px"><header class="section-header"><div><h2 id="candidate-message-compose-title">Compose candidate email</h2><p>The recipient comes from the persisted application record. Sender, reply-to and provider are server-controlled.</p></div><span class="section-meta">Preview required</span></header><div style="padding:18px">${renderCandidateMessageComposer(basePath, String(session.csrf || ""), selected, draft)}</div></section><section class="activity-plane" aria-labelledby="candidate-communication-title"><header class="section-header"><div><h2 id="candidate-communication-title">Candidate communication</h2><p>Bounded history of persisted recruitment email. Delivery state is correlated with the transactional email queue; raw provider errors are not exposed here.</p></div><span class="section-meta">Latest ${esc(messageCount)} of 100 maximum</span></header><div style="padding:0 18px">${renderCandidateCommunicationHistory(messages)}</div></section><section class="activity-plane"><header class="section-header"><div><h2>Private documents</h2><p>Downloads are streamed through this authenticated administration route; object paths and service credentials are never rendered to the browser.</p></div><span class="section-meta">${documents.length} documents</span></header><div class="activity-wrap"><table class="activity-table" style="min-width:800px;table-layout:auto"><thead><tr><th>Type</th><th>File</th><th>MIME</th><th>Size</th><th>Action</th></tr></thead><tbody>${documentRows}</tbody></table></div></section><section class="activity-plane"><header class="section-header"><div><h2>Application history</h2><p>Persisted recruitment events for this submission.</p></div></header><div class="activity-wrap"><table class="activity-table"><thead><tr><th>Event</th><th>From</th><th>To</th><th>Time</th></tr></thead><tbody>${historyRows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private application record</span><span>No-cache · Authenticated retrieval only</span></div></main></div>`);
 }
 
 function safeFilename(value: unknown): string {
@@ -155,16 +224,96 @@ async function documentDownload(adminId: string, applicationId: string, document
   return new Response(upstream.body, { status: 200, headers });
 }
 
+async function applicationDetailContext(adminId: string, applicationId: string): Promise<{ context: any; communication: any }> {
+  const [context, communication] = await Promise.all([
+    rpc("get_admin_application_management_context", { p_admin_id: adminId, p_application_id: applicationId, p_job_id: null }),
+    rpc("get_admin_candidate_communication_context", { p_admin_id: adminId, p_application_id: applicationId, p_limit: 100 })
+  ]);
+  return { context, communication };
+}
+
 export async function handleApplicationRoute({ request, url, path, basePath, authState, clientHash, userAgent }: any): Promise<Response | null> {
   if (!path.startsWith("/applications")) return null;
   if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
   if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This application workspace requires super administrator authority.</p>", 403);
-  if (request.method !== "GET") {
-    const headers = new Headers({ allow: "GET" });
-    return authPage("Method not allowed", "<h1>Method not allowed</h1><p>Candidate communication remains read-only until the Phase 15 compose gate is enabled.</p>", 405, headers);
-  }
   const adminId = String(authState.admin.id || "");
   if (!UUID.test(adminId)) throw new Error("invalid admin authority");
+
+  const messageMatch = /^\/applications\/([0-9a-f-]{36})\/message$/i.exec(path);
+  if (request.method === "POST") {
+    if (!messageMatch || !UUID.test(messageMatch[1])) {
+      const headers = new Headers({ allow: "GET" });
+      return authPage("Method not allowed", "<h1>Method not allowed</h1><p>This application route does not support mutations.</p>", 405, headers);
+    }
+
+    const applicationId = messageMatch[1].toLowerCase();
+    const form = await request.formData();
+    if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) {
+      return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the candidate application and try again.</p>", 403);
+    }
+
+    const requestId = String(form.get("request_id") ?? "").trim().toLowerCase();
+    const intent = String(form.get("intent") ?? "").trim().toLowerCase();
+    const subject = String(form.get("subject") ?? "").trim();
+    const body = String(form.get("body") ?? "").trim();
+    const validMessage = UUID.test(requestId)
+      && (intent === "preview" || intent === "send")
+      && subject.length >= 1
+      && subject.length <= CANDIDATE_MESSAGE_SUBJECT_MAX
+      && !/[\r\n]/.test(subject)
+      && body.length >= 1
+      && body.length <= CANDIDATE_MESSAGE_BODY_MAX;
+
+    const { context, communication } = await applicationDetailContext(adminId, applicationId);
+    if (context?.ok !== true || communication?.ok !== true || !context.selected) {
+      return authPage("Application not found", "<h1>Application not found</h1><p>The requested candidate application is unavailable.</p>", 404);
+    }
+
+    if (!validMessage) {
+      return detailPage(basePath, authState, context.selected, communication, url, {
+        subject,
+        body,
+        requestId: UUID.test(requestId) ? requestId : crypto.randomUUID(),
+        preview: false,
+        validationError: "Enter a subject of 1–300 characters without line breaks and a message of 1–10,000 characters."
+      });
+    }
+
+    if (intent === "preview") {
+      return detailPage(basePath, authState, context.selected, communication, url, {
+        subject,
+        body,
+        requestId,
+        preview: true
+      });
+    }
+
+    const result = await rpc("admin_queue_candidate_message", {
+      p_admin_id: adminId,
+      p_application_id: applicationId,
+      p_request_id: requestId,
+      p_subject: subject,
+      p_body: body,
+      p_ip_hash: String(clientHash || "").slice(0, 128),
+      p_user_agent: String(userAgent || "").slice(0, 500)
+    });
+    if (!result || result.ok !== true) {
+      return redirect(`${basePath}/applications/${applicationId}?error=${mutationErrorCode(result?.code)}`);
+    }
+    const emailLogId = String(result.email_log_id || "");
+    const delivered = await dispatchQueuedEmail(emailLogId);
+    return redirect(`${basePath}/applications/${applicationId}?notice=${delivered ? "message_sent" : "message_queued"}`);
+  }
+
+  if (request.method !== "GET") {
+    const headers = new Headers({ allow: "GET, POST" });
+    return authPage("Method not allowed", "<h1>Method not allowed</h1><p>This application route supports only protected GET or POST operations.</p>", 405, headers);
+  }
+
+  if (messageMatch) {
+    const headers = new Headers({ allow: "POST" });
+    return authPage("Method not allowed", "<h1>Method not allowed</h1><p>Candidate message submission requires a protected POST request.</p>", 405, headers);
+  }
 
   if (path === "/applications") {
     const context = await rpc("get_admin_application_management_context", { p_admin_id: adminId, p_application_id: null, p_job_id: null });
@@ -174,12 +323,9 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
 
   const detailMatch = /^\/applications\/([0-9a-f-]{36})$/i.exec(path);
   if (detailMatch && UUID.test(detailMatch[1])) {
-    const [context, communication] = await Promise.all([
-      rpc("get_admin_application_management_context", { p_admin_id: adminId, p_application_id: detailMatch[1], p_job_id: null }),
-      rpc("get_admin_candidate_communication_context", { p_admin_id: adminId, p_application_id: detailMatch[1], p_limit: 100 })
-    ]);
+    const { context, communication } = await applicationDetailContext(adminId, detailMatch[1]);
     if (context?.ok !== true || communication?.ok !== true) return authPage("Access denied", "<h1>Access denied</h1>", 403);
-    return detailPage(basePath, authState, context.selected, communication);
+    return detailPage(basePath, authState, context.selected, communication, url);
   }
 
   const documentMatch = /^\/applications\/([0-9a-f-]{36})\/documents\/([0-9a-f-]{36})$/i.exec(path);
