@@ -1,0 +1,125 @@
+name: Phase 17.3 WWW Canonical Redirect
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-www-canonical-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  www-canonical:
+    name: Verify www.rcitcs.com canonical alias
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.3 source and runtime contract
+        run: node tests/phase17-www-canonical.mjs
+
+      - name: Build candidate production assets
+        env:
+          WORKERS_CI_BRANCH: main
+        run: npm run build
+
+      - name: Validate candidate Wrangler public-domain declarations
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/phase17-www-wrangler
+          npx wrangler deploy --dry-run --config wrangler.jsonc --outdir /tmp/phase17-www-wrangler >/tmp/phase17-www-wrangler.log 2>&1
+          test -s /tmp/phase17-www-wrangler/worker.js
+          grep -q 'rc-it-consulting-services' wrangler.jsonc
+          grep -q '"pattern": "rcitcs.com"' wrangler.jsonc
+          grep -q '"pattern": "www.rcitcs.com"' wrangler.jsonc
+          echo 'Candidate Wrangler public Custom Domain declarations validated.'
+
+      - name: Verify live apex remains authoritative while PR is unmerged
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          EXPECTED_PRODUCTION_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          code=$(curl -sS --max-time 20 -D /tmp/apex.headers -o /tmp/apex.html -w '%{http_code}' https://rcitcs.com/)
+          test "$code" = '200'
+          ! grep -qi '^location:' /tmp/apex.headers
+          grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/apex.html
+          echo "Apex remains direct production on PR base SHA ${EXPECTED_PRODUCTION_SHA}."
+
+      - name: Classify current live www state without mutating Cloudflare
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if getent ahosts www.rcitcs.com >/tmp/www-dns.txt 2>/dev/null && test -s /tmp/www-dns.txt; then
+            cat /tmp/www-dns.txt
+            code=$(curl -sS --max-time 20 -D /tmp/www.headers -o /dev/null -w '%{http_code}' 'https://www.rcitcs.com/services/it/cyber-security?phase=17.3')
+            test "$code" = '308'
+            grep -Fqi 'location: https://rcitcs.com/services/it/cyber-security?phase=17.3' /tmp/www.headers
+            echo 'www is already live and correctly canonicalizes to the apex.'
+          else
+            echo 'www.rcitcs.com remains publicly unresolved before final Phase-17 deployment; this matches the 17.1 control-plane baseline.'
+          fi
+
+      - name: Wait for final-main www DNS activation and verify permanent canonicalization
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 72); do
+            if getent ahosts www.rcitcs.com >/tmp/www-dns.txt 2>/dev/null && test -s /tmp/www-dns.txt; then
+              code=$(curl -sS --max-time 20 -D /tmp/www-root.headers -o /dev/null -w '%{http_code}' https://www.rcitcs.com/ || true)
+              if [[ "$code" == '308' ]] && grep -Fqi 'location: https://rcitcs.com/' /tmp/www-root.headers; then
+                break
+              fi
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo 'www.rcitcs.com did not become a working 308 canonical alias within the verification window.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          deep_code=$(curl -sS --max-time 20 -D /tmp/www-deep.headers -o /dev/null -w '%{http_code}' 'https://www.rcitcs.com/services/it/cyber-security?utm_source=www&utm_medium=redirect')
+          test "$deep_code" = '308'
+          grep -Fqi 'location: https://rcitcs.com/services/it/cyber-security?utm_source=www&utm_medium=redirect' /tmp/www-deep.headers
+
+          admin_code=$(curl -sS --max-time 20 -D /tmp/www-admin.headers -o /dev/null -w '%{http_code}' 'https://www.rcitcs.com/admin?return=%2Fapplications')
+          test "$admin_code" = '308'
+          grep -Fqi 'location: https://rcitcs.com/admin?return=%2Fapplications' /tmp/www-admin.headers
+
+          post_code=$(curl -sS --max-time 20 -D /tmp/www-post.headers -o /dev/null -w '%{http_code}' -X POST \
+            -H 'content-type: application/json' --data '{"probe":true}' \
+            'https://www.rcitcs.com/api/phase17-www-probe?x=1')
+          test "$post_code" = '308'
+          grep -Fqi 'location: https://rcitcs.com/api/phase17-www-probe?x=1' /tmp/www-post.headers
+
+          echo 'Final-main www DNS activation and 308 path/query/method-preserving canonicalization verified.'
+
+      - name: Phase 17.3 acceptance
+        run: |
+          echo 'Phase 17.3 www canonical redirect gate: PASS'
+          echo 'www is a compatibility alias only; rcitcs.com remains the sole rendered public production identity.'
