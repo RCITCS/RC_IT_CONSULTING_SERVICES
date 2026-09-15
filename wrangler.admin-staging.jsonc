@@ -1,14 +1,13 @@
 {
-  // Active connected company-account admin build target. Phase 16 closure keeps
-  // production and staging admin Custom Domains on this Worker until the
-  // canonical rcitcs-admin-production Worker receives its own Git build link.
-  // Deployment ownership marker: phase16-security-closure-v1.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "rcitcs-admin-staging",
   "main": "./worker/admin-only.js",
   "compatibility_date": "2026-09-08",
   "workers_dev": false,
   "keep_vars": true,
+  "vars": {
+    "RC_ADMIN_BUILD_SURFACE": "phase16-security-closure-v1"
+  },
   "routes": [
     {
       "pattern": "admin.rcitcs.com",
