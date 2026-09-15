@@ -65,7 +65,7 @@ function normalizeContext(payload) {
   });
 }
 
-function createPublicBoundaryRepository({ apiUrl, fetchImpl }) {
+function createPublicBoundaryRepository({ apiUrl, secretKey, fetchImpl }) {
   return Object.freeze({
     configured: true,
     source: 'public-careers-edge',
@@ -74,7 +74,13 @@ function createPublicBoundaryRepository({ apiUrl, fetchImpl }) {
       try {
         response = await fetchImpl(apiUrl, {
           method: 'POST',
-          headers: { accept: 'application/json', 'content-type': 'application/json' },
+          headers: {
+            accept: 'application/json',
+            'content-type': 'application/json',
+            apikey: secretKey,
+            authorization: `Bearer ${secretKey}`,
+            'x-rcitcs-public-proxy': 'cloudflare'
+          },
           body: JSON.stringify({ slug: String(slug || '').trim() || null })
         });
       } catch {
@@ -94,10 +100,21 @@ export function createPublicJobsRepository({ env = {}, fetchImpl = globalThis.fe
   if (typeof fetchImpl !== 'function') throw new TypeError('A fetch implementation is required.');
 
   const apiUrl = publicCareersApiUrl(env);
-  if (apiUrl) return createPublicBoundaryRepository({ apiUrl, fetchImpl });
+  const boundarySecret = String(env.SUPABASE_SECRET_KEY ?? '').trim();
+  if (apiUrl && boundarySecret) return createPublicBoundaryRepository({ apiUrl, secretKey: boundarySecret, fetchImpl });
+  if (apiUrl && !boundarySecret) {
+    return Object.freeze({
+      configured: false,
+      source: 'unconfigured',
+      async getCareersContext() {
+        throw providerUnavailable('database', 'Published job data is temporarily unavailable.');
+      }
+    });
+  }
 
   // Local/server compatibility fallback. Production Cloudflare uses the narrow
-  // public Edge Function and therefore does not need a database secret binding.
+  // authenticated public Edge Function. Direct database access remains a
+  // server-only compatibility path and never becomes a browser credential path.
   const persistence = createPersistenceConfig(env);
   if (!persistence.configured) {
     return Object.freeze({
