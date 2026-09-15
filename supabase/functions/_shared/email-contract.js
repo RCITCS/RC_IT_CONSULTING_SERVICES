@@ -9,15 +9,20 @@ export const EMAIL_TEMPLATE_KEYS = Object.freeze({
   ADMIN_PASSWORD_CHANGED: 'admin_password_changed'
 });
 
+const CAREERS_IDENTITY = Object.freeze({
+  address: 'careers@rcitcs.com',
+  from: 'RC IT Services Careers <careers@rcitcs.com>'
+});
+
 export const EMAIL_IDENTITIES = Object.freeze({
   contact: Object.freeze({
     address: 'contact@rcitcs.com',
     from: 'RC IT Services <contact@rcitcs.com>'
   }),
-  careers: Object.freeze({
-    address: 'careers@rcitcs.com',
-    from: 'RC IT Services Careers <careers@rcitcs.com>'
-  }),
+  // `career` is retained as an internal compatibility alias for Phase-13 templates.
+  // Both properties resolve to the approved careers@rcitcs.com mailbox.
+  career: CAREERS_IDENTITY,
+  careers: CAREERS_IDENTITY,
   noreply: Object.freeze({
     address: 'noreply@rcitcs.com',
     from: 'RC IT Services <noreply@rcitcs.com>'
