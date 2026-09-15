@@ -35,13 +35,16 @@ jobs:
       - name: Verify Phase 17.7 source ownership contract
         run: node tests/phase17-domain-ownership-convergence.mjs
 
+      - name: Build production assets for Wrangler validation
+        run: npm run build
+
       - name: Validate all canonical Wrangler candidates
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler deploy --dry-run --config wrangler.jsonc >/tmp/public-wrangler.log 2>&1
-          npx wrangler deploy --dry-run --config wrangler.admin-production.jsonc >/tmp/admin-production-wrangler.log 2>&1
-          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc >/tmp/admin-staging-wrangler.log 2>&1
+          npx wrangler deploy --dry-run --config wrangler.jsonc
+          npx wrangler deploy --dry-run --config wrangler.admin-production.jsonc
+          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc
           echo 'Public, production-admin and staging-admin Wrangler candidates compile successfully.'
 
       - name: Classify current live control-plane state without mutation
