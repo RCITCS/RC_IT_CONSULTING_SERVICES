@@ -1,8 +1,10 @@
 # Phase 17.8 — DNS Record Cleanup and Conflict Elimination
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **17.8 COMPLETE — branch-level DNS conflict cleanup closed; final-main DNS activation remains mandatory for overall Phase-17 closure**
 
 Depends on: Phase 17.7 closure SHA `214e0f45b2d5f222b8728a6ed9888b71fb9aa12e`.
+
+Verified implementation SHA: `211a48457dd093ec81f5314c8a5599dc2f52fabb`.
 
 ## Objective
 
@@ -65,9 +67,21 @@ The 17.1 inventory recorded 13 zone records, including:
 
 `.github/workflows/phase17-dns-cleanup.yml` performs read-only public-DNS classification on pull requests and requires full four-host resolution with no external web-host CNAME after final-main activation.
 
+## Closure evidence
+
+Exact-head verification passed on `211a48457dd093ec81f5314c8a5599dc2f52fabb`, including:
+
+- Phase 17.8 DNS Cleanup;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 17.7 ownership convergence;
+- all inherited Phase-12/13/14 and Phase-17.2–17.6 gates.
+
+The PR remained draft/unmerged and `main` remained unchanged during 17.8 implementation.
+
 ## Closure criteria
 
-17.8 may close at branch level when:
+All branch-level 17.8 criteria are satisfied:
 
 - source config contains no duplicate web hostname owner;
 - no legacy Worker config claims an RC IT company hostname;
