@@ -5,12 +5,12 @@ import adminWorker from './admin-only.js';
 const PUBLIC_PRODUCTION_ORIGIN = 'https://rcitcs.com';
 const PUBLIC_PRODUCTION_HOST = 'rcitcs.com';
 const WWW_PUBLIC_HOST = 'www.rcitcs.com';
+const PUBLIC_ALLOWED_HOSTS = new Set([PUBLIC_PRODUCTION_HOST, WWW_PUBLIC_HOST]);
 const PUBLIC_ADMIN_BASE = '/admin';
 const ADMIN_PRODUCTION_ORIGIN = 'https://admin.rcitcs.com';
 const DEDICATED_ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const HTTPS_ENFORCED_HOSTS = new Set([
-  PUBLIC_PRODUCTION_HOST,
-  WWW_PUBLIC_HOST,
+  ...PUBLIC_ALLOWED_HOSTS,
   ...DEDICATED_ADMIN_HOSTS
 ]);
 export const TRANSPORT_SECURITY_POLICY = 'max-age=31536000; includeSubDomains; preload';
@@ -22,6 +22,19 @@ function secureTransportResponse(response) {
     status: response.status,
     statusText: response.statusText,
     headers
+  });
+}
+
+function rejectedHostResponse() {
+  return new Response('Not Found', {
+    status: 404,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'cache-control': 'no-store, max-age=0, must-revalidate',
+      'x-content-type-options': 'nosniff',
+      'x-robots-tag': 'noindex, nofollow, noarchive',
+      'referrer-policy': 'no-referrer'
+    }
   });
 }
 
@@ -150,6 +163,7 @@ export default {
     if (DEDICATED_ADMIN_HOSTS.has(host)) {
       return secureTransportResponse(await adminWorker.fetch(request, env, ctx));
     }
+    if (!PUBLIC_ALLOWED_HOSTS.has(host)) return rejectedHostResponse();
 
     return secureTransportResponse(await runtime.fetch(request, env, ctx));
   },
