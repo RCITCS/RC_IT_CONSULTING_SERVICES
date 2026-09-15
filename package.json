@@ -53,10 +53,10 @@
     "verify": "npm run check:architecture && npm test && npm run build && npm run test:performance && npm run test:seo-build"
   },
   "dependencies": {
-    "bootstrap": "^5.3.8"
+    "bootstrap": "5.3.8"
   },
   "devDependencies": {
-    "esbuild": "^0.25.9"
+    "esbuild": "0.28.2"
   },
   "engines": {
     "node": ">=20"
