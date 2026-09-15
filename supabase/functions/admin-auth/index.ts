@@ -328,6 +328,7 @@ Deno.serve(async (request: Request) => {
     if (request.method === "GET" && (path === "/security" || path === "/change-password")) {
       if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
       if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration workspace requires super administrator authority.</p>", 403);
+      if (url.searchParams.size === 0) return securityPage(basePath, authState);
       return securityPage(basePath, authState, "", false, 200, url.searchParams);
     }
 
