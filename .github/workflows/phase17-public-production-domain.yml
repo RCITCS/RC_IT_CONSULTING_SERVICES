@@ -1,6 +1,8 @@
 name: Phase 17.2 Public Production Domain
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,14 +18,48 @@ jobs:
   public-production-domain:
     name: Verify rcitcs.com authoritative public production surface
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
       - name: Verify Phase 17.2 source ownership contract
         run: node tests/phase17-public-production-domain.mjs
+
+      - name: Build production public artifacts for the candidate source
+        env:
+          WORKERS_CI_BRANCH: main
+        run: npm run build
+
+      - name: Verify candidate build uses rcitcs.com as its only public canonical identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f dist/about-us.html
+          test -f dist/sitemap.xml
+          test -f dist/robots.txt
+
+          grep -Fq 'rel="canonical" href="https://rcitcs.com/about-us"' dist/about-us.html
+          grep -Fq 'property="og:url" content="https://rcitcs.com/about-us"' dist/about-us.html
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev/about-us' dist/about-us.html
+
+          grep -Fq '<loc>https://rcitcs.com/' dist/sitemap.xml
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev' dist/sitemap.xml
+
+          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' dist/robots.txt
+          ! grep -Fq 'Sitemap: https://rc-it-consulting-services.rcitcservices.workers.dev' dist/robots.txt
+
+          echo 'Candidate production build uses rcitcs.com for canonical, Open Graph, sitemap and robots identity.'
 
       - name: Verify apex DNS and direct HTTPS delivery
         shell: bash
@@ -49,7 +85,7 @@ jobs:
 
           echo "rcitcs.com root=${code}"
 
-      - name: Verify production remains on pull-request base SHA
+      - name: Verify pull request has not silently replaced production
         if: github.event_name == 'pull_request'
         shell: bash
         env:
@@ -61,25 +97,40 @@ jobs:
             echo "Production apex is not serving expected base SHA ${EXPECTED_PRODUCTION_SHA}." >&2
             exit 1
           }
-          echo "Production remains on PR base SHA ${EXPECTED_PRODUCTION_SHA}."
+          echo "Production remains on PR base SHA ${EXPECTED_PRODUCTION_SHA}; the unmerged Phase-17 branch has not replaced production."
 
-      - name: Verify apex canonical identity and public discovery surface
+      - name: Wait for exact merged SHA and verify live apex canonical identity
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
-          curl -sS --max-time 20 https://rcitcs.com/about-us -o /tmp/about.html
-          grep -Fq 'rel="canonical" href="https://rcitcs.com/about-us"' /tmp/about.html
-          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev/about-us' /tmp/about.html
+          for attempt in $(seq 1 72); do
+            code=$(curl -sS --max-time 20 -o /tmp/live-root.html -w '%{http_code}' https://rcitcs.com/ || true)
+            if [[ "$code" == '200' ]] && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/live-root.html; then
+              break
+            fi
+            if [[ "$attempt" == '72' ]]; then
+              echo "rcitcs.com did not expose exact merged SHA ${EXPECTED_SHA} within the verification window." >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
-          curl -sS --max-time 20 https://rcitcs.com/sitemap.xml -o /tmp/sitemap.xml
-          grep -Fq '<loc>https://rcitcs.com/' /tmp/sitemap.xml
-          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev' /tmp/sitemap.xml
+          curl -sS --max-time 20 https://rcitcs.com/about-us -o /tmp/live-about.html
+          grep -Fq 'rel="canonical" href="https://rcitcs.com/about-us"' /tmp/live-about.html
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev/about-us' /tmp/live-about.html
 
-          curl -sS --max-time 20 https://rcitcs.com/robots.txt -o /tmp/robots.txt
-          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
+          curl -sS --max-time 20 https://rcitcs.com/sitemap.xml -o /tmp/live-sitemap.xml
+          grep -Fq '<loc>https://rcitcs.com/' /tmp/live-sitemap.xml
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev' /tmp/live-sitemap.xml
 
-          echo 'Apex canonical, sitemap and robots identity verified.'
+          curl -sS --max-time 20 https://rcitcs.com/robots.txt -o /tmp/live-robots.txt
+          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/live-robots.txt
+
+          echo "Exact merged SHA ${EXPECTED_SHA} and live apex canonical identity verified."
 
       - name: Verify apex public API and admin separation baseline
         shell: bash
@@ -105,4 +156,4 @@ jobs:
       - name: Phase 17.2 acceptance
         run: |
           echo 'Phase 17.2 rcitcs.com public production ownership gate: PASS'
-          echo 'No Cloudflare mutation was performed by this workflow.'
+          echo 'Candidate source/build identity is apex-canonical; pull requests do not mutate production.'
