@@ -38,10 +38,12 @@ assert.match(phase172, /Module 17\.2 is COMPLETE/);
 // workers.dev remains deliberately unchanged until the direct-backend/exposure hardening module.
 assert.match(publicConfig, /"workers_dev"\s*:\s*true/);
 
-// Dedicated admin hosts must not be treated as ordinary public-site hosts.
+// Dedicated admin hosts must not be treated as ordinary public-site hosts. The
+// Phase-17.9 transport wrapper may decorate the returned response with HSTS but
+// must not change which Worker handles a dedicated admin hostname.
 assert.match(entryWorker, /const DEDICATED_ADMIN_HOSTS = new Set\(\['admin\.rcitcs\.com', 'admin-staging\.rcitcs\.com'\]\)/);
-assert.match(entryWorker, /if \(DEDICATED_ADMIN_HOSTS\.has\(host\)\) \{\s*return adminWorker\.fetch/);
-assert.match(entryWorker, /return runtime\.fetch\(request, env, ctx\)/);
+assert.match(entryWorker, /if \(DEDICATED_ADMIN_HOSTS\.has\(host\)\) \{\s*return secureTransportResponse\(await adminWorker\.fetch/);
+assert.match(entryWorker, /runtime\.fetch\(request, env, ctx\)/);
 
 // Preserve the public /admin separation inherited from Phase 16.
 assert.match(runtimeWorker, /const ADMIN_PRODUCTION_ORIGIN = 'https:\/\/admin\.rcitcs\.com'/);
