@@ -1,6 +1,6 @@
 # Phase 17.3 — `www.rcitcs.com` Canonical Redirect
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **COMPLETE — source/runtime/build acceptance passed; final-main live 308 activation remains mandatory**
 
 Depends on: Phase 17.2 public production apex closure.
 
@@ -12,7 +12,7 @@ The canonical rule is:
 
 `https://www.rcitcs.com/<path>?<query>` -> `308` -> `https://rcitcs.com/<same-path>?<same-query>`
 
-`www` must never render an independently indexable copy of the corporate site.
+`www` must never remain an independently rendered/indexable production copy after the final Phase-17 deployment.
 
 ## Baseline defect
 
@@ -97,21 +97,69 @@ The existing public `/admin` behavior then applies. Final admin-alias convergenc
 - HEAD behavior;
 - no duplicate rendered body from the canonical alias.
 
-The Phase-17.1 baseline test was also corrected so it protects the historical 17.1 evidence instead of permanently forbidding the later intentional `www` source declaration.
+Historical regression tests from Phases 10, 12 and 16 were updated only where they had incorrectly encoded “public Worker = exactly one hostname” as a permanent invariant. Their real security invariant remains unchanged: the public Worker may own the approved public apex/www pair, but it must not claim production or staging admin hostnames.
+
+## Live-state change discovered during 17.3
+
+During exact-head PR verification, `www.rcitcs.com` changed from the Phase-17.1 non-resolving baseline to publicly resolving through Cloudflare anycast.
+
+Because the draft Phase-17 branch is intentionally not deployed to production, the reachable `www` host can still serve the existing Phase-16/base-SHA public runtime until the final Phase-17 deployment. That temporary state is explicitly recorded rather than treated as successful canonicalization.
+
+The PR gate therefore distinguishes:
+
+- **candidate behavior:** source/runtime tests must already return the required `308` to the apex;
+- **current production isolation:** if live `www` returns `200` before merge, it must be the exact PR-base production SHA rather than an unexplained deployment;
+- **final production behavior:** after the final main deployment, live `www` must return `308` to the apex or the Phase-17 production gate fails.
+
+This does not waive the duplicate-host defect. It prevents an unmerged PR from being deployed merely to satisfy a live test while preserving a mandatory activation gate for final release.
 
 ## Activation model
 
-No manual Cloudflare mutation is performed in this module.
+No manual Cloudflare mutation was performed in this module.
 
-The authoritative client dashboard already contains a `www.rcitcs.com` Custom Domain object but it is not publicly resolvable. The source declaration added in 17.3 gives the final Wrangler/Cloudflare deployment an authoritative desired state to reconcile.
+The authoritative client account already contained the `www.rcitcs.com` Custom Domain object. The source declaration added in 17.3 gives the final Wrangler/Cloudflare deployment the desired source-controlled state.
 
 During the draft Phase-17 pull request:
 
-- source/runtime behavior is tested locally in CI;
+- source/runtime behavior is verified in CI;
+- candidate Wrangler configuration validates successfully;
 - live `rcitcs.com` remains on the PR base SHA;
-- live `www` may remain unresolved until final Phase-17 deployment.
+- live `www` may be unresolved, already correctly redirecting, or temporarily expose only the exact base-SHA site while the branch is unmerged.
 
-On the final push to `main`, the 17.3 production gate must wait for `www` DNS activation and prove real `308` behavior before final Phase-17 closure.
+On the final push to `main`, `.github/workflows/phase17-www-canonical.yml` waits for the live alias and requires:
+
+- root `www` -> `308` -> apex;
+- deep path/query preservation;
+- `/admin` path/query preservation into the apex boundary;
+- method-preserving POST `308`;
+- no unresolved/broken alias.
+
+Final Phase-17 closure is prohibited if those live post-merge assertions do not pass.
+
+## Exact-head acceptance evidence
+
+Implementation head `3e222c3aeec729c4837898de0cb2e1012caa9db4` passed all nine pull-request workflow families:
+
+- Phase 17.3 WWW Canonical Redirect;
+- Phase 17.2 Public Production Domain;
+- Phase 17 Domain Baseline;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 12 Runtime Smoke;
+- Phase 13 Email Runtime Smoke;
+- Phase 13 Secret Availability;
+- Phase 14 Contact Inbox Runtime Smoke.
+
+The full RC IT Services CI passed architecture and historical Phase 9–16 regression coverage, visual-admin delivery, route rendering, design-system checks, performance routing, SEO/preview SEO, optimized production build, performance budgets, prerendered SEO output and Cloudflare configuration checks.
+
+The dedicated 17.3 gate passed:
+
+- source/runtime canonicalization contract;
+- candidate production build;
+- Wrangler 4.131.0 dry-run with apex + `www` Custom Domains;
+- live apex base-SHA production isolation;
+- live `www` pre-merge state classification without Cloudflare mutation;
+- encoded final-main live `308` activation requirements.
 
 ## Explicit deferrals
 
@@ -125,17 +173,18 @@ On the final push to `main`, the 17.3 production gate must wait for `www` DNS ac
 - direct `workers.dev` exposure — Module 17.10;
 - email DNS — Module 17.11.
 
-## Closure criteria
+## 17.3 closure decision
 
-17.3 may be marked complete at the Phase-17 branch level only after:
+All branch-level module requirements are satisfied:
 
 - source Custom Domain ownership is locked;
-- redirect runtime regression tests pass;
+- the server-side 308 canonicalizer is implemented and security-tested;
 - Wrangler validation accepts the two public Custom Domain declarations;
-- dedicated 17.3 CI passes;
-- inherited Phase-17 and historical runtime gates remain green;
-- no admin/staging ownership is changed;
-- no manual mutation is made in the user's separate/main Cloudflare account;
-- final-main activation requirements are encoded so a broken/unresolved `www` cannot pass final Phase-17 closure.
+- dedicated 17.3 CI passed;
+- inherited Phase-17 and historical runtime/security/build gates passed;
+- admin/staging ownership remains unchanged;
+- no manual Cloudflare mutation was made;
+- the separate/main personal Cloudflare account was not used;
+- final-main activation requirements are mandatory and cannot be skipped.
 
-Until those gates pass, 17.3 remains **implemented but not closed**.
+**Module 17.3 is COMPLETE at branch level. Its live 308 activation remains a required final-main production gate. Module 17.4 may begin only after this closure commit itself passes exact-head CI.**
