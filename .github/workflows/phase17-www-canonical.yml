@@ -69,18 +69,38 @@ jobs:
       - name: Classify current live www state without mutating Cloudflare
         if: github.event_name != 'push'
         shell: bash
+        env:
+          EXPECTED_PRODUCTION_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
 
-          if getent ahosts www.rcitcs.com >/tmp/www-dns.txt 2>/dev/null && test -s /tmp/www-dns.txt; then
-            cat /tmp/www-dns.txt
-            code=$(curl -sS --max-time 20 -D /tmp/www.headers -o /dev/null -w '%{http_code}' 'https://www.rcitcs.com/services/it/cyber-security?phase=17.3')
-            test "$code" = '308'
+          if ! getent ahosts www.rcitcs.com >/tmp/www-dns.txt 2>/dev/null || ! test -s /tmp/www-dns.txt; then
+            echo 'www.rcitcs.com remains publicly unresolved before final Phase-17 deployment.'
+            exit 0
+          fi
+
+          cat /tmp/www-dns.txt
+          code=$(curl -sS --max-time 20 -D /tmp/www.headers -o /tmp/www.html -w '%{http_code}' 'https://www.rcitcs.com/services/it/cyber-security?phase=17.3')
+
+          if [[ "$code" == '308' ]]; then
             grep -Fqi 'location: https://rcitcs.com/services/it/cyber-security?phase=17.3' /tmp/www.headers
             echo 'www is already live and correctly canonicalizes to the apex.'
-          else
-            echo 'www.rcitcs.com remains publicly unresolved before final Phase-17 deployment; this matches the 17.1 control-plane baseline.'
+            exit 0
           fi
+
+          if [[ "$code" == '200' ]]; then
+            grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/www.html || {
+              echo "www is reachable with HTTP 200 but is not the expected base-SHA production deployment ${EXPECTED_PRODUCTION_SHA}." >&2
+              exit 1
+            }
+            echo 'www DNS is now active but the live base-SHA runtime still renders duplicate public content before Phase-17 merge.'
+            echo 'This pre-merge defect is accepted only because candidate runtime tests already enforce 308 and the final-main gate below makes 308 activation mandatory.'
+            exit 0
+          fi
+
+          echo "Unexpected pre-merge www response: HTTP ${code}." >&2
+          cat /tmp/www.headers >&2
+          exit 1
 
       - name: Wait for final-main www DNS activation and verify permanent canonicalization
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -122,4 +142,4 @@ jobs:
       - name: Phase 17.3 acceptance
         run: |
           echo 'Phase 17.3 www canonical redirect gate: PASS'
-          echo 'www is a compatibility alias only; rcitcs.com remains the sole rendered public production identity.'
+          echo 'Candidate code enforces www as a compatibility alias only; the final-main gate requires live 308 activation before final Phase-17 closure.'
