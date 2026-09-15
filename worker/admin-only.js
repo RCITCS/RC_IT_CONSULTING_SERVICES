@@ -8,6 +8,8 @@ import {
 } from './admin-interactions.js';
 
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
+const ADMIN_STAGING_HOST = 'admin-staging.rcitcs.com';
+const ADMIN_STAGING_MODE_UNAVAILABLE = 'unavailable';
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
@@ -241,6 +243,36 @@ export async function enhanceAdminResponse(response, requestMethod) {
   });
 }
 
+export function isAdminStagingUnavailable(hostname = '', env = {}) {
+  return String(hostname).toLowerCase() === ADMIN_STAGING_HOST
+    && String(env?.RC_ADMIN_STAGING_MODE || '').trim().toLowerCase() === ADMIN_STAGING_MODE_UNAVAILABLE;
+}
+
+export function adminStagingUnavailableResponse(requestMethod = 'GET') {
+  const headers = new Headers({
+    'content-type': 'text/plain; charset=utf-8',
+    'cache-control': 'no-store, no-transform, max-age=0, must-revalidate',
+    pragma: 'no-cache',
+    expires: '0',
+    'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
+    'x-permitted-cross-domain-policies': 'none',
+    'x-rc-admin-environment': 'staging',
+    'x-rc-admin-staging-state': 'intentionally-unavailable',
+    'retry-after': '3600'
+  });
+  setBuildMarkers(headers);
+  const body = requestMethod === 'HEAD' ? null : 'Staging administration is intentionally unavailable.';
+  return new Response(body, { status: 503, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -254,6 +286,9 @@ export default {
           'x-content-type-options': 'nosniff'
         }
       });
+    }
+    if (isAdminStagingUnavailable(host, env)) {
+      return adminStagingUnavailableResponse(request.method);
     }
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === ADMIN_INTERACTION_PATH) {
       if (request.method === 'HEAD') {
