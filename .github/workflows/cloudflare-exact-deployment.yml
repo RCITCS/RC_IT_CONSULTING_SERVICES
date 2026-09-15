@@ -92,23 +92,35 @@ jobs:
 
           echo 'Phase 12 public Careers, JobPosting, application noindex, runtime sitemap and API health verified.'
 
-      - name: Verify dedicated admin production boundary remains separate
+      - name: Wait for dedicated admin production Worker and verify separation
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
 
-          admin_code=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/")
-          test "$admin_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin.html
-          grep -q 'Private administration for controlled operational work.' /tmp/admin.html
-          ! grep -q 'Technology that' /tmp/admin.html
-          grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          for attempt in $(seq 1 72); do
+            admin_code=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/" || true)
+            if [[ "$admin_code" == '200' ]] \
+              && grep -q 'Administrator sign in' /tmp/admin.html \
+              && grep -q 'Private administration for controlled operational work.' /tmp/admin.html \
+              && ! grep -q 'Technology that' /tmp/admin.html \
+              && ! grep -q '/functions/v1/admin-auth' /tmp/admin.html \
+              && grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin.headers \
+              && grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin.headers \
+              && grep -qi '^cache-control:.*no-store' /tmp/admin.headers \
+              && grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers; then
+              break
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo 'Dedicated admin production Worker did not converge to the Phase 16 controlled edge surface.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
           session_code=$(curl -sS -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/session.json
 
-          echo 'Phase 12 dedicated admin hostname and unauthenticated session boundary verified.'
+          echo 'Phase 16 dedicated admin Cloudflare build surface and unauthenticated session boundary verified.'
