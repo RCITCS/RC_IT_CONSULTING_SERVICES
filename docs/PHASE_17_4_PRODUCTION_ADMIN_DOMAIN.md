@@ -1,6 +1,6 @@
 # Phase 17.4 — Production Admin Domain (`admin.rcitcs.com`)
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **COMPLETE — production-admin contract and live acceptance passed; ownership cutover remains 17.7**
 
 Depends on: Phase 17.3 branch-level closure.
 
@@ -45,7 +45,7 @@ The baseline also recorded the historical/public Worker Route overlap affecting 
 
 ## Required production behavior
 
-The live `admin.rcitcs.com` surface must continue to prove all of the following before 17.4 can close:
+The live `admin.rcitcs.com` surface proves all of the following:
 
 1. DNS resolves and HTTPS root returns `200`.
 2. Root response is `text/html` and renders the administrator sign-in experience.
@@ -85,6 +85,21 @@ The live `admin.rcitcs.com` surface must continue to prove all of the following 
 
 The gate verifies the production admin experience and security behavior without deploying the dormant `rcitcs-admin-production` Worker and without mutating Cloudflare.
 
+Implementation head `c495c0603ab09bebeee9cc04865e80add3933bb2` passed the dedicated Phase 17.4 gate and the complete inherited exact-head suite, including:
+
+- Phase 17.4 Production Admin Domain;
+- Phase 17.3 WWW Canonical Redirect;
+- Phase 17.2 Public Production Domain;
+- Phase 17 Domain Baseline;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 12 Runtime Smoke;
+- Phase 13 Email Runtime Smoke;
+- Phase 13 Secret Availability;
+- Phase 14 Contact Inbox Runtime Smoke.
+
+The dedicated 17.4 gate verified the production root, private Applications and Jobs routes, unauthenticated session behavior, hostile-origin mutation rejection, security headers, media type, release markers and absence of public-site/raw-backend rendering.
+
 ## Explicit deferrals
 
 17.4 does not change:
@@ -98,15 +113,15 @@ The gate verifies the production admin experience and security behavior without 
 - email DNS — 17.11;
 - final redirect matrix — 17.12.
 
-## Closure criteria
+## 17.4 closure decision
 
-17.4 may close only when:
+The module is closed because:
 
-- the source contract passes;
-- live production-admin root/routes/session/origin-defense checks pass;
-- inherited Phase-17 and historical CI remain green;
+- the source production-admin contract passes;
+- live root/routes/session/origin-defense checks pass;
+- inherited Phase-17 and historical CI are green;
 - production admin remains isolated from the public site;
-- no Cloudflare ownership cutover is performed prematurely;
-- no staging/public ownership overlap is falsely represented as already resolved.
+- no Cloudflare ownership cutover was performed prematurely;
+- the known staging/public ownership overlap remains explicitly recorded for 17.7 rather than being falsely represented as resolved.
 
-Until those exact-head gates pass, Module 17.4 remains **implemented but not closed**.
+**Module 17.4 is COMPLETE. Module 17.5 may begin only after this closure commit itself passes exact-head CI.**
