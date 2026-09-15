@@ -230,7 +230,8 @@ jobs:
 
           alias_code=$(curl -sS -o /dev/null -w '%{http_code}' "${BASE}/careers/job-opportunities")
           [[ "$alias_code" == '301' || "$alias_code" == '308' ]]
-          curl -sSI "${BASE}/careers/job-opportunities" | tr -d '\r' | grep -qi '^location:.*\/careers'
+          curl -sSI "${BASE}/careers/job-opportunities" -o /tmp/careers-alias.headers
+          grep -qi '^location:.*\/careers' /tmp/careers-alias.headers
 
           echo 'Phase 12 production Careers, JobPosting, protected application boundary, sitemap, robots, redirects and 404 behaviour verified.'
 
@@ -241,12 +242,13 @@ jobs:
           BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
 
           curl -sS "${BASE}/" -o /tmp/rc-index.html
-          app_asset=$(grep -oE '/assets/app-[A-Za-z0-9]+\.js' /tmp/rc-index.html | head -n1)
+          app_asset=$(grep -oEm1 '/assets/app-[A-Za-z0-9]+\.js' /tmp/rc-index.html)
           if [[ -z "$app_asset" ]]; then
             echo 'Hashed application JavaScript was not found in production HTML.' >&2
             exit 1
           fi
-          curl -sSI "${BASE}${app_asset}" | tr -d '\r' | grep -qi 'cache-control:.*max-age=31536000.*immutable' || {
+          curl -sSI "${BASE}${app_asset}" -o /tmp/app-asset.headers
+          grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/app-asset.headers || {
             echo 'Application JavaScript is missing immutable cache headers.' >&2
             exit 1
           }
@@ -264,13 +266,15 @@ jobs:
               echo "Production route stylesheet ${asset} returned ${code}." >&2
               exit 1
             fi
-            curl -sSI "${BASE}/assets/${asset}" | tr -d '\r' | grep -qi 'cache-control:.*max-age=31536000.*immutable' || {
+            curl -sSI "${BASE}/assets/${asset}" -o /tmp/route-asset.headers
+            grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/route-asset.headers || {
               echo "Production route stylesheet ${asset} is missing immutable cache headers." >&2
               exit 1
             }
           done <<< "$route_assets"
 
-          curl -sSI "${BASE}/about-us" | tr -d '\r' | grep -qi 'cache-control:.*max-age=0.*must-revalidate' || {
+          curl -sSI "${BASE}/about-us" -o /tmp/about-cache.headers
+          grep -qi 'cache-control:.*max-age=0.*must-revalidate' /tmp/about-cache.headers || {
             echo 'Production prerendered HTML is missing the required revalidation cache policy.' >&2
             exit 1
           }
@@ -301,22 +305,22 @@ jobs:
           test "$root_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-root.html
           grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
-          tr -d '\r' < /tmp/admin-root.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-robots-tag:.*noindex'
-          tr -d '\r' < /tmp/admin-root.headers | grep -qi '^x-frame-options: *DENY'
-          tr -d '\r' < /tmp/admin-root.headers | grep -qi '^content-security-policy:'
-          tr -d '\r' < /tmp/admin-root.headers | grep -qi '^strict-transport-security:'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-root.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin-root.headers
+          grep -qi '^content-security-policy:' /tmp/admin-root.headers
+          grep -qi '^strict-transport-security:' /tmp/admin-root.headers
 
           applications_code=$(curl -sS -D /tmp/admin-applications.headers -o /tmp/admin-applications.html -w '%{http_code}' "${ADMIN}/applications")
           test "$applications_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-applications.html
-          tr -d '\r' < /tmp/admin-applications.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin-applications.headers | grep -qi '^x-robots-tag:.*noindex'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-applications.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-applications.headers
 
           session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/admin-session.json
-          tr -d '\r' < /tmp/admin-session.headers | grep -qi '^cache-control:.*no-store'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
 
           echo 'Phase 12 candidate intake health, private admin runtime, Applications auth boundary and defensive headers verified.'
 
@@ -333,25 +337,25 @@ jobs:
           grep -q 'Private administration for controlled operational work.' /tmp/admin-visual.html
           grep -q 'action="/admin/login"' /tmp/admin-visual.html
           ! grep -q '/functions/v1/admin-auth' /tmp/admin-visual.html
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^content-type:.*text/html'
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^x-robots-tag:.*noindex'
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^x-frame-options: *DENY'
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^content-security-policy:'
-          tr -d '\r' < /tmp/admin-visual.headers | grep -qi '^strict-transport-security:'
+          grep -qi '^content-type:.*text/html' /tmp/admin-visual.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-visual.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-visual.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin-visual.headers
+          grep -qi '^content-security-policy:' /tmp/admin-visual.headers
+          grep -qi '^strict-transport-security:' /tmp/admin-visual.headers
 
           applications_code=$(curl -sS -D /tmp/admin-visual-apps.headers -o /tmp/admin-visual-apps.html -w '%{http_code}' "${ADMIN}/applications")
           test "$applications_code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-visual-apps.html
           ! grep -q '/functions/v1/admin-auth' /tmp/admin-visual-apps.html
-          tr -d '\r' < /tmp/admin-visual-apps.headers | grep -qi '^cache-control:.*no-store'
-          tr -d '\r' < /tmp/admin-visual-apps.headers | grep -qi '^x-robots-tag:.*noindex'
+          grep -qi '^cache-control:.*no-store' /tmp/admin-visual-apps.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-visual-apps.headers
 
           session_code=$(curl -sS -D /tmp/admin-visual-session.headers -o /tmp/admin-visual-session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/admin-visual-session.json
-          tr -d '\r' < /tmp/admin-visual-session.headers | grep -qi '^content-type:.*application/json'
-          tr -d '\r' < /tmp/admin-visual-session.headers | grep -qi '^cache-control:.*no-store'
+          grep -qi '^content-type:.*application/json' /tmp/admin-visual-session.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-visual-session.headers
 
           rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
           test "$rejected_code" = '403'
