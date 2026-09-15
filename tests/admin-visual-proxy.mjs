@@ -90,12 +90,18 @@ const completedNavigation = enhanceAdminNavigation(partiallyNativeNavigation, ''
 assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length, 2, 'A missing mobile Applications entry must be added without duplicating the native desktop entry.');
 
 assert.equal(primaryConfig.main, './worker/index.js');
-assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 public Worker must remain reachable on its workers.dev production origin.');
+assert.equal(primaryConfig.workers_dev, true, 'The primary public Worker remains reachable on its workers.dev production origin until the later Phase-17 exposure-hardening module.');
 assert.equal(Object.hasOwn(primaryConfig, 'route'), false);
-assert.equal(primaryConfig.routes?.length, 1, 'The public Worker must own only the public apex Custom Domain.');
-assert.equal(primaryConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(primaryConfig.routes?.[0]?.custom_domain, true, 'The public apex must remain a Worker Custom Domain.');
-assert.equal(primaryConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'The public Worker must never claim the admin hostname.');
+assert.deepEqual(
+  primaryConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'The public Worker must own only the approved apex and www public Custom Domains.'
+);
+assert.equal(
+  primaryConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
+  false,
+  'The public Worker must never claim a dedicated admin hostname.'
+);
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
 assert.ok(publicEntrypointSource.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but public routing must not expose it on admin.rcitcs.com.');
@@ -143,4 +149,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: public and admin delivery remain isolated, with admin.rcitcs.com provisioned by the already-connected company admin Worker and the old Cloudflare account holding no company routes.');
+console.log('PASS: public apex/www delivery and admin delivery remain isolated, with admin.rcitcs.com provisioned by the connected company admin Worker and the old Cloudflare account holding no company routes.');
