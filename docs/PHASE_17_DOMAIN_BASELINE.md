@@ -66,16 +66,44 @@ The dedicated `Phase 17 Domain Baseline` GitHub Actions gate passed without muta
 
 The Phase-17 PR head also passed the inherited full architecture/test/build gate, Wrangler dry-run validation for the public Worker plus both admin Worker configurations and the Cloudflare Builds admin root, Phase-12 deployed candidate/admin boundary smoke, Phase-13 secret-presence and transactional-email runtime gates, and Phase-14 authenticated contact-inbox runtime smoke.
 
-Public DNS non-resolution for `www` is runtime evidence, not a substitute for inspecting the authoritative Cloudflare zone. The control-plane audit must still prove whether `www` is genuinely absent from the active zone and whether any stale/disabled/historical binding exists.
+### Public DNS snapshot
+
+A second read-only Phase-17 baseline run captured the externally published DNS surface before any domain changes:
+
+- authoritative nameservers:
+  - `max.ns.cloudflare.com`
+  - `venus.ns.cloudflare.com`
+- SOA authority: Cloudflare (`max.ns.cloudflare.com` / `dns.cloudflare.com`).
+- `rcitcs.com` public A answers:
+  - `104.21.38.16`
+  - `172.67.217.18`
+- `rcitcs.com` public AAAA answers:
+  - `2606:4700:3030::ac43:d912`
+  - `2606:4700:3031::6815:2610`
+- `admin.rcitcs.com` and `admin-staging.rcitcs.com` publish the same Cloudflare anycast A/AAAA surface.
+- `rcitcs.com`, `admin.rcitcs.com`, and `admin-staging.rcitcs.com` expose no public CNAME answer.
+- `www.rcitcs.com` exposes no public A, AAAA, or CNAME answer.
+- apex MX currently uses Cloudflare Email Routing:
+  - `route2.mx.cloudflare.net` priority 55
+  - `route1.mx.cloudflare.net` priority 59
+  - `route3.mx.cloudflare.net` priority 68
+- apex TXT observed during the snapshot:
+  - Google site-verification token
+  - `v=spf1 include:_spf.mx.cloudflare.net ~all`
+- no public apex CAA answer was observed.
+
+These public DNS answers strongly establish Cloudflare delegation and current external reachability. They **cannot reveal** whether an A/AAAA result is backed by a proxied DNS object versus a Worker Custom Domain, the internal orange-cloud/proxy state, hidden origin values, inactive/stale records, Worker Routes, Custom Domain ownership, Builds ownership, or Cloudflare account/zone identifiers.
+
+Public DNS non-resolution for `www` is therefore runtime evidence, not a substitute for inspecting the authoritative Cloudflare zone. The control-plane audit must still prove whether `www` is genuinely absent from the active zone and whether any stale/disabled/historical binding exists.
 
 ## Hostname inventory
 
 | Hostname / endpoint | Purpose | Source state | Live baseline | 17.1 status |
 | --- | --- | --- | --- | --- |
-| `rcitcs.com` | public production | declared on public Worker | DNS present; corporate site `200`; exact-main public site previously verified | runtime evidenced; control-plane owner proof open |
-| `www.rcitcs.com` | public alias/canonical redirect candidate | no checked-in Worker-domain declaration found at baseline | **DNS not provisioned / no public resolution** | control-plane absence proof open; provisioning belongs to 17.3 after 17.1 closes |
-| `admin.rcitcs.com` | production admin | declared by production config and Phase-16 connected staging config | DNS present; admin portal `200` verified | ownership convergence open |
-| `admin-staging.rcitcs.com` | admin staging | declared by Phase-16 connected staging config | DNS present; live `200`; same Phase-16 release as production | isolation/product decision open |
+| `rcitcs.com` | public production | declared on public Worker | DNS present; Cloudflare A/AAAA; corporate site `200`; exact-main public site previously verified | runtime evidenced; control-plane owner proof open |
+| `www.rcitcs.com` | public alias/canonical redirect candidate | no checked-in Worker-domain declaration found at baseline | **no public A/AAAA/CNAME; no public resolution** | control-plane absence proof open; provisioning belongs to 17.3 after 17.1 closes |
+| `admin.rcitcs.com` | production admin | declared by production config and Phase-16 connected staging config | Cloudflare A/AAAA; admin portal `200` verified | ownership convergence open |
+| `admin-staging.rcitcs.com` | admin staging | declared by Phase-16 connected staging config | Cloudflare A/AAAA; live `200`; same Phase-16 release as production | isolation/product decision open |
 | `rc-it-consulting-services.rcitcservices.workers.dev` | public Worker compatibility endpoint | `workers_dev` enabled | exercised by existing CI | exposure decision deferred to 17.10 |
 | raw Supabase admin Edge Function | private admin upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
 | raw Supabase candidate Edge Function | candidate upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
@@ -84,8 +112,8 @@ Public DNS non-resolution for `www` is runtime evidence, not a substitute for in
 
 The following must come from the authoritative Cloudflare account/control plane. Repository configuration, public DNS resolution, and public HTTP behavior are insufficient substitutes:
 
-1. Cloudflare account and zone containing `rcitcs.com`, including authoritative zone/account ownership.
-2. Complete active DNS record inventory for relevant RC IT hostnames, including A, AAAA, CNAME, proxy state, and any duplicate/conflicting host records.
+1. Cloudflare account and zone containing `rcitcs.com`, including authoritative zone/account ownership and zone ID/account ID evidence.
+2. Complete active DNS object inventory for relevant RC IT hostnames, including record type, target/content, TTL, proxy state, and any duplicate/conflicting host objects.
 3. Active Worker inventory and account ownership for:
    - `rc-it-consulting-services`
    - `rcitcs-admin-production`
