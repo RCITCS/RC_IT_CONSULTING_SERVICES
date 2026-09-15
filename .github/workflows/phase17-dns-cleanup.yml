@@ -1,0 +1,77 @@
+name: Phase 17.8 DNS Cleanup
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-dns-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dns-cleanup:
+    name: Verify DNS conflict elimination
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 17.8 source contract
+        run: node tests/phase17-dns-cleanup.mjs
+
+      - name: Classify public DNS without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(rcitcs.com www.rcitcs.com admin.rcitcs.com admin-staging.rcitcs.com)
+          for host in "${hosts[@]}"; do
+            echo "== ${host} =="
+            cname=$(dig +short CNAME "$host" | tr '[:upper:]' '[:lower:]' | tr -d '\r' || true)
+            a=$(dig +short A "$host" | tr -d '\r' || true)
+            aaaa=$(dig +short AAAA "$host" | tr -d '\r' || true)
+            printf 'CNAME=%s\nA=%s\nAAAA=%s\n' "${cname:-<none>}" "${a:-<none>}" "${aaaa:-<none>}"
+
+            if printf '%s' "$cname" | grep -Eqi '(vercel\.app|pages\.dev|workers\.dev|supabase\.co)'; then
+              echo "Forbidden external web-host CNAME remains for ${host}: ${cname}" >&2
+              exit 1
+            fi
+
+            if [[ "$host" != 'www.rcitcs.com' || "${{ github.event_name }}" != 'pull_request' ]]; then
+              if [[ -z "$a" && -z "$aaaa" && -z "$cname" ]]; then
+                echo "${host} has no public DNS answer." >&2
+                exit 1
+              fi
+            else
+              # Historical 17.1 evidence recorded www as configured at the Worker
+              # layer but publicly unresolved. PR source cannot mutate that state.
+              echo 'PR classification permits historical www non-resolution; final-main does not.'
+            fi
+          done
+
+      - name: Preserve email DNS evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mx=$(dig +short MX rcitcs.com | tr '[:upper:]' '[:lower:]')
+          grep -q 'route1.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route2.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route3.mx.cloudflare.net' <<< "$mx"
+          echo 'Existing Cloudflare Email Routing MX set remains visible; 17.8 did not delete mail DNS.'
+
+      - name: Phase 17.8 acceptance
+        run: |
+          echo 'Phase 17.8 DNS cleanup gate: PASS'
+          echo 'No external web-host CNAME conflict is published; mail DNS remains outside the cleanup set.'
