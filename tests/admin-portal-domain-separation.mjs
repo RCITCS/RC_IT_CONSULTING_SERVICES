@@ -31,11 +31,17 @@ const legacyConfig = JSON.parse(legacyWrangler);
 
 assert.ok(Array.isArray(publicConfig.assets?.run_worker_first));
 assert.ok(publicConfig.assets.run_worker_first.includes('/*'), 'Public Worker must run before assets for dynamic Careers/API routing.');
-assert.equal(publicConfig.workers_dev, true, 'Primary public Worker remains reachable on its workers.dev deployment.');
-assert.equal(publicConfig.routes?.length, 1, 'Public Worker must own only rcitcs.com.');
-assert.equal(publicConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(publicConfig.routes?.[0]?.custom_domain, true, 'Public rcitcs.com remains its own Worker Custom Domain.');
-assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'Public Worker must never own or route admin.rcitcs.com.');
+assert.equal(publicConfig.workers_dev, true, 'Primary public Worker remains reachable on its workers.dev deployment until the later Phase-17 exposure-hardening module.');
+assert.deepEqual(
+  publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'Public Worker must own only the apex and www public Custom Domains.'
+);
+assert.equal(
+  publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
+  false,
+  'Public Worker must never own or route a dedicated admin hostname.'
+);
 
 assert.equal(companyAdminConfig.name, 'rcitcs-admin-staging');
 assert.equal(companyAdminConfig.workers_dev, false);
@@ -55,4 +61,4 @@ for (const expected of [
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: rcitcs.com and admin.rcitcs.com remain separate public/admin sites, with production admin DNS provisioned inside the company Cloudflare account and no old-account route ownership.');
+console.log('PASS: rcitcs.com plus www.rcitcs.com remain the public-domain pair while admin.rcitcs.com stays isolated to the company admin Worker and no old-account route owns a company hostname.');
