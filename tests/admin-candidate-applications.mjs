@@ -35,7 +35,7 @@ for (const contract of [
   'get_admin_application_document',
   'candidate_document_downloaded',
   'Download securely',
-  'Candidate communication and status workflows are not enabled in this phase.',
+  'renderCandidateCommunicationHistory',
   'cache-control',
   'no-store',
   'content-disposition',
@@ -45,7 +45,7 @@ for (const contract of [
 ]) assert.ok(applications.includes(contract), `Admin application route missing: ${contract}`);
 
 assert.ok(applications.includes('authState.admin.role !== "super_admin"'));
-assert.ok(applications.includes('request.method !== "GET"'), 'Phase 12 admin application surface must remain read-only.');
+assert.ok(applications.includes('request.method !== "GET"'), 'The application router must preserve an explicit method boundary while Phase 15 adds only its exact protected message POST route.');
 assert.ok(applications.includes('OBJECT_PATH.exec(objectPath)'));
 assert.ok(applications.includes('pathMatch[1].toLowerCase() !== applicationId.toLowerCase()'));
 assert.ok(applications.includes('pathMatch[2].toLowerCase() !== documentId.toLowerCase()'));
@@ -63,4 +63,4 @@ for (const source of [migration, applications, index]) {
   assert.ok(!/SUPABASE_SERVICE_ROLE_KEY\s*=\s*["'][^"']+["']/.test(source), 'Server credentials must remain runtime-only.');
 }
 
-console.log('PASS: Phase 12 admin Applications is read-only, super-admin-authorized, job-linked, noindex/no-cache, and streams exact private candidate documents through the authenticated server boundary with audit evidence.');
+console.log('PASS: Phase 12 application/document authority remains super-admin-only, noindex/no-cache and private-streamed while Phase 15 adds an independently protected communication workflow.');
