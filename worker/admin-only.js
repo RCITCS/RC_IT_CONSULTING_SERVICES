@@ -17,6 +17,7 @@ const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';
+export const ADMIN_TRANSPORT_SECURITY_POLICY = 'max-age=31536000; includeSubDomains; preload';
 
 export function rewriteAdminEdgeReference(value = '') {
   let rewritten = String(value).replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, '');
@@ -49,6 +50,7 @@ function copyResponseHeaders(source) {
 function setBuildMarkers(headers, env = {}) {
   headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
   headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);
+  headers.set('strict-transport-security', ADMIN_TRANSPORT_SECURITY_POLICY);
   const environment = String(env?.RC_ADMIN_ENVIRONMENT || '').trim().toLowerCase();
   if (environment) headers.set('x-rc-admin-environment', environment);
 }
@@ -180,6 +182,7 @@ function adminInteractionResponse() {
       'x-content-type-options': 'nosniff',
       'x-robots-tag': 'noindex, nofollow, noarchive',
       'cross-origin-resource-policy': 'same-origin',
+      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
       'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE,
       'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX
     }
@@ -262,7 +265,7 @@ export function adminStagingUnavailableResponse(requestMethod = 'GET') {
     'referrer-policy': 'no-referrer',
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
     'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+    'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
     'cross-origin-opener-policy': 'same-origin',
     'cross-origin-resource-policy': 'same-origin',
     'x-permitted-cross-domain-policies': 'none',
@@ -273,6 +276,21 @@ export function adminStagingUnavailableResponse(requestMethod = 'GET') {
   setBuildMarkers(headers);
   const body = requestMethod === 'HEAD' ? null : 'Staging administration is intentionally unavailable.';
   return new Response(body, { status: 503, headers });
+}
+
+function forceAdminHttps(request) {
+  const url = new URL(request.url);
+  if (url.protocol !== 'http:' || !ADMIN_HOSTS.has(url.hostname.toLowerCase())) return null;
+  url.protocol = 'https:';
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: url.toString(),
+      'cache-control': 'no-store, max-age=0, must-revalidate',
+      'x-content-type-options': 'nosniff',
+      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY
+    }
+  });
 }
 
 export default {
@@ -289,6 +307,8 @@ export default {
         }
       });
     }
+    const httpsRedirect = forceAdminHttps(request);
+    if (httpsRedirect) return httpsRedirect;
     if (isAdminStagingUnavailable(host, env)) {
       return adminStagingUnavailableResponse(request.method);
     }
