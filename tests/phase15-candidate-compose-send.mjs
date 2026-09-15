@@ -19,10 +19,12 @@ const [applications, composer, dispatcher, adminIndex, migration, hardening, del
 assert.match(adminIndex, /request\.method === "POST" && !originOk\(request, url\)/);
 assert.match(adminIndex, /browserNavigationPostOk/);
 
-// Only the exact candidate-message endpoint accepts application mutations.
+// Only the explicit candidate-message/status mutation endpoints are in the shared application mutation allowlist.
 assert.match(applications, /\^\\\/applications\\\/\(\[0-9a-f-\]\{36\}\)\\\/message\$/);
+assert.match(applications, /\^\\\/applications\\\/\(\[0-9a-f-\]\{36\}\)\\\/status\$/);
 assert.match(applications, /if \(request\.method === "POST"\)/);
-assert.match(applications, /if \(!messageMatch \|\| !UUID\.test\(messageMatch\[1\]\)\)/);
+assert.match(applications, /const mutationMatch = messageMatch \|\| statusMatch/);
+assert.match(applications, /if \(!mutationMatch \|\| !UUID\.test\(mutationMatch\[1\]\)\)/);
 assert.match(applications, /csrfOk\(authState, String\(form\.get\("csrf"\)/);
 assert.match(applications, /intent === "preview" \|\| intent === "send"/);
 assert.match(applications, /subject\.length <= CANDIDATE_MESSAGE_SUBJECT_MAX/);
@@ -48,7 +50,7 @@ for (const required of ['p_admin_id', 'p_application_id', 'p_request_id', 'p_sub
 }
 
 // The composer shows recipient/sender but does not expose them as writable form fields.
-assert.match(composer, /From<\/span><strong>careers@rcitcs\.com<\/strong>/);
+assert.match(composer, /From<\/span><strong[^>]*>careers@rcitcs\.com<\/strong>/);
 assert.match(composer, /Preview message/);
 assert.match(composer, /Send candidate email/);
 assert.match(composer, /name="request_id" value="\$\{esc\(requestId\)\}"/);
