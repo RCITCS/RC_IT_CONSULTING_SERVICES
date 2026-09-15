@@ -1,4 +1,7 @@
-import { CANDIDATE_MESSAGE_TEMPLATE_OPTIONS } from "../_shared/candidate-message-templates.js";
+import {
+  CANDIDATE_MESSAGE_TEMPLATE_OPTIONS,
+  candidateMessageTemplate
+} from "../_shared/candidate-message-templates.js";
 import { esc, prettyTime } from "./ui.ts";
 
 export const CANDIDATE_MESSAGE_SUBJECT_MAX = 300;
@@ -95,15 +98,24 @@ type CandidateMessageDraft = {
   requestId?: string;
   preview?: boolean;
   validationError?: string;
-  templateKey?: string;
 };
 
-function templatePicker(basePath: string, applicationId: string, selectedKey: string): string {
-  const links = CANDIDATE_MESSAGE_TEMPLATE_OPTIONS.map((option) => {
-    const selected = selectedKey === option.key;
-    return `<a class="btn secondary" style="min-height:32px;padding:6px 9px;font-size:10px" href="${basePath}/applications/${esc(applicationId)}?template=${encodeURIComponent(option.key)}#candidate-message-compose-title"${selected ? ' aria-current="true"' : ""}>${esc(option.label)}</a>`;
+function templatePicker(basePath: string, csrf: string, application: any): string {
+  const applicationId = String(application?.id ?? "");
+  const forms = CANDIDATE_MESSAGE_TEMPLATE_OPTIONS.map((option) => {
+    const template = candidateMessageTemplate(option.key, application);
+    if (!template) return "";
+    const requestId = crypto.randomUUID();
+    return `<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:inline-flex;margin:0">
+      <input type="hidden" name="csrf" value="${esc(csrf)}">
+      <input type="hidden" name="request_id" value="${esc(requestId)}">
+      <input type="hidden" name="intent" value="preview">
+      <input type="hidden" name="subject" value="${esc(template.subject)}">
+      <textarea name="body" hidden>${esc(template.body)}</textarea>
+      <button class="btn secondary" style="min-height:32px;padding:6px 9px;font-size:10px" type="submit">${esc(option.label)}</button>
+    </form>`;
   }).join("");
-  return `<div style="margin-bottom:14px"><div class="activity-type" style="margin-bottom:7px">Controlled templates</div><div class="actions" style="margin:0;gap:6px;flex-wrap:wrap">${links}</div><p class="muted" style="margin:8px 0 0;font-size:10px">Templates use only persisted candidate/job fields. Review and preview the message before sending.</p></div>`;
+  return `<div style="margin-bottom:14px"><div class="activity-type" style="margin-bottom:7px">Controlled templates</div><div class="actions" style="margin:0;gap:6px;flex-wrap:wrap">${forms}</div><p class="muted" style="margin:8px 0 0;font-size:10px">Template text is generated server-side from persisted application fields and opens in preview only. Review before confirming delivery.</p></div>`;
 }
 
 export function renderCandidateMessageComposer(
@@ -119,9 +131,8 @@ export function renderCandidateMessageComposer(
   const requestId = String(draft.requestId ?? crypto.randomUUID());
   const preview = draft.preview === true;
   const error = String(draft.validationError ?? "").trim();
-  const templateKey = String(draft.templateKey ?? "");
 
-  const composeForm = `${templatePicker(basePath, applicationId, templateKey)}<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px">
+  const composeForm = `${templatePicker(basePath, csrf, application)}<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px">
     <input type="hidden" name="csrf" value="${esc(csrf)}">
     <input type="hidden" name="request_id" value="${esc(requestId)}">
     <input type="hidden" name="intent" value="preview">
