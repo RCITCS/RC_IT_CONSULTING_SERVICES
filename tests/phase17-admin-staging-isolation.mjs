@@ -19,13 +19,24 @@ assert.equal(staging.workers_dev, false, 'Staging admin must not expose workers.
 assert.equal(staging.keep_vars, true);
 assert.equal(staging.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
 assert.equal(staging.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.deepEqual(
+  staging.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin-staging.rcitcs.com', true]],
+  'After 17.7 the staging Worker must own only the staging hostname.'
+);
 
 assert.equal(production.name, 'rcitcs-admin-production');
+assert.equal(production.vars?.RC_ADMIN_ENVIRONMENT, 'production');
 assert.equal(Object.hasOwn(production.vars || {}, 'RC_ADMIN_STAGING_MODE'), false, 'Production config must not inherit staging-unavailable mode.');
+assert.deepEqual(
+  production.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true]],
+  'Production admin ownership must remain isolated from staging.'
+);
 
 assert.equal(isAdminStagingUnavailable('admin-staging.rcitcs.com', staging.vars), true);
 assert.equal(isAdminStagingUnavailable('ADMIN-STAGING.RCITCS.COM', staging.vars), true);
-assert.equal(isAdminStagingUnavailable('admin.rcitcs.com', staging.vars), false, 'Shared connected Worker must not block the production hostname before 17.7 cutover.');
+assert.equal(isAdminStagingUnavailable('admin.rcitcs.com', staging.vars), false, 'Staging policy must remain host-scoped and can never block production admin.');
 assert.equal(isAdminStagingUnavailable('admin-staging.rcitcs.com', {}), false, 'Unavailable behavior must be an explicit staging deployment policy.');
 
 for (const method of ['GET', 'HEAD', 'POST']) {
@@ -56,6 +67,7 @@ const livePolicyResponse = await adminWorker.fetch(
   { waitUntil() {} }
 );
 assert.equal(livePolicyResponse.status, 503, 'Staging policy must intercept mutations before auth/runtime processing.');
+assert.equal(livePolicyResponse.headers.get('x-rc-admin-environment'), 'staging');
 assert.equal(livePolicyResponse.headers.get('x-rc-admin-staging-state'), 'intentionally-unavailable');
 assert.equal(livePolicyResponse.headers.has('set-cookie'), false);
 
@@ -64,6 +76,5 @@ assert.ok(
   'Staging isolation must run before admin auth/runtime processing.'
 );
 
-console.log('Phase 17.5 admin staging isolation contract: PASS');
-console.log('admin-staging.rcitcs.com is intentionally unavailable until an independently isolated staging data/runtime plane is approved.');
-console.log('admin.rcitcs.com remains unaffected by the host-specific staging policy pending 17.7 ownership convergence.');
+console.log('Phase 17.5 admin staging isolation contract preserved after Phase 17.7 convergence: PASS');
+console.log('admin-staging.rcitcs.com is intentionally unavailable and is owned only by rcitcs-admin-staging.');
