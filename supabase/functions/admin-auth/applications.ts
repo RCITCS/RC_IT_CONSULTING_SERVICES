@@ -131,7 +131,7 @@ function messageNotice(url: URL): { message: string; error: boolean } {
   const notice = url.searchParams.get("notice");
   const error = url.searchParams.get("error");
   if (notice === "message_sent") return { message: "Candidate email was persisted and delivery was confirmed by the transactional email service.", error: false };
-  if (notice === "message_queued") return { message: "Candidate email was persisted and queued. Immediate delivery was not confirmed; the transactional email retry scheduler retains delivery authority.", error: false };
+  if (notice === "message_queued") return { message: "Candidate email was persisted. No new immediate delivery confirmation was received; the recorded delivery state and transactional retry scheduler remain authoritative.", error: false };
   if (error === "archived") return { message: "Restore the application before contacting this candidate.", error: true };
   if (error === "invalid_recipient") return { message: "The persisted candidate email address is not valid for outbound delivery.", error: true };
   if (error === "validation") return { message: "The candidate message did not pass server-side validation.", error: true };
@@ -301,7 +301,8 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
       return redirect(`${basePath}/applications/${applicationId}?error=${mutationErrorCode(result?.code)}`);
     }
     const emailLogId = String(result.email_log_id || "");
-    const delivered = await dispatchQueuedEmail(emailLogId);
+    const terminalDelivery = result.duplicate === true && ["sent", "delivered"].includes(String(result.delivery_status || "").toLowerCase());
+    const delivered = terminalDelivery || await dispatchQueuedEmail(emailLogId);
     return redirect(`${basePath}/applications/${applicationId}?notice=${delivered ? "message_sent" : "message_queued"}`);
   }
 
