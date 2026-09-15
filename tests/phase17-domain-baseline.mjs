@@ -14,6 +14,7 @@ const legacyConfig = read('cloudflare/legacy-rcitcservices/wrangler.jsonc');
 const adminOnlyWorker = read('worker/admin-only.js');
 const runtimeWorker = read('src/backend/runtime/worker.js');
 const domainSmoke = read('.github/workflows/admin-portal-domain-smoke.yml');
+const auditDoc = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 
 // Public production declaration.
 assert.match(publicConfig, /"name"\s*:\s*"rc-it-consulting-services"/);
@@ -56,6 +57,23 @@ assert.match(domainSmoke, /https:\/\/rcitcs\.com/);
 assert.match(domainSmoke, /test "\$alias_code" = '308'/);
 assert.match(domainSmoke, /test "\$post_code" = '404'/);
 
-console.log('Phase 17.1 source/domain pre-change baseline: PASS');
-console.log('KNOWN FINDING: admin.rcitcs.com is declared by both production and Phase-16 connected staging configs; convergence is intentionally deferred beyond the baseline inventory gate.');
-console.log('OPEN EVIDENCE: Cloudflare account/zone, DNS proxy state, Worker Routes/Custom Domains/Builds ownership, and www.rcitcs.com control-plane state require authoritative Cloudflare evidence.');
+// Phase 17.1 authoritative control-plane findings are intentionally recorded
+// as immutable audit evidence. These assertions do not pretend to query
+// Cloudflare; they protect the accepted audit ledger from being silently
+// reverted to the earlier incomplete assumptions.
+assert.match(auditDoc, /Status: \*\*17\.1 COMPLETE — read-only control-plane inventory closed\*\*/);
+assert.match(auditDoc, /exactly two Worker applications/i);
+assert.match(auditDoc, /`rcitcs-admin-production` \| \*\*not present in this Cloudflare account\*\*/);
+assert.match(auditDoc, /`rcitcservices` \| \*\*not present as a Worker application\*\*/);
+assert.match(auditDoc, /`admin\.rcitcs\.com\/\*` \| Route/);
+assert.match(auditDoc, /`admin\.rcitcs\.com` \| Production Custom Domain/);
+assert.match(auditDoc, /`www\.rcitcs\.com` as a \*\*Production Custom Domain\*\*/);
+assert.match(auditDoc, /no A, AAAA, or CNAME answer for `www\.rcitcs\.com`/);
+assert.match(auditDoc, /Cloudflare displays an explicit configuration-drift warning/);
+assert.match(auditDoc, /no production behavior changed during the audit/i);
+assert.match(auditDoc, /Module 17\.1 is COMPLETE/);
+
+console.log('Phase 17.1 source/domain baseline and control-plane evidence ledger: PASS');
+console.log('CLOSED FINDING: authoritative Cloudflare inventory contains exactly two active RC IT Workers; rcitcs-admin-production and legacy rcitcservices are source-only today.');
+console.log('CLOSED FINDING: admin.rcitcs.com has competing Route and Custom Domain ownership, and www.rcitcs.com is configured as a Custom Domain but is not publicly resolvable.');
+console.log('NEXT GATE: do not begin 17.2 until this exact branch head passes CI.');
