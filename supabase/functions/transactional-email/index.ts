@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { dispatchAdminPasswordReset } from "../_shared/admin-password-reset-delivery.js";
 import { dispatchApplicationEmail } from "../_shared/application-email-delivery.js";
+import { dispatchCandidateReplyEmail } from "../_shared/candidate-reply-email-delivery.js";
 import { dispatchContactEmail } from "../_shared/contact-email-delivery.js";
 import { dispatchContactReplyEmail } from "../_shared/contact-reply-email-delivery.js";
 import { EMAIL_TEMPLATE_KEYS } from "../_shared/email-contract.js";
@@ -153,6 +154,14 @@ async function loadContactReplyMessage(emailLogId: string): Promise<Record<strin
   return data.length === 1 ? data[0] : null;
 }
 
+async function loadCandidateReplyMessage(emailLogId: string): Promise<Record<string, unknown> | null> {
+  if (!UUID.test(emailLogId)) return null;
+  const data = await rows(
+    `candidate_messages?email_log_id=eq.${encodeURIComponent(emailLogId)}&select=id,application_id,admin_id,direction,channel,sender_email,recipient_email,reply_to_email,subject,body_text,template_key,idempotency_key,email_log_id,status,created_at&limit=1`
+  );
+  return data.length === 1 ? data[0] : null;
+}
+
 async function createResetToken({ adminId, tokenHash, expiresAt }: { adminId: string; tokenHash: string; expiresAt: string }): Promise<boolean> {
   const result = await rpc("create_admin_password_reset_token", {
     p_admin_id: adminId,
@@ -252,6 +261,13 @@ async function dispatchEmailById(emailLogId: string): Promise<{ ok: boolean; cod
       return { ok: true };
     }
 
+    if (templateKey === EMAIL_TEMPLATE_KEYS.CANDIDATE_ADMIN_REPLY) {
+      const message = await loadCandidateReplyMessage(String(queue.id ?? ""));
+      if (!message) throw new Error("persisted candidate reply message unavailable");
+      await dispatchCandidateReplyEmail({ queue, message, provider, markSent, markFailed });
+      return { ok: true };
+    }
+
     await markFailed({
       emailLogId: String(queue.id ?? ""),
       errorCode: "UNSUPPORTED_EMAIL_TEMPLATE",
@@ -291,6 +307,7 @@ Deno.serve(async (request: Request) => {
       applicationNotifications: true,
       contactNotifications: true,
       contactAdminReplies: true,
+      candidateAdminReplies: true,
       retryScheduler: true,
       monitoring: true
     });
