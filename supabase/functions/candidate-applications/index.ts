@@ -16,10 +16,8 @@ import {
 
 const SERVICE = "candidate-applications";
 const CONTRACT = "phase12-candidate-intake-v1";
-const ALLOWED_PROXIES = new Set(["cloudflare", "vercel"]);
+const ALLOWED_PROXIES = new Set(["cloudflare"]);
 const ALLOWED_ORIGINS = new Set([
-  "https://rc-it-consulting-services.rcitcservices.workers.dev",
-  "https://rc-it-services.vercel.app",
   "https://www.rcitcs.com",
   "https://rcitcs.com",
 ]);
@@ -35,7 +33,7 @@ function responseHeaders(contentType = "application/json; charset=utf-8"): Heade
     "referrer-policy": "no-referrer",
     "x-frame-options": "DENY",
     "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    "cross-origin-resource-policy": "same-site",
+    "cross-origin-resource-policy": "same-origin",
   });
 }
 
