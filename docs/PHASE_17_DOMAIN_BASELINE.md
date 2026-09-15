@@ -1,0 +1,98 @@
+# Phase 17 — Domain & Subdomain Baseline
+
+Status: **17.1 OPEN — inventory in progress**
+
+Baseline source commit: `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847`
+
+Working branch: `phase17-domain-ownership-convergence`
+
+## Scope
+
+Phase 17 is a production-domain architecture and ownership-convergence phase. It does not redesign the public site or admin portal and does not add ATS, candidate portal, SMS/WhatsApp, AI, or other product features.
+
+The Phase 17 invariant is:
+
+> One authoritative production owner per hostname.
+
+No DNS record, Worker route, Custom Domain, build target, or legacy binding may be removed merely because it appears old. Dependency proof is required first.
+
+## 17.1 evidence ledger
+
+### Source-controlled Worker declarations
+
+| Surface | Source-controlled Worker | workers.dev | Declared custom domains | Baseline interpretation |
+| --- | --- | ---: | --- | --- |
+| Public corporate | `rc-it-consulting-services` | enabled | `rcitcs.com` | Public production Worker declaration |
+| Admin production canonical config | `rcitcs-admin-production` | disabled | `admin.rcitcs.com` | Intended canonical production-admin ownership |
+| Connected admin deployment config carried from Phase 16 | `rcitcs-admin-staging` | disabled | `admin.rcitcs.com`, `admin-staging.rcitcs.com` | Known ownership overlap carried into Phase 17 |
+| Legacy Worker | `rcitcservices` | source config only | no company-domain route in the checked-in legacy config | Must not be assumed deleted; account-level proof still required |
+
+The duplicate source declaration for `admin.rcitcs.com` is a **known Phase-17 convergence finding**, not an accidental discovery to delete immediately. Phase 16 deliberately used the connected `rcitcs-admin-staging` deployment target for both admin hostnames while retaining `rcitcs-admin-production` as the intended canonical production configuration.
+
+### Application-level hostname behavior
+
+The checked-in runtime currently establishes these boundaries:
+
+- `rcitcs.com/admin` and `rcitcs.com/admin/*`:
+  - GET/HEAD: `308` to `https://admin.rcitcs.com/...`.
+  - non-GET/HEAD: rejected with `404`; the public host does not process admin credentials.
+- `admin.rcitcs.com` and `admin-staging.rcitcs.com` are recognized as dedicated admin hosts.
+- the public Worker's internal `*.workers.dev/admin` compatibility path remains implemented.
+- the dedicated admin Worker proxies the private admin runtime and rewrites raw upstream admin-auth references before returning browser content.
+
+### Exact-main production evidence from 2026-09-15
+
+The Phase-16 closure SHA `10deb2f6d3df301454e8f6f3a48a0f9a2b67d847` passed the production gates that establish this Phase-17 baseline:
+
+- `https://rcitcs.com/` served the exact Phase-16 closure SHA and the corporate public application.
+- `https://admin.rcitcs.com/` rendered the private admin sign-in surface with the Phase-16 build/media markers.
+- `https://admin-staging.rcitcs.com/` was provisioned and rendered the same Phase-16 admin release markers.
+- `GET https://rcitcs.com/admin` returned `308` to `https://admin.rcitcs.com/`.
+- `POST https://rcitcs.com/admin/login` returned `404`.
+- the production admin surface preserved `text/html`, `no-store`, `noindex`, CSP, framing protection, host-local routes, unauthenticated session rejection, and hostile-origin POST rejection.
+
+This proves runtime behavior. It **does not prove Cloudflare account ownership or the complete DNS/control-plane state**.
+
+## Hostname inventory
+
+| Hostname / endpoint | Purpose | Source state | Live baseline | 17.1 status |
+| --- | --- | --- | --- | --- |
+| `rcitcs.com` | public production | declared on public Worker | exact-main public site verified | evidenced |
+| `www.rcitcs.com` | public alias/canonical redirect candidate | no checked-in Worker-domain declaration found at baseline | requires live DNS/control-plane inventory | open |
+| `admin.rcitcs.com` | production admin | declared by production config and Phase-16 connected staging config | admin portal verified | ownership convergence open |
+| `admin-staging.rcitcs.com` | admin staging | declared by Phase-16 connected staging config | live and serving same Phase-16 release as production | isolation/product decision open |
+| `rc-it-consulting-services.rcitcservices.workers.dev` | public Worker compatibility endpoint | `workers_dev` enabled | exercised by existing CI | exposure decision deferred to 17.10 |
+| raw Supabase admin Edge Function | private admin upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
+| raw Supabase candidate Edge Function | candidate upstream | referenced server-side | exercised by historical CI | exposure decision deferred to 17.10 |
+
+## Evidence still required before 17.1 can close
+
+The following must come from the authoritative Cloudflare account/control plane. Repository configuration and public HTTP behavior are insufficient substitutes:
+
+1. Cloudflare account and zone containing `rcitcs.com`, including the authoritative zone ID/account ownership.
+2. Complete active DNS record inventory for relevant RC IT hostnames, including A, AAAA, CNAME, proxy state, and any duplicate/conflicting host records.
+3. Active Worker inventory and account ownership for:
+   - `rc-it-consulting-services`
+   - `rcitcs-admin-production`
+   - `rcitcs-admin-staging`
+   - `rcitcservices`
+   - any untracked RC IT Worker still bound to a company hostname.
+4. Active Worker Routes versus Custom Domains for each RC IT hostname.
+5. Cloudflare Builds project ownership and production branch/build-root mapping for public and admin deployments.
+6. Confirmation of any stale Worker-domain bindings or old hosting pointers that are still active.
+7. Current control-plane state for `www.rcitcs.com`.
+
+## 17.1 closure gate
+
+Module 17.1 may be marked complete only when all of the following are true:
+
+- every production/staging/public alias hostname has an identified current owner;
+- Cloudflare account/zone ownership is evidenced;
+- active Workers, Routes, Custom Domains, Builds projects, and DNS records are inventoried;
+- proxied versus DNS-only state is known;
+- stale/competing bindings are identified without deleting them prematurely;
+- live pre-change behavior is recorded;
+- the evidence distinguishes current runtime truth from historical documentation;
+- no production behavior has been changed during the audit.
+
+Until then, status remains **17.1 OPEN** and work must not advance to 17.2.
