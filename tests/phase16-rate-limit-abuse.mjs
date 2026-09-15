@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const migration = fs.readFileSync(new URL("../supabase/migrations/20260915100000_phase_16_auth_rate_limit_authority.sql", import.meta.url), "utf8");
+const convergence = fs.readFileSync(new URL("../supabase/migrations/20260915101500_phase_16_auth_rate_limit_rls_deny.sql", import.meta.url), "utf8");
 const adapter = fs.readFileSync(new URL("../supabase/functions/admin-auth/rate-limit.ts", import.meta.url), "utf8");
 const runtime = fs.readFileSync(new URL("../supabase/functions/admin-auth/index.ts", import.meta.url), "utf8");
 
@@ -19,6 +20,15 @@ for (const fragment of [
   "revoke all on table public.admin_auth_rate_limits from public, anon, authenticated",
   "to service_role"
 ]) assert.ok(migration.includes(fragment), `missing Phase 16.8 database throttle control: ${fragment}`);
+
+for (const fragment of [
+  "create policy admin_auth_rate_limits_browser_deny",
+  "to anon, authenticated",
+  "using (false)",
+  "with check (false)",
+  "revoke all on table public.admin_auth_rate_limits from public, anon, authenticated",
+  "grant execute on function public.consume_admin_auth_rate_limit"
+]) assert.ok(convergence.includes(fragment), `missing Phase 16.8 explicit RLS deny convergence: ${fragment}`);
 
 for (const fragment of [
   'export async function consumeAuthRateLimit(',
