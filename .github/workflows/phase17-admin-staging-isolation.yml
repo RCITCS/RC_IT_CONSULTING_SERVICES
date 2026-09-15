@@ -35,16 +35,15 @@ jobs:
       - name: Verify Phase 17.5 source/runtime isolation contract
         run: node tests/phase17-admin-staging-isolation.mjs
 
-      - name: Validate staging Wrangler candidate
+      - name: Verify staging deployment policy is source controlled
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf /tmp/phase17-admin-staging-wrangler
-          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc --outdir /tmp/phase17-admin-staging-wrangler >/tmp/phase17-admin-staging-wrangler.log 2>&1
-          test -s /tmp/phase17-admin-staging-wrangler/worker.js
+          grep -q '"name": "rcitcs-admin-staging"' wrangler.admin-staging.jsonc
+          grep -q '"workers_dev": false' wrangler.admin-staging.jsonc
           grep -q '"RC_ADMIN_ENVIRONMENT": "staging"' wrangler.admin-staging.jsonc
           grep -q '"RC_ADMIN_STAGING_MODE": "unavailable"' wrangler.admin-staging.jsonc
-          echo 'Staging admin Wrangler candidate validated with explicit unavailable policy.'
+          echo 'Staging deployment policy is source controlled; bundle compilation is enforced by Wrangler Deployment Validation.'
 
       - name: Verify production admin remains healthy
         shell: bash
@@ -137,10 +136,10 @@ jobs:
           grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/admin-staging-post.headers
           ! grep -qi '^set-cookie:' /tmp/admin-staging-post.headers
           ! grep -qi '^location:' /tmp/admin-staging-post.headers
-
           echo 'Final-main staging GET/POST isolation verified.'
 
       - name: Phase 17.5 acceptance
         run: |
           echo 'Phase 17.5 staging isolation gate: PASS'
+          echo 'Wrangler Deployment Validation separately proves the staging Worker bundle compiles.'
           echo 'Staging is intentionally unavailable in candidate source until a separately isolated staging backend/data plane is approved.'
