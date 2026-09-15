@@ -38,10 +38,16 @@ const legacyConfig = JSON.parse(legacyRaw);
 
 assert.equal(publicConfig.name, 'rc-it-consulting-services');
 assert.deepEqual(publicConfig.secrets?.required, ['SUPABASE_SECRET_KEY']);
-assert.equal(publicConfig.routes?.length, 1, 'Public Worker must own only the public apex Custom Domain.');
-assert.equal(publicConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(publicConfig.routes?.[0]?.custom_domain, true);
-assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'Public Worker must never claim the admin hostname.');
+assert.deepEqual(
+  publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'Public Worker must own only the apex and www public Custom Domains.'
+);
+assert.equal(
+  publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
+  false,
+  'Public Worker must never claim an admin hostname as a Custom Domain.'
+);
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
@@ -50,7 +56,7 @@ assert.equal(Object.hasOwn(stagingConfig, 'secrets'), false, 'Company admin edge
 assert.deepEqual(
   stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [['admin.rcitcs.com', true], ['admin-staging.rcitcs.com', true]],
-  'The connected company admin Worker must provision both production and staging admin Custom Domains.'
+  'The connected company admin Worker must provision both production and staging admin Custom Domains until later Phase-17 ownership convergence.'
 );
 
 assert.equal(productionConfig.name, 'rcitcs-admin-production');
@@ -64,4 +70,4 @@ assert.equal(legacyConfig.keep_vars, true);
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Worker in the old Cloudflare account must not claim company production domains.');
 assert.equal(Object.hasOwn(legacyConfig, 'secrets'), false, 'Legacy Worker must not require company production secrets.');
 
-console.log('PASS: rcitcs.com stays on the public Worker, admin.rcitcs.com is provisioned by the connected admin Worker in the company Cloudflare account, and the old-account Worker owns no company routes.');
+console.log('PASS: rcitcs.com and www.rcitcs.com stay on the public Worker, admin Custom Domains remain isolated to the connected admin Worker pending later Phase-17 convergence, and the old-account Worker owns no company routes.');
