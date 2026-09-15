@@ -27,11 +27,11 @@ function headers(): Headers {
 }
 
 export type SecurityAuditEvent = {
-  id?: string;
+  event_ref?: string;
   created_at?: string;
   action?: string;
   entity_type?: string;
-  entity_id?: string | null;
+  entity_ref?: string | null;
   outcome?: "success" | "failure" | "denied" | string;
   actor_label?: string;
   request_ref?: string | null;
