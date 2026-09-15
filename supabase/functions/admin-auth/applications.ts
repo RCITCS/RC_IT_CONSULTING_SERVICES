@@ -1,4 +1,5 @@
 import { shaHex } from "./crypto.js";
+import { createCandidatePreviewProof, verifyCandidatePreviewProof } from "../_shared/candidate-preview-proof.js";
 import { adminHeader, authPage, esc, loginPage, prettyTime, privateHeaders, shell, type AdminSessionView } from "./ui.ts";
 import {
   CANDIDATE_MESSAGE_BODY_MAX,
@@ -307,6 +308,7 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
     const intent = String(form.get("intent") ?? "").trim().toLowerCase();
     const subject = String(form.get("subject") ?? "").trim();
     const body = String(form.get("body") ?? "").trim();
+    const previewProof = String(form.get("preview_proof") ?? "").trim().toLowerCase();
     const validMessage = UUID.test(requestId)
       && (intent === "preview" || intent === "send")
       && subject.length >= 1
@@ -330,12 +332,34 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
       });
     }
 
+    const previewFields = {
+      secret: API_KEY,
+      applicationId,
+      adminId,
+      requestId,
+      subject,
+      body,
+      csrf: String(authState.csrf || "")
+    };
+
     if (intent === "preview") {
+      const issuedPreviewProof = await createCandidatePreviewProof(previewFields);
       return detailPage(basePath, authState, context.selected, communication, url, {
         subject,
         body,
         requestId,
-        preview: true
+        preview: true,
+        previewProof: issuedPreviewProof
+      });
+    }
+
+    if (!(await verifyCandidatePreviewProof({ ...previewFields, proof: previewProof }))) {
+      return detailPage(basePath, authState, context.selected, communication, url, {
+        subject,
+        body,
+        requestId,
+        preview: false,
+        validationError: "Preview this exact message before sending. Any change to the subject or message requires a new preview."
       });
     }
 
