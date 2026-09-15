@@ -3,9 +3,11 @@ import { adminHeader, authPage, esc, loginPage, prettyTime, privateHeaders, shel
 import {
   CANDIDATE_MESSAGE_BODY_MAX,
   CANDIDATE_MESSAGE_SUBJECT_MAX,
+  CANDIDATE_STATUS_NOTES_MAX,
   candidateCommunicationCount,
   renderCandidateCommunicationHistory,
-  renderCandidateMessageComposer
+  renderCandidateMessageComposer,
+  renderCandidateStatusWorkflow
 } from "./candidate-communication.ts";
 
 const SUPABASE_URL = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
@@ -14,6 +16,19 @@ const CANDIDATE_BUCKET = "candidate-documents";
 const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OBJECT_PATH = /^applications\/([0-9a-f-]{36})\/documents\/([0-9a-f-]{36})\.(pdf|doc|docx)$/i;
+const CANDIDATE_STATUS_TARGETS = new Set([
+  "submitted",
+  "under_review",
+  "shortlisted",
+  "interview",
+  "assessment",
+  "offer",
+  "hired",
+  "rejected",
+  "withdrawn",
+  "archived",
+  "restore"
+]);
 
 let MODERN_SECRET_KEY = "";
 try {
@@ -127,18 +142,21 @@ function filterApplications(rows: any[], query: string, status: string): any[] {
   });
 }
 
-function messageNotice(url: URL): { message: string; error: boolean } {
+function operationNotice(url: URL): { message: string; error: boolean } {
   const notice = url.searchParams.get("notice");
   const error = url.searchParams.get("error");
   if (notice === "message_sent") return { message: "Candidate email was persisted and delivery was confirmed by the transactional email service.", error: false };
   if (notice === "message_queued") return { message: "Candidate email was persisted. No new immediate delivery confirmation was received; the recorded delivery state and transactional retry scheduler remain authoritative.", error: false };
+  if (notice === "status_updated") return { message: "Recruitment stage was updated and recorded. No candidate email was sent by the stage change.", error: false };
   if (error === "archived") return { message: "Restore the application before contacting this candidate.", error: true };
   if (error === "invalid_recipient") return { message: "The persisted candidate email address is not valid for outbound delivery.", error: true };
-  if (error === "validation") return { message: "The candidate message did not pass server-side validation.", error: true };
+  if (error === "validation") return { message: "The requested candidate operation did not pass server-side validation.", error: true };
+  if (error === "stale") return { message: "This application changed after it was loaded. Reload the record before updating the recruitment stage.", error: true };
+  if (error === "invalid_transition") return { message: "That recruitment-stage change is not permitted from the current stage.", error: true };
   if (error === "conflict") return { message: "This message request conflicts with an existing idempotent operation. Reload the application before retrying.", error: true };
   if (error === "forbidden") return { message: "Your administrator session is not authorized for this operation.", error: true };
   if (error === "not_found") return { message: "The candidate application no longer exists.", error: true };
-  if (error) return { message: "The candidate message could not be queued. No delivery success was recorded.", error: true };
+  if (error) return { message: "The candidate operation could not be completed. No unverified success was recorded.", error: true };
   return { message: "", error: false };
 }
 
@@ -147,6 +165,8 @@ function mutationErrorCode(code: unknown): string {
     ARCHIVED: "archived",
     INVALID_RECIPIENT: "invalid_recipient",
     VALIDATION: "validation",
+    STALE_VERSION: "stale",
+    INVALID_TRANSITION: "invalid_transition",
     IDEMPOTENCY_CONFLICT: "conflict",
     FORBIDDEN: "forbidden",
     NOT_FOUND: "not_found"
@@ -158,7 +178,7 @@ function listPage(basePath: string, session: AdminSessionView, context: any, que
   const applications = Array.isArray(context?.applications) ? context.applications : [];
   const visible = filterApplications(applications, query, status);
   const rows = visible.length ? visible.map((row) => `<tr><td><a class="link" href="${basePath}/applications/${esc(row.id)}">${esc(candidateName(row))}</a><div class="activity-type">${esc(row.email || "")}</div></td><td><strong>${esc(row.job_title || "Unknown role")}</strong><div class="activity-type">${esc(row.job_code || "")}</div></td><td>${badge(String(row.status || "submitted"))}</td><td>${esc(row.document_count ?? 0)}</td><td>${esc(row.public_reference || "")}</td><td style="text-align:right"><time datetime="${esc(row.submitted_at || "")}">${esc(prettyTime(String(row.submitted_at || "")))}</time></td></tr>`).join("") : `<tr><td colspan="6"><div class="empty">No applications match this view.</div></td></tr>`;
-  return shell("Applications", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate applications")}<main class="workspace" id="main-content" aria-labelledby="applications-title"><div class="page-heading"><div><div class="eyebrow">Candidate intake</div><h1 id="applications-title">Applications</h1><p>Review persisted candidate submissions, private recruitment documents and recorded communication.</p></div><div class="snapshot"><strong>${applications.length} persisted applications</strong>Maximum 200 newest records<br>Server-authoritative</div></div><section class="data-plane"><header class="section-header"><div><h2>Application register</h2><p>Every application remains tied to its immutable job snapshot and public reference.</p></div><a class="btn secondary" href="${basePath}/jobs">View jobs</a></header><div style="padding:14px 18px;border-bottom:1px solid var(--line)"><form method="get" action="${basePath}/applications" style="display:grid;grid-template-columns:minmax(220px,1fr) minmax(160px,.35fr) auto;gap:8px;align-items:end"><div><label for="application-search" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Search</label><input id="application-search" name="q" value="${esc(query)}" placeholder="Candidate, email, reference, job" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px"></div><div><label for="application-status" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Status</label><select id="application-status" name="status" style="width:100%;min-height:38px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"><option value="all">All</option>${["submitted","under_review","shortlisted","interview","assessment","offer","hired","rejected","withdrawn","archived"].map((item) => `<option value="${item}"${status === item ? " selected" : ""}>${esc(item.replaceAll("_", " "))}</option>`).join("")}</select></div><button class="btn secondary" type="submit">Filter</button></form></div><div class="activity-wrap"><table class="activity-table" style="min-width:980px;table-layout:auto"><thead><tr><th>Candidate</th><th>Job</th><th>Status</th><th>Docs</th><th>Reference</th><th style="text-align:right">Submitted</th></tr></thead><tbody>${rows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private candidate data</span><span>No-cache · No-index · Authenticated administration</span></div></main></div>`);
+  return shell("Applications", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate applications")}<main class="workspace" id="main-content" aria-labelledby="applications-title"><div class="page-heading"><div><div class="eyebrow">Candidate intake</div><h1 id="applications-title">Applications</h1><p>Review persisted candidate submissions, private recruitment documents, recruitment stages and recorded communication.</p></div><div class="snapshot"><strong>${applications.length} persisted applications</strong>Maximum 200 newest records<br>Server-authoritative</div></div><section class="data-plane"><header class="section-header"><div><h2>Application register</h2><p>Every application remains tied to its immutable job snapshot and public reference.</p></div><a class="btn secondary" href="${basePath}/jobs">View jobs</a></header><div style="padding:14px 18px;border-bottom:1px solid var(--line)"><form method="get" action="${basePath}/applications" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:8px;align-items:end"><div><label for="application-search" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Search</label><input id="application-search" name="q" value="${esc(query)}" placeholder="Candidate, email, reference, job" style="width:100%;min-height:40px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px"></div><div><label for="application-status" style="display:block;font-size:10px;font-weight:700;margin-bottom:5px">Status</label><select id="application-status" name="status" style="width:100%;min-height:40px;border:1px solid var(--line-strong);border-radius:3px;padding:8px 10px;background:#fff"><option value="all">All</option>${["submitted","under_review","shortlisted","interview","assessment","offer","hired","rejected","withdrawn","archived"].map((item) => `<option value="${item}"${status === item ? " selected" : ""}>${esc(item.replaceAll("_", " "))}</option>`).join("")}</select></div><button class="btn secondary" type="submit">Filter</button></form></div><div class="activity-wrap"><table class="activity-table" style="min-width:980px;table-layout:auto"><thead><tr><th>Candidate</th><th>Job</th><th>Status</th><th>Docs</th><th>Reference</th><th style="text-align:right">Submitted</th></tr></thead><tbody>${rows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private candidate data</span><span>No-cache · No-index · Authenticated administration</span></div></main></div>`);
 }
 
 function detailPage(basePath: string, session: AdminSessionView, selected: any, communication: any, url: URL, draft: any = {}): Response {
@@ -166,13 +186,16 @@ function detailPage(basePath: string, session: AdminSessionView, selected: any, 
   const documents = Array.isArray(selected.documents) ? selected.documents : [];
   const history = Array.isArray(selected.history) ? selected.history : [];
   const messages = Array.isArray(communication?.messages) ? communication.messages : [];
+  const authoritativeApplication = communication?.application && typeof communication.application === "object"
+    ? { ...selected, ...communication.application }
+    : selected;
   const messageCount = candidateCommunicationCount(messages);
-  const notice = messageNotice(url);
-  const noticeHtml = notice.message ? `<div class="msg ${notice.error ? "error" : "ok"}" role="status">${esc(notice.message)}</div>` : "";
+  const notice = operationNotice(url);
+  const noticeHtml = notice.message ? `<div class="msg ${notice.error ? "error" : "ok"}" role="status" aria-live="polite">${esc(notice.message)}</div>` : "";
   const documentRows = documents.length ? documents.map((doc: any) => `<tr><td><strong>${esc(doc.kind === "resume" ? "Resume / CV" : "Cover letter")}</strong></td><td>${esc(doc.original_filename || "document")}</td><td>${esc(doc.mime_type || "")}</td><td>${esc(formatBytes(doc.size_bytes))}</td><td><a class="btn secondary" style="min-height:32px;padding:6px 9px;font-size:10px" href="${basePath}/applications/${esc(selected.id)}/documents/${esc(doc.id)}">Download securely</a></td></tr>`).join("") : `<tr><td colspan="5"><div class="empty">No private documents are recorded for this application.</div></td></tr>`;
   const historyRows = history.length ? history.map((item: any) => `<tr><td>${esc(String(item.event_type || "event").replaceAll("_", " "))}</td><td>${esc(item.from_status || "—")}</td><td>${esc(item.to_status || "—")}</td><td>${esc(prettyTime(String(item.created_at || "")))}</td></tr>`).join("") : `<tr><td colspan="4"><div class="empty">No application history is recorded.</div></td></tr>`;
   const link = (value: unknown, label: string) => String(value || "").startsWith("https://") ? `<a class="link" href="${esc(value)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : "—";
-  return shell("Application detail", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate application detail")}<main class="workspace" id="main-content"><div class="page-heading"><div><div class="eyebrow">${esc(selected.public_reference || "Application")}</div><h1>${esc(candidateName(selected))}</h1><p>${esc(selected.job_title || "Unknown role")} · ${esc(selected.job_code || "")}</p></div><div class="snapshot"><strong>${badge(String(selected.status || "submitted"))}</strong>Submitted ${esc(prettyTime(String(selected.submitted_at || "")))}</div></div>${noticeHtml}<div class="operations-frame"><section class="data-plane"><header class="section-header"><div><h2>Candidate &amp; job record</h2><p>Persisted identity, job snapshot and recruitment consent.</p></div><a class="btn secondary" href="${basePath}/applications">Back to register</a></header><div style="padding:18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 24px"><div class="identity-row"><span>Email</span><strong>${esc(selected.email || "")}</strong></div><div class="identity-row"><span>Phone</span><strong>${esc(selected.phone || "—")}</strong></div><div class="identity-row"><span>Location</span><strong>${esc(selected.location || "—")}</strong></div><div class="identity-row"><span>Job</span><strong>${esc(selected.job_title || "")}</strong></div><div class="identity-row"><span>Job code</span><strong>${esc(selected.job_code || "")}</strong></div><div class="identity-row"><span>Reference</span><strong>${esc(selected.public_reference || "")}</strong></div><div class="identity-row"><span>LinkedIn</span><strong>${link(selected.linkedin_url, "Open profile")}</strong></div><div class="identity-row"><span>Portfolio</span><strong>${link(selected.portfolio_url, "Open website")}</strong></div><div class="identity-row"><span>Consent</span><strong>${selected.consent === true ? "Recorded" : "Missing"}</strong></div><div class="identity-row"><span>Consent time</span><strong>${esc(prettyTime(String(selected.consent_at || "")))}</strong></div></div>${selected.cover_letter_text ? `<div style="padding:0 18px 18px"><h2 style="font-size:13px;color:var(--ink)">Cover-letter message</h2><div style="white-space:pre-wrap;border-left:3px solid var(--accent);padding:12px 14px;background:var(--surface-subtle);font-size:12px;line-height:1.6">${esc(selected.cover_letter_text)}</div></div>` : ""}</section><aside class="side-plane"><section class="side-section"><div class="side-title"><h2>Communication</h2><span>${esc(messageCount)} recorded</span></div><p class="muted">Outbound email is previewed before confirmation, then persisted and queued server-side before any provider dispatch is attempted.</p></section></aside></div><section class="data-plane" aria-labelledby="candidate-message-compose-title" style="margin-top:14px"><header class="section-header"><div><h2 id="candidate-message-compose-title">Compose candidate email</h2><p>The recipient comes from the persisted application record. Sender, reply-to and provider are server-controlled.</p></div><span class="section-meta">Preview required</span></header><div style="padding:18px">${renderCandidateMessageComposer(basePath, String(session.csrf || ""), selected, draft)}</div></section><section class="activity-plane" aria-labelledby="candidate-communication-title"><header class="section-header"><div><h2 id="candidate-communication-title">Candidate communication</h2><p>Bounded history of persisted recruitment email. Delivery state is correlated with the transactional email queue; raw provider errors are not exposed here.</p></div><span class="section-meta">Latest ${esc(messageCount)} of 100 maximum</span></header><div style="padding:0 18px">${renderCandidateCommunicationHistory(messages)}</div></section><section class="activity-plane"><header class="section-header"><div><h2>Private documents</h2><p>Downloads are streamed through this authenticated administration route; object paths and service credentials are never rendered to the browser.</p></div><span class="section-meta">${documents.length} documents</span></header><div class="activity-wrap"><table class="activity-table" style="min-width:800px;table-layout:auto"><thead><tr><th>Type</th><th>File</th><th>MIME</th><th>Size</th><th>Action</th></tr></thead><tbody>${documentRows}</tbody></table></div></section><section class="activity-plane"><header class="section-header"><div><h2>Application history</h2><p>Persisted recruitment events for this submission.</p></div></header><div class="activity-wrap"><table class="activity-table"><thead><tr><th>Event</th><th>From</th><th>To</th><th>Time</th></tr></thead><tbody>${historyRows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private application record</span><span>No-cache · Authenticated retrieval only</span></div></main></div>`);
+  return shell("Application detail", `<div class="admin-shell">${adminHeader(basePath, session, "applications")}${workspaceBar("Candidate application detail")}<main class="workspace" id="main-content" aria-labelledby="candidate-detail-title"><div class="page-heading"><div><div class="eyebrow">${esc(authoritativeApplication.public_reference || "Application")}</div><h1 id="candidate-detail-title">${esc(candidateName(authoritativeApplication))}</h1><p>${esc(authoritativeApplication.job_title || "Unknown role")} · ${esc(authoritativeApplication.job_code || "")}</p></div><div class="snapshot"><strong>${badge(String(authoritativeApplication.status || "submitted"))}</strong>Submitted ${esc(prettyTime(String(authoritativeApplication.submitted_at || "")))}</div></div>${noticeHtml}<div class="operations-frame"><section class="data-plane"><header class="section-header"><div><h2>Candidate &amp; job record</h2><p>Persisted identity, job snapshot and recruitment consent.</p></div><a class="btn secondary" href="${basePath}/applications">Back to register</a></header><div style="padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:12px 24px"><div class="identity-row"><span>Email</span><strong style="overflow-wrap:anywhere">${esc(selected.email || "")}</strong></div><div class="identity-row"><span>Phone</span><strong>${esc(selected.phone || "—")}</strong></div><div class="identity-row"><span>Location</span><strong>${esc(selected.location || "—")}</strong></div><div class="identity-row"><span>Job</span><strong>${esc(selected.job_title || "")}</strong></div><div class="identity-row"><span>Job code</span><strong>${esc(selected.job_code || "")}</strong></div><div class="identity-row"><span>Reference</span><strong>${esc(selected.public_reference || "")}</strong></div><div class="identity-row"><span>LinkedIn</span><strong>${link(selected.linkedin_url, "Open profile")}</strong></div><div class="identity-row"><span>Portfolio</span><strong>${link(selected.portfolio_url, "Open website")}</strong></div><div class="identity-row"><span>Consent</span><strong>${selected.consent === true ? "Recorded" : "Missing"}</strong></div><div class="identity-row"><span>Consent time</span><strong>${esc(prettyTime(String(selected.consent_at || "")))}</strong></div></div>${selected.cover_letter_text ? `<div style="padding:0 18px 18px"><h2 style="font-size:13px;color:var(--ink)">Cover-letter message</h2><div style="white-space:pre-wrap;overflow-wrap:anywhere;border-left:3px solid var(--accent);padding:12px 14px;background:var(--surface-subtle);font-size:12px;line-height:1.6">${esc(selected.cover_letter_text)}</div></div>` : ""}</section><aside class="side-plane"><section class="side-section"><div class="side-title"><h2>Communication</h2><span>${esc(messageCount)} recorded</span></div><p class="muted">Outbound email is previewed before confirmation, then persisted and queued server-side before any provider dispatch is attempted.</p></section><section class="side-section"><div class="side-title"><h2>Workflow authority</h2><span>Version ${esc(authoritativeApplication.version || "—")}</span></div><p class="muted">Recruitment-stage changes are explicit, version-locked and historied. They never send candidate email automatically.</p></section></aside></div><section class="data-plane" aria-labelledby="candidate-stage-title" style="margin-top:14px"><header class="section-header"><div><h2 id="candidate-stage-title">Recruitment stage</h2><p>Move this application only through permitted workflow transitions. Stage changes and candidate emails are separate actions.</p></div><span class="section-meta">Explicit action</span></header><div style="padding:18px">${renderCandidateStatusWorkflow(basePath, String(session.csrf || ""), authoritativeApplication)}</div></section><section class="data-plane" aria-labelledby="candidate-message-compose-title" style="margin-top:14px"><header class="section-header"><div><h2 id="candidate-message-compose-title">Compose candidate email</h2><p>The recipient comes from the persisted application record. Sender, reply-to and provider are server-controlled.</p></div><span class="section-meta">Preview required</span></header><div style="padding:18px">${renderCandidateMessageComposer(basePath, String(session.csrf || ""), authoritativeApplication, draft)}</div></section><section class="activity-plane" aria-labelledby="candidate-communication-title"><header class="section-header"><div><h2 id="candidate-communication-title">Candidate communication</h2><p>Bounded history of persisted recruitment email. Delivery state is correlated with the transactional email queue; raw provider errors are not exposed here.</p></div><span class="section-meta">Latest ${esc(messageCount)} of 100 maximum</span></header><div style="padding:0 18px">${renderCandidateCommunicationHistory(messages)}</div></section><section class="activity-plane" aria-labelledby="candidate-documents-title"><header class="section-header"><div><h2 id="candidate-documents-title">Private documents</h2><p>Downloads are streamed through this authenticated administration route; object paths and service credentials are never rendered to the browser.</p></div><span class="section-meta">${documents.length} documents</span></header><div class="activity-wrap" tabindex="0" aria-label="Candidate private documents table"><table class="activity-table" style="min-width:800px;table-layout:auto"><thead><tr><th>Type</th><th>File</th><th>MIME</th><th>Size</th><th>Action</th></tr></thead><tbody>${documentRows}</tbody></table></div></section><section class="activity-plane" aria-labelledby="application-history-title"><header class="section-header"><div><h2 id="application-history-title">Application history</h2><p>Persisted recruitment events for this submission.</p></div></header><div class="activity-wrap" tabindex="0" aria-label="Application history table"><table class="activity-table"><thead><tr><th>Event</th><th>From</th><th>To</th><th>Time</th></tr></thead><tbody>${historyRows}</tbody></table></div></section><div class="footerline"><span>RC IT Services · Private application record</span><span>No-cache · Authenticated retrieval only</span></div></main></div>`);
 }
 
 function safeFilename(value: unknown): string {
@@ -240,16 +263,44 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
   if (!UUID.test(adminId)) throw new Error("invalid admin authority");
 
   const messageMatch = /^\/applications\/([0-9a-f-]{36})\/message$/i.exec(path);
+  const statusMatch = /^\/applications\/([0-9a-f-]{36})\/status$/i.exec(path);
+
   if (request.method === "POST") {
-    if (!messageMatch || !UUID.test(messageMatch[1])) {
+    const mutationMatch = messageMatch || statusMatch;
+    if (!mutationMatch || !UUID.test(mutationMatch[1])) {
       const headers = new Headers({ allow: "GET" });
       return authPage("Method not allowed", "<h1>Method not allowed</h1><p>This application route does not support mutations.</p>", 405, headers);
     }
 
-    const applicationId = messageMatch[1].toLowerCase();
+    const applicationId = mutationMatch[1].toLowerCase();
     const form = await request.formData();
     if (!(await csrfOk(authState, String(form.get("csrf") ?? "")))) {
       return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the candidate application and try again.</p>", 403);
+    }
+
+    if (statusMatch) {
+      const expectedVersion = Number(form.get("expected_version") ?? 0);
+      const targetStatus = String(form.get("target_status") ?? "").trim().toLowerCase();
+      const notes = String(form.get("notes") ?? "").trim();
+      if (!Number.isSafeInteger(expectedVersion)
+        || expectedVersion < 1
+        || !CANDIDATE_STATUS_TARGETS.has(targetStatus)
+        || notes.length > CANDIDATE_STATUS_NOTES_MAX) {
+        return redirect(`${basePath}/applications/${applicationId}?error=validation`);
+      }
+      const result = await rpc("admin_transition_candidate_application", {
+        p_admin_id: adminId,
+        p_application_id: applicationId,
+        p_expected_version: expectedVersion,
+        p_target_status: targetStatus,
+        p_notes: notes || null,
+        p_ip_hash: String(clientHash || "").slice(0, 128),
+        p_user_agent: String(userAgent || "").slice(0, 500)
+      });
+      if (!result || result.ok !== true) {
+        return redirect(`${basePath}/applications/${applicationId}?error=${mutationErrorCode(result?.code)}`);
+      }
+      return redirect(`${basePath}/applications/${applicationId}?notice=status_updated`);
     }
 
     const requestId = String(form.get("request_id") ?? "").trim().toLowerCase();
@@ -311,9 +362,9 @@ export async function handleApplicationRoute({ request, url, path, basePath, aut
     return authPage("Method not allowed", "<h1>Method not allowed</h1><p>This application route supports only protected GET or POST operations.</p>", 405, headers);
   }
 
-  if (messageMatch) {
+  if (messageMatch || statusMatch) {
     const headers = new Headers({ allow: "POST" });
-    return authPage("Method not allowed", "<h1>Method not allowed</h1><p>Candidate message submission requires a protected POST request.</p>", 405, headers);
+    return authPage("Method not allowed", "<h1>Method not allowed</h1><p>Candidate mutations require a protected POST request.</p>", 405, headers);
   }
 
   if (path === "/applications") {
