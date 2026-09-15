@@ -5,6 +5,9 @@
   "compatibility_date": "2026-09-08",
   "workers_dev": false,
   "keep_vars": true,
+  "vars": {
+    "RC_ADMIN_BUILD_SURFACE": "phase16-security-closure-v1"
+  },
   "routes": [
     {
       "pattern": "admin.rcitcs.com",
