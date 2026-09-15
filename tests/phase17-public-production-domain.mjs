@@ -39,7 +39,8 @@ assert.match(runtimeWorker, /return new Response\(null, \{ status: 308, headers 
 assert.match(baseline, /client Cloudflare account/i);
 assert.match(baseline, /3fdd024f6fbc25c03ed4481352576540/);
 assert.match(baseline, /20d349f3f75ab611adb3f987188636e7/);
-assert.match(baseline, /out of scope/i);
+assert.match(baseline, /not approved for RC IT work/i);
+assert.match(baseline, /does not manage the `rcitcs\.com` zone/i);
 
 console.log('Phase 17.2 public production domain source contract: PASS');
 console.log('AUTHORITATIVE APEX: rcitcs.com -> rc-it-consulting-services custom domain.');
