@@ -27,7 +27,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -45,8 +45,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf /tmp/phase17-www-wrangler
-          npx wrangler deploy --dry-run --config wrangler.jsonc --outdir /tmp/phase17-www-wrangler >/tmp/phase17-www-wrangler.log 2>&1
-          test -s /tmp/phase17-www-wrangler/worker.js
+          npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.jsonc --outdir /tmp/phase17-www-wrangler
+          test -n "$(find /tmp/phase17-www-wrangler -maxdepth 2 -type f -print -quit)"
           grep -q 'rc-it-consulting-services' wrangler.jsonc
           grep -q '"pattern": "rcitcs.com"' wrangler.jsonc
           grep -q '"pattern": "www.rcitcs.com"' wrangler.jsonc
