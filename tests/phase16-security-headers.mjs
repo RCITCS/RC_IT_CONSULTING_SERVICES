@@ -8,7 +8,7 @@ const worker = fs.readFileSync(new URL("../src/backend/runtime/worker.js", impor
 
 for (const fragment of [
   '"cache-control": "no-store, max-age=0, must-revalidate"',
-  '"x-robots-tag": "noindex, nofollow,noarchive, nosnippet, noimageindex"'.replace('nofollow,noarchive', 'nofollow,noarchive'),
+  '"x-robots-tag": "noindex, nofollow, noarchive, nosnippet, noimageindex"',
   '"x-content-type-options": "nosniff"',
   '"x-frame-options": "DENY"',
   '"referrer-policy": "no-referrer"',
