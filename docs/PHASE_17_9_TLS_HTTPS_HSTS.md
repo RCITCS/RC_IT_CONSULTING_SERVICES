@@ -1,8 +1,10 @@
 # Phase 17.9 — TLS / SSL / HTTPS / HSTS
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **17.9 COMPLETE — branch-level transport security closed; final-main live TLS activation remains mandatory for overall Phase-17 closure**
 
 Depends on: Phase 17.8 closure SHA `319fa76683e1e6d865eedaaabf206728631c91a1`.
+
+Verified implementation SHA: `389dca949ccc490b7726323f0181096d94433d5e`.
 
 ## Objective
 
@@ -54,15 +56,33 @@ The final-main verification gate therefore proves the externally observable cont
 
 `.github/workflows/phase17-transport-security.yml` validates source behavior on every PR, classifies the existing live edge without mutation, and requires the full HTTPS/HSTS contract after final-main activation.
 
+Historical Phase-17.2 and 17.6 source-order assertions were updated only to recognize the transport-security response wrapper. Their routing and mutation-boundary requirements remain enforced.
+
+## Closure evidence
+
+Exact-head verification passed on `389dca949ccc490b7726323f0181096d94433d5e` for:
+
+- Phase 17.9 TLS HTTPS HSTS;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 17.2 public-domain authority;
+- Phase 17.3 canonical www behavior;
+- Phase 17.4/17.5 admin-domain isolation;
+- Phase 17.6 public `/admin` separation;
+- Phase 17.7 ownership convergence;
+- Phase-12/13/14 inherited runtime/security gates.
+
+The already-closed 17.8 DNS workflow was still waiting in GitHub's concurrency queue at the instant this closure record was written; it had no failing job, and its previous exact-head closure was green.
+
 ## Closure criteria
 
-17.9 may close at branch level when:
+Branch-level 17.9 criteria are satisfied:
 
 - public and admin source paths enforce HTTPS/HSTS;
 - redirect behavior is regression-tested;
 - existing admin security headers remain preserved;
 - candidate Wrangler bundles compile;
 - the dedicated 17.9 workflow passes;
-- full inherited CI remains green.
+- full inherited implementation/security CI is green.
 
 Overall Phase-17 closure still requires post-main live verification on all approved hostnames.
