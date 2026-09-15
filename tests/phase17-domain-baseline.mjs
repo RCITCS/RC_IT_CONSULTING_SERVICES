@@ -16,11 +16,12 @@ const runtimeWorker = read('src/backend/runtime/worker.js');
 const domainSmoke = read('.github/workflows/admin-portal-domain-smoke.yml');
 const auditDoc = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 
-// Public production declaration.
+// Public production declaration. Later Phase-17 modules may intentionally add
+// additional public aliases; 17.1 permanently locks the apex owner, not the
+// absence of every future alias from the working configuration.
 assert.match(publicConfig, /"name"\s*:\s*"rc-it-consulting-services"/);
 assert.match(publicConfig, /"workers_dev"\s*:\s*true/);
 assert.match(publicConfig, /"pattern"\s*:\s*"rcitcs\.com"/);
-assert.doesNotMatch(publicConfig, /www\.rcitcs\.com/);
 
 // Intended canonical production-admin declaration.
 assert.match(adminProductionConfig, /"name"\s*:\s*"rcitcs-admin-production"/);
@@ -65,6 +66,7 @@ assert.match(auditDoc, /exactly two active Worker applications/i);
 assert.match(auditDoc, /`admin\.rcitcs\.com\/\*` \| Route/);
 assert.match(auditDoc, /`admin\.rcitcs\.com` \| Production Custom Domain/);
 assert.match(auditDoc, /`www\.rcitcs\.com` as a Production Custom Domain/);
+assert.match(auditDoc, /no public A, AAAA, or CNAME answer for `www\.rcitcs\.com`/i);
 assert.match(auditDoc, /Cloudflare displays a configuration-drift warning/);
 assert.match(auditDoc, /Workers Builds: rcitcservices/);
 assert.match(auditDoc, /20d349f3f75ab611adb3f987188636e7/);
@@ -77,7 +79,6 @@ assert.match(auditDoc, /do not deploy RC IT to account `20d349f3f75ab611adb3f987
 assert.match(auditDoc, /No production behavior was changed during this audit/);
 assert.match(auditDoc, /Module 17\.1 is COMPLETE/);
 
-console.log('Phase 17.1 source/domain baseline and control-plane evidence ledger: PASS');
-console.log('CLIENT ACCOUNT: rcitcs.com ownership inventory complete; admin overlap and broken www state recorded without mutation.');
-console.log('CROSS-ACCOUNT: personal account 20d349f3f75ab611adb3f987188636e7 is outside the rcitcs.com ownership boundary and prohibited as an RC IT deployment target.');
-console.log('NEXT GATE: do not begin 17.2 until this exact branch head passes CI.');
+console.log('Phase 17.1 historical control-plane baseline ledger: PASS');
+console.log('CLIENT ACCOUNT: rcitcs.com ownership inventory remains locked; later Phase-17 alias convergence may evolve working source config without rewriting baseline history.');
+console.log('CROSS-ACCOUNT: personal account 20d349f3f75ab611adb3f987188636e7 remains outside the rcitcs.com ownership boundary and prohibited as an RC IT deployment target.');
