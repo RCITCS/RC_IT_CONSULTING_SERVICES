@@ -1,6 +1,6 @@
 # Phase 17.5 — Admin Staging Domain Isolation (`admin-staging.rcitcs.com`)
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **COMPLETE — branch-level staging isolation accepted; final-main live 503 activation remains mandatory**
 
 Depends on: Phase 17.4 closure.
 
@@ -91,11 +91,37 @@ No Custom Domain, Route, DNS object, Worker application, secret, or production d
 
 During the unmerged Phase-17 pull request, the live staging hostname can still expose the Phase-16 baseline because the candidate branch is intentionally not deployed merely to make a live test pass.
 
-`.github/workflows/phase17-admin-staging-isolation.yml` therefore distinguishes:
+`.github/workflows/phase17-admin-staging-isolation.yml` distinguishes:
 
 - **candidate behavior:** staging is already `503` and isolated in source/runtime tests;
 - **pre-merge production behavior:** current live staging is classified without mutation and production admin must remain healthy;
 - **final-main behavior:** live `admin-staging.rcitcs.com` must become the hardened intentional `503` surface, otherwise final Phase-17 closure is prohibited.
+
+Wrangler bundle compilation remains owned by the repository-wide `Wrangler Deployment Validation` workflow rather than duplicating a second Wrangler-output convention inside 17.5.
+
+## Acceptance evidence
+
+Implementation head `b8e174e1efffc8f96ff6499177cf88a159c0844d` passed the complete exact-head suite, including:
+
+- Phase 17.5 Admin Staging Isolation;
+- Phase 17.4 Production Admin Domain;
+- Phase 17.3 WWW Canonical Redirect;
+- Phase 17.2 Public Production Domain;
+- Phase 17 Domain Baseline;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 12 Runtime Smoke;
+- Phase 13 Email Runtime Smoke;
+- Phase 13 Secret Availability;
+- Phase 14 Contact Inbox Runtime Smoke.
+
+The dedicated 17.5 gate proved:
+
+- candidate GET/HEAD/POST staging responses are `503` and hardened;
+- no staging request creates a session cookie or redirects into production;
+- staging mutation traffic is intercepted before authentication/runtime processing;
+- the production admin hostname remains live and healthy;
+- current pre-merge staging behavior is classified truthfully rather than represented as already activated.
 
 ## Explicit deferrals
 
@@ -108,15 +134,17 @@ During the unmerged Phase-17 pull request, the live staging hostname can still e
 - direct backend/origin exposure hardening — 17.10;
 - email DNS work — 17.11.
 
-## Closure criteria
+## 17.5 closure decision
 
-17.5 may close at branch level only when:
+Module 17.5 is closed at branch level because:
 
 - candidate staging-unavailable behavior is fully regression-tested;
-- the production hostname is proven unaffected by the host-specific policy;
-- the live baseline is recorded without pretending that current staging is already isolated;
-- inherited CI/security/build gates remain green;
-- the final-main workflow contains a mandatory live `503` activation gate;
-- no ownership cutover is pulled forward from 17.7.
+- production is unaffected by the host-specific staging policy;
+- live pre-merge staging state is recorded without false success;
+- inherited CI/security/build gates are green;
+- final-main workflow contains a mandatory live `503` activation gate;
+- no ownership cutover was pulled forward from 17.7.
 
 Final Phase-17 closure remains prohibited until the live post-merge staging-unavailable gate passes.
+
+**Module 17.5 is COMPLETE at branch level. Module 17.6 may begin only after this closure commit itself passes exact-head CI.**
