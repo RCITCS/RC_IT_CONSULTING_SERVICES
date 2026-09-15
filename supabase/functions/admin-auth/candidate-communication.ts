@@ -20,6 +20,7 @@ const SAFE_DELIVERY_STATES = new Set([
   "received",
   "draft"
 ]);
+const PREVIEW_PROOF = /^[0-9a-f]{64}$/i;
 
 const STATUS_TRANSITIONS: Record<string, readonly string[]> = Object.freeze({
   submitted: Object.freeze(["under_review", "rejected", "withdrawn", "archived"]),
@@ -99,6 +100,7 @@ type CandidateMessageDraft = {
   body?: string;
   requestId?: string;
   preview?: boolean;
+  previewProof?: string;
   validationError?: string;
 };
 
@@ -131,7 +133,8 @@ export function renderCandidateMessageComposer(
   const subject = String(draft.subject ?? "");
   const body = String(draft.body ?? "");
   const requestId = String(draft.requestId ?? crypto.randomUUID());
-  const preview = draft.preview === true;
+  const previewProof = String(draft.previewProof ?? "").trim().toLowerCase();
+  const preview = draft.preview === true && PREVIEW_PROOF.test(previewProof);
   const error = String(draft.validationError ?? "").trim();
 
   const composeForm = `${templatePicker(basePath, csrf, application)}<form method="post" action="${basePath}/applications/${esc(applicationId)}/message" style="display:grid;gap:12px" aria-describedby="candidate-message-help">
@@ -160,6 +163,7 @@ export function renderCandidateMessageComposer(
       <input type="hidden" name="csrf" value="${esc(csrf)}">
       <input type="hidden" name="request_id" value="${esc(requestId)}">
       <input type="hidden" name="intent" value="send">
+      <input type="hidden" name="preview_proof" value="${esc(previewProof)}">
       <input type="hidden" name="subject" value="${esc(subject)}">
       <textarea name="body" hidden>${esc(body)}</textarea>
       <div class="actions" style="margin:0"><button class="btn primary" type="submit">Send candidate email</button><a class="btn secondary" href="${basePath}/applications/${esc(applicationId)}">Cancel</a></div>
