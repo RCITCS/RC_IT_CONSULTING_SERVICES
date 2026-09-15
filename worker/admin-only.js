@@ -46,14 +46,16 @@ function copyResponseHeaders(source) {
   return headers;
 }
 
-function setBuildMarkers(headers) {
+function setBuildMarkers(headers, env = {}) {
   headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
   headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);
+  const environment = String(env?.RC_ADMIN_ENVIRONMENT || '').trim().toLowerCase();
+  if (environment) headers.set('x-rc-admin-environment', environment);
 }
 
-function markAdminBuildSurface(response) {
+function markAdminBuildSurface(response, env = {}) {
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -200,14 +202,14 @@ function textualCandidate(contentType = '') {
   return normalized === '' || normalized.startsWith('text/') || normalized.includes('application/xhtml+xml');
 }
 
-function enhancedHtmlResponse(response, body) {
+function enhancedHtmlResponse(response, body, env = {}) {
   const rewritten = rewriteAdminEdgeReference(body);
   const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(rewritten));
   const headers = copyResponseHeaders(response.headers);
   headers.set('content-type', 'text/html; charset=utf-8');
   headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
   headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(enhanced, {
     status: response.status,
     statusText: response.statusText,
@@ -215,27 +217,27 @@ function enhancedHtmlResponse(response, body) {
   });
 }
 
-export async function enhanceAdminResponse(response, requestMethod) {
+export async function enhanceAdminResponse(response, requestMethod, env = {}) {
   if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status)) {
-    return markAdminBuildSurface(response);
+    return markAdminBuildSurface(response, env);
   }
 
   const contentType = response.headers.get('content-type') || '';
   const declaredHtml = contentType.toLowerCase().includes('text/html');
   if (declaredHtml) {
-    return enhancedHtmlResponse(response, await response.text());
+    return enhancedHtmlResponse(response, await response.text(), env);
   }
 
   // Some upstream/edge combinations can strip or downgrade the media type while
   // leaving an HTML document body intact. Only sniff responses that are already
   // textual (or have no media type); binary/private documents remain streamed.
-  if (!textualCandidate(contentType)) return markAdminBuildSurface(response);
+  if (!textualCandidate(contentType)) return markAdminBuildSurface(response, env);
 
   const body = await response.text();
-  if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body);
+  if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body, env);
 
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
@@ -299,6 +301,6 @@ export default {
     }
     request = await normalizeAdminBrowserPost(request);
     const response = await runtime.fetch(request, env, ctx);
-    return enhanceAdminResponse(response, request.method);
+    return enhanceAdminResponse(response, request.method, env);
   }
 };
