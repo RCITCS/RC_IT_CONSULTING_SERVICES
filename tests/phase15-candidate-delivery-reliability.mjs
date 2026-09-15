@@ -55,10 +55,13 @@ assert.match(deliverySource, /retryAtForEmailFailure/);
 assert.match(deliverySource, /markFailed/);
 assert.match(deliverySource, /markSent/);
 
+// Error identity matters because both the delivery adapter and retry policy use instanceof.
+// Import the provider from its canonical URL, matching their relative import exactly.
+const canonicalProviderUrl = pathToFileURL(providerPath).href;
 const [{ buildCandidateReplyEnvelope, dispatchCandidateReplyEmail }, retry, providerModule] = await Promise.all([
   import(`${pathToFileURL(deliveryPath).href}?phase155delivery=${Date.now()}`),
   import(`${pathToFileURL(retryPath).href}?phase155retry=${Date.now()}`),
-  import(`${pathToFileURL(providerPath).href}?phase155provider=${Date.now()}`)
+  import(canonicalProviderUrl)
 ]);
 const { EmailProviderError, createResendEmailProvider } = providerModule;
 
