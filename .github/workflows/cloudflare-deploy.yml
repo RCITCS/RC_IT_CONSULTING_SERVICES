@@ -167,10 +167,13 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
+          CANONICAL='https://rcitcs.com'
 
           curl -sS "${BASE}/about-us" -o /tmp/about.html
-          grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
+          grep -q "rel=\"canonical\" href=\"${CANONICAL}/about-us\"" /tmp/about.html
+          ! grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
           grep -q 'property="og:title"' /tmp/about.html
+          grep -q "property=\"og:url\" content=\"${CANONICAL}/about-us\"" /tmp/about.html
           grep -q 'application/ld+json' /tmp/about.html
 
           curl -sS "${BASE}/services/it/cyber-security" -o /tmp/service.html
@@ -178,7 +181,8 @@ jobs:
           grep -q 'BreadcrumbList' /tmp/service.html
 
           curl -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
-          grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
+          grep -q "rel=\"canonical\" href=\"${CANONICAL}/careers/jobs/senior-data-engineer\"" /tmp/job.html
+          ! grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
           grep -q 'name="robots" content="index,follow"' /tmp/job.html
           grep -q 'Apply for this role' /tmp/job.html
           grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
@@ -212,8 +216,9 @@ jobs:
 
           curl -sS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
           grep -q '<urlset' /tmp/sitemap.xml
-          grep -q "${BASE}/services/it/cyber-security" /tmp/sitemap.xml
-          ! grep -q "${BASE}/login" /tmp/sitemap.xml
+          grep -q "${CANONICAL}/services/it/cyber-security" /tmp/sitemap.xml
+          ! grep -q "${BASE}/services/it/cyber-security" /tmp/sitemap.xml
+          ! grep -q "${CANONICAL}/login" /tmp/sitemap.xml
           ! grep -q '/apply</loc>' /tmp/sitemap.xml
 
           curl -sS "${BASE}/robots.txt" -o /tmp/robots.txt
@@ -221,7 +226,8 @@ jobs:
           ! grep -q 'Disallow: /careers/jobs/' /tmp/robots.txt
           grep -q 'Disallow: /api/' /tmp/robots.txt
           grep -q 'Disallow: /admin/' /tmp/robots.txt
-          grep -q "Sitemap: ${BASE}/sitemap.xml" /tmp/robots.txt
+          grep -q "Sitemap: ${CANONICAL}/sitemap.xml" /tmp/robots.txt
+          ! grep -q "Sitemap: ${BASE}/sitemap.xml" /tmp/robots.txt
 
           unknown_code=$(curl -sS -o /tmp/not-found.html -w '%{http_code}' "${BASE}/definitely-not-a-real-rc-route")
           test "$unknown_code" = '404'
@@ -233,7 +239,7 @@ jobs:
           curl -sSI "${BASE}/careers/job-opportunities" -o /tmp/careers-alias.headers
           grep -qi '^location:.*\/careers' /tmp/careers-alias.headers
 
-          echo 'Phase 12 production Careers, JobPosting, protected application boundary, sitemap, robots, redirects and 404 behaviour verified.'
+          echo 'Phase 12 production Careers, JobPosting, protected application boundary, apex canonical identity, sitemap, robots, redirects and 404 behaviour verified.'
 
       - name: Verify production cache policy and split assets
         shell: bash
@@ -378,6 +384,6 @@ jobs:
       - name: Deployment ownership
         run: |
           echo 'CI and live-route verification passed.'
-          echo 'Cloudflare Workers Builds is the primary CD path from main and owns the visual Phase 12 Careers/application/admin delivery plus scheduled expired-upload cleanup.'
+          echo 'Cloudflare Workers Builds is the primary CD path from main; rcitcs.com is the canonical public identity and workers.dev is a compatibility delivery endpoint pending Phase 17.10 exposure hardening.'
           echo 'Supabase candidate-applications and admin-auth remain the private Phase 12 recruitment backend runtimes.'
           echo 'Vercel is retained as a secondary live fallback.'
