@@ -112,7 +112,7 @@ jobs:
           test "$rejected_code" = '403'
           grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-          echo 'Production admin routes remain private, dedicated-edge owned and host-local.'
+          echo 'Production admin routes remain private and host-local; dedicated-edge ownership verified.'
 
       - name: Diagnose public apex separation when provisioned
         shell: bash
