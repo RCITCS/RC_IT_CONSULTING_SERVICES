@@ -4,6 +4,7 @@ export const EMAIL_TEMPLATE_KEYS = Object.freeze({
   CONTACT_ADMIN_REPLY: 'contact_admin_reply',
   APPLICATION_ACKNOWLEDGEMENT: 'application_acknowledgement',
   INTERNAL_APPLICATION_ALERT: 'internal_application_alert',
+  CANDIDATE_ADMIN_REPLY: 'candidate_admin_reply',
   ADMIN_PASSWORD_RESET: 'admin_password_reset',
   ADMIN_PASSWORD_CHANGED: 'admin_password_changed'
 });
@@ -13,9 +14,9 @@ export const EMAIL_IDENTITIES = Object.freeze({
     address: 'contact@rcitcs.com',
     from: 'RC IT Services <contact@rcitcs.com>'
   }),
-  career: Object.freeze({
-    address: 'career@rcitcs.com',
-    from: 'RC IT Services Careers <career@rcitcs.com>'
+  careers: Object.freeze({
+    address: 'careers@rcitcs.com',
+    from: 'RC IT Services Careers <careers@rcitcs.com>'
   }),
   noreply: Object.freeze({
     address: 'noreply@rcitcs.com',
@@ -60,7 +61,8 @@ export function fixedSenderForTemplate(templateKey) {
     case EMAIL_TEMPLATE_KEYS.CONTACT_ADMIN_REPLY:
       return EMAIL_IDENTITIES.contact;
     case EMAIL_TEMPLATE_KEYS.APPLICATION_ACKNOWLEDGEMENT:
-      return EMAIL_IDENTITIES.career;
+    case EMAIL_TEMPLATE_KEYS.CANDIDATE_ADMIN_REPLY:
+      return EMAIL_IDENTITIES.careers;
     case EMAIL_TEMPLATE_KEYS.INTERNAL_CONTACT_ALERT:
     case EMAIL_TEMPLATE_KEYS.INTERNAL_APPLICATION_ALERT:
     case EMAIL_TEMPLATE_KEYS.ADMIN_PASSWORD_RESET:
