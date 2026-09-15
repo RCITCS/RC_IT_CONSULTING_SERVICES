@@ -5,12 +5,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
-const [applications, composer, dispatcher, adminIndex, migration, delivery] = await Promise.all([
+const [applications, composer, dispatcher, adminIndex, migration, hardening, delivery] = await Promise.all([
   read('supabase/functions/admin-auth/applications.ts'),
   read('supabase/functions/admin-auth/candidate-communication.ts'),
   read('supabase/functions/transactional-email/index.ts'),
   read('supabase/functions/admin-auth/index.ts'),
   read('supabase/migrations/20260915030000_phase_15_candidate_communication_core.sql'),
+  read('supabase/migrations/20260915032000_phase_15_candidate_message_idempotency_hardening.sql'),
   read('supabase/functions/_shared/candidate-reply-email-delivery.js')
 ]);
 
@@ -26,7 +27,7 @@ assert.match(applications, /csrfOk\(authState, String\(form\.get\("csrf"\)/);
 assert.match(applications, /intent === "preview" \|\| intent === "send"/);
 assert.match(applications, /subject\.length <= CANDIDATE_MESSAGE_SUBJECT_MAX/);
 assert.match(applications, /body\.length <= CANDIDATE_MESSAGE_BODY_MAX/);
-assert.match(applications, /!\/[\\r\\n]\/\.test\(subject\)/);
+assert.ok(applications.includes('!/[\\r\\n]/.test(subject)'), 'Candidate message subject must reject CR/LF header injection.');
 assert.match(applications, /intent === "preview"/);
 assert.match(applications, /preview: true/);
 
@@ -66,6 +67,16 @@ assert.match(migration, /insert into public\.candidate_messages/);
 assert.match(applications, /dispatchQueuedEmail\(emailLogId\)/);
 assert.ok(applications.indexOf('rpc("admin_queue_candidate_message"') < applications.indexOf('dispatchQueuedEmail(emailLogId)'), 'Provider dispatch must occur only after durable queueing.');
 assert.match(applications, /terminalDelivery = result\.duplicate === true && \["sent", "delivered"\]/);
+
+// Idempotency is globally serialized by request UUID and conflicting content reuse is rejected.
+assert.match(hardening, /hashtextextended\('rcitcs\/candidate_message\/' \|\| p_request_id::text, 0\)/);
+assert.doesNotMatch(hardening, /candidate_message\/' \|\| p_application_id::text \|\| '\/' \|\| p_request_id::text/);
+assert.match(hardening, /v_existing\.application_id <> p_application_id/);
+assert.match(hardening, /btrim\(coalesce\(v_existing\.subject, ''\)\) <> v_subject/);
+assert.match(hardening, /btrim\(coalesce\(v_existing\.body_text, ''\)\) <> v_body/);
+assert.match(hardening, /'IDEMPOTENCY_CONFLICT'/);
+assert.match(hardening, /'duplicate', true/);
+assert.doesNotMatch(hardening, /jsonb_build_object\([^;]*(?:v_body|p_body|v_subject|p_subject)[^;]*\)/s);
 
 // Transactional-email reuses the Phase-13 provider/retry runtime for persisted candidate replies.
 assert.match(dispatcher, /dispatchCandidateReplyEmail/);
@@ -134,4 +145,4 @@ assert.equal(success.ok, true);
 assert.deepEqual(sentRecord, { emailLogId, providerMessageId: 'resend-message-123' });
 assert.equal(failedRecord, null);
 
-console.log('Phase 15.3 preview-first compose, CSRF/server authority, durable queue-before-dispatch, idempotency and candidate email delivery passed.');
+console.log('Phase 15.3 preview-first compose, CSRF/server authority, durable queue-before-dispatch, conflict-safe idempotency and candidate email delivery passed.');
