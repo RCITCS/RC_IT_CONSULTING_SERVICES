@@ -60,8 +60,9 @@ function messageCard(message: any): string {
   const state = deliveryLabel(message?.delivery_status ?? message?.status);
   const direction = messageDirection(message?.direction);
   const attempts = Math.max(0, Number(message?.attempt_count ?? 0) || 0);
+  const ariaLabel = [direction, "candidate email:", subject].join(" ");
 
-  return `<article class="candidate-message" data-message-id="${esc(message?.id || "")}" aria-label="${esc(`${direction} candidate email: ${subject}`)}" style="padding:18px 0;border-bottom:1px solid var(--line)">
+  return `<article class="candidate-message" data-message-id="${esc(message?.id || "")}" aria-label="${esc(ariaLabel)}" style="padding:18px 0;border-bottom:1px solid var(--line)">
     <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
       <div style="min-width:0;flex:1">
         <div class="activity-type">${esc(direction)} email · ${esc(state)}</div>
