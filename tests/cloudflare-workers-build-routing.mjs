@@ -46,23 +46,34 @@ assert.deepEqual(
 assert.equal(
   publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
   false,
-  'Public Worker must never claim an admin hostname as a Custom Domain.'
+  'Public Worker must never claim an admin hostname.'
 );
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
+assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.keep_vars, true);
-assert.equal(Object.hasOwn(stagingConfig, 'secrets'), false, 'Company admin edge must not inherit the public Worker secret requirement.');
+assert.equal(stagingConfig.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
+assert.equal(stagingConfig.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.equal(Object.hasOwn(stagingConfig, 'secrets'), false, 'Staging admin edge must not inherit the public Worker secret requirement.');
 assert.deepEqual(
   stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
-  [['admin.rcitcs.com', true], ['admin-staging.rcitcs.com', true]],
-  'The connected company admin Worker must provision both production and staging admin Custom Domains until later Phase-17 ownership convergence.'
+  [['admin-staging.rcitcs.com', true]],
+  'Staging Worker must own only admin-staging.rcitcs.com after Phase 17.7 convergence.'
 );
 
 assert.equal(productionConfig.name, 'rcitcs-admin-production');
 assert.equal(productionConfig.main, './worker/admin-only.js');
+assert.equal(productionConfig.workers_dev, false);
 assert.equal(productionConfig.keep_vars, true);
-assert.equal(Object.hasOwn(productionConfig, 'secrets'), false, 'Canonical production admin edge must not inherit the public Worker secret requirement.');
+assert.equal(productionConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
+assert.equal(Object.hasOwn(productionConfig.vars || {}, 'RC_ADMIN_STAGING_MODE'), false);
+assert.equal(Object.hasOwn(productionConfig, 'secrets'), false, 'Production admin edge must not inherit the public Worker secret requirement.');
+assert.deepEqual(
+  productionConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true]],
+  'Production admin Worker must own only admin.rcitcs.com.'
+);
 
 assert.equal(legacyConfig.name, 'rcitcservices');
 assert.equal(legacyConfig.workers_dev, false);
@@ -70,4 +81,4 @@ assert.equal(legacyConfig.keep_vars, true);
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Worker in the old Cloudflare account must not claim company production domains.');
 assert.equal(Object.hasOwn(legacyConfig, 'secrets'), false, 'Legacy Worker must not require company production secrets.');
 
-console.log('PASS: rcitcs.com and www.rcitcs.com stay on the public Worker, admin Custom Domains remain isolated to the connected admin Worker pending later Phase-17 convergence, and the old-account Worker owns no company routes.');
+console.log('PASS: Phase 17.7 source ownership is one Worker per hostname: public apex/www, production admin, isolated staging admin, and no company domains on the legacy Worker.');
