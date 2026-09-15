@@ -220,7 +220,27 @@ function enhanceAdminHtml(body, publicBase) {
   return enhanced;
 }
 
-async function proxyAdminResponse(upstream, requestMethod, publicBase) {
+function looksLikeAdminHtml(value = '') {
+  return /^\s*(?:<!doctype\s+html\b|<html\b)/i.test(String(value));
+}
+
+function adminTextualCandidate(contentType = '') {
+  const normalized = String(contentType).toLowerCase();
+  return normalized === '' || normalized.startsWith('text/') || normalized.includes('application/xhtml+xml');
+}
+
+function applyAdminHtmlSecurityHeaders(headers) {
+  headers.set('content-type', 'text/html; charset=utf-8');
+  headers.set('content-security-policy', ADMIN_HTML_CSP);
+  headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('x-frame-options', 'DENY');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('cross-origin-opener-policy', 'same-origin');
+  headers.set('cross-origin-resource-policy', 'same-origin');
+}
+
+export async function proxyAdminResponse(upstream, requestMethod, publicBase) {
   const headers = new Headers(upstream.headers);
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
@@ -235,22 +255,22 @@ async function proxyAdminResponse(upstream, requestMethod, publicBase) {
   }
 
   const bodyForbidden = requestMethod === 'HEAD' || [204, 205, 304].includes(upstream.status);
-  const contentType = String(headers.get('content-type') || '').toLowerCase();
-  const isHtml = contentType.includes('text/html');
+  const contentType = String(headers.get('content-type') || '');
+  const declaredHtml = contentType.toLowerCase().includes('text/html');
   let body = bodyForbidden ? null : upstream.body;
 
-  if (!bodyForbidden && isHtml) {
-    const bodyText = await upstream.text();
-    body = enhanceAdminHtml(bodyText, publicBase);
+  if (!bodyForbidden && declaredHtml) {
+    body = enhanceAdminHtml(await upstream.text(), publicBase);
     headers.delete('content-length');
-    headers.set('content-type', 'text/html; charset=utf-8');
-    headers.set('content-security-policy', ADMIN_HTML_CSP);
-    headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
-    headers.set('x-content-type-options', 'nosniff');
-    headers.set('x-frame-options', 'DENY');
-    headers.set('referrer-policy', 'no-referrer');
-    headers.set('cross-origin-opener-policy', 'same-origin');
-    headers.set('cross-origin-resource-policy', 'same-origin');
+    applyAdminHtmlSecurityHeaders(headers);
+  } else if (!bodyForbidden && adminTextualCandidate(contentType)) {
+    const bodyText = await upstream.text();
+    body = bodyText;
+    headers.delete('content-length');
+    if (looksLikeAdminHtml(bodyText)) {
+      body = enhanceAdminHtml(bodyText, publicBase);
+      applyAdminHtmlSecurityHeaders(headers);
+    }
   }
 
   headers.set('cache-control', 'no-store, no-transform, max-age=0, must-revalidate');
