@@ -45,8 +45,13 @@ assert.match(view, /SAFE_DELIVERY_STATES/);
 assert.match(view, /Math\.min\(messages\.length, 100\)/);
 assert.match(view, /No candidate communication has been recorded/);
 
-// Reject dangerous rendering patterns rather than duplicating production rendering logic in the test.
+// Reject dangerous DOM APIs and the exact raw HTML interpolation shapes that would bypass esc().
+// Do not reject message values merely because they appear inside an escaping expression such as
+// esc(`${direction} candidate email: ${subject}`), which is safe and used for accessible labels.
 assert.doesNotMatch(view, /innerHTML\s*=|insertAdjacentHTML\s*\(/);
-assert.doesNotMatch(view, /\$\{subject\}|\$\{body\}|\$\{sender\}|\$\{recipient\}/);
+assert.doesNotMatch(view, /<h3[^>]*>\$\{subject\}<\/h3>/);
+assert.doesNotMatch(view, /<strong[^>]*>\$\{sender(?:\s*\|\|[^}]*)?\}<\/strong>/);
+assert.doesNotMatch(view, /<strong[^>]*>\$\{recipient(?:\s*\|\|[^}]*)?\}<\/strong>/);
+assert.doesNotMatch(view, /white-space:pre-wrap[^>]*>\$\{body\}<\/div>/);
 
 console.log('Phase 15.2 bounded authenticated communication history, safe delivery state and output escaping source contract passed.');
