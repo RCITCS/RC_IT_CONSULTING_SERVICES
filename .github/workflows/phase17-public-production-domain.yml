@@ -1,0 +1,108 @@
+name: Phase 17.2 Public Production Domain
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-public-production-domain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-production-domain:
+    name: Verify rcitcs.com authoritative public production surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify Phase 17.2 source ownership contract
+        run: node tests/phase17-public-production-domain.mjs
+
+      - name: Verify apex DNS and direct HTTPS delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          getent ahosts rcitcs.com >/tmp/rcitcs-dns.txt
+          test -s /tmp/rcitcs-dns.txt
+          cat /tmp/rcitcs-dns.txt
+
+          code=$(curl -sS --max-time 20 -D /tmp/apex.headers -o /tmp/apex.html -w '%{http_code}' https://rcitcs.com/)
+          test "$code" = '200'
+          grep -qi '^content-type: *text/html' /tmp/apex.headers
+          grep -q 'Technology that' /tmp/apex.html
+          grep -q 'data-prerendered-path="/"' /tmp/apex.html
+          ! grep -q 'Administrator sign in' /tmp/apex.html
+
+          if grep -qi '^location:' /tmp/apex.headers; then
+            echo 'rcitcs.com unexpectedly redirects instead of serving the public application directly.' >&2
+            cat /tmp/apex.headers >&2
+            exit 1
+          fi
+
+          echo "rcitcs.com root=${code}"
+
+      - name: Verify production remains on pull-request base SHA
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          EXPECTED_PRODUCTION_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          curl -sS --max-time 20 https://rcitcs.com/ -o /tmp/apex-sha.html
+          grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/apex-sha.html || {
+            echo "Production apex is not serving expected base SHA ${EXPECTED_PRODUCTION_SHA}." >&2
+            exit 1
+          }
+          echo "Production remains on PR base SHA ${EXPECTED_PRODUCTION_SHA}."
+
+      - name: Verify apex canonical identity and public discovery surface
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          curl -sS --max-time 20 https://rcitcs.com/about-us -o /tmp/about.html
+          grep -Fq 'rel="canonical" href="https://rcitcs.com/about-us"' /tmp/about.html
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev/about-us' /tmp/about.html
+
+          curl -sS --max-time 20 https://rcitcs.com/sitemap.xml -o /tmp/sitemap.xml
+          grep -Fq '<loc>https://rcitcs.com/' /tmp/sitemap.xml
+          ! grep -Fq 'rc-it-consulting-services.rcitcservices.workers.dev' /tmp/sitemap.xml
+
+          curl -sS --max-time 20 https://rcitcs.com/robots.txt -o /tmp/robots.txt
+          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
+
+          echo 'Apex canonical, sitemap and robots identity verified.'
+
+      - name: Verify apex public API and admin separation baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          health_code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' https://rcitcs.com/api/health)
+          test "$health_code" = '200'
+          grep -q '"ok":true' /tmp/health.json
+
+          alias_code=$(curl -sS --max-time 20 -D /tmp/admin-alias.headers -o /dev/null -w '%{http_code}' https://rcitcs.com/admin)
+          test "$alias_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-alias.headers
+
+          mutation_code=$(curl -sS --max-time 20 -o /tmp/admin-mutation.txt -w '%{http_code}' -X POST \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=phase17-2@example.invalid&password=not-a-real-password' \
+            https://rcitcs.com/admin/login)
+          test "$mutation_code" = '404'
+
+          echo 'Public API health and inherited public/admin safety boundary verified.'
+
+      - name: Phase 17.2 acceptance
+        run: |
+          echo 'Phase 17.2 rcitcs.com public production ownership gate: PASS'
+          echo 'No Cloudflare mutation was performed by this workflow.'
