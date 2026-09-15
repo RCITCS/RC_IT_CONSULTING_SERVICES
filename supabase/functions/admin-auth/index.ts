@@ -42,6 +42,24 @@ const ADMIN_PUBLIC_ORIGINS = new Set([
   "https://admin.rcitcs.com",
   "https://admin-staging.rcitcs.com"
 ]);
+const FORM_MEDIA_TYPES = new Set([
+  "application/x-www-form-urlencoded",
+  "multipart/form-data"
+]);
+const MUTATION_UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const STATIC_MUTATION_PATHS = new Set([
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/logout",
+  "/change-password",
+  "/jobs/create"
+]);
+const DYNAMIC_MUTATION_PATHS = [
+  new RegExp(`^/jobs/${MUTATION_UUID}/(?:update|transition|duplicate|delete)$`, "i"),
+  new RegExp(`^/applications/${MUTATION_UUID}/(?:message|status)$`, "i"),
+  new RegExp(`^/contacts/${MUTATION_UUID}/(?:read-state|workflow|archive-state|note|reply|assignment)$`, "i")
+];
 
 function base(url: URL): string {
   return url.hostname.endsWith(".supabase.co") ? "/functions/v1/admin-auth" : "";
@@ -114,6 +132,15 @@ function originOk(request: Request, url: URL): boolean {
   if (!origin || origin === "null") return false;
   const parsedOrigin = normalizedOrigin(origin);
   return parsedOrigin === `${url.protocol}//${url.host}`;
+}
+
+function allowedMutationPath(path: string): boolean {
+  return STATIC_MUTATION_PATHS.has(path) || DYNAMIC_MUTATION_PATHS.some((pattern) => pattern.test(path));
+}
+
+function formMediaTypeOk(request: Request): boolean {
+  const value = String(request.headers.get("content-type") ?? "").split(";", 1)[0].trim().toLowerCase();
+  return FORM_MEDIA_TYPES.has(value);
 }
 
 async function ipHash(request: Request): Promise<string> {
@@ -203,6 +230,12 @@ Deno.serve(async (request: Request) => {
       headers.set("allow", "GET, POST");
       return new Response("Method Not Allowed", { status: 405, headers });
     }
+    if (request.method === "POST" && !allowedMutationPath(path)) {
+      const headers = privateHeaders();
+      headers.set("allow", "GET");
+      return new Response("Method Not Allowed", { status: 405, headers });
+    }
+    if (request.method === "POST" && !formMediaTypeOk(request)) return authPage("Unsupported request", "<h1>Unsupported request</h1><p>Reload the administration page and submit the form again.</p>", 415);
     if (request.method === "POST" && !originOk(request, url)) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the administration page and try again.</p>", 403);
     if (await requestTooLarge(request, path)) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
 
