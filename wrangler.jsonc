@@ -8,6 +8,10 @@
     {
       "pattern": "rcitcs.com",
       "custom_domain": true
+    },
+    {
+      "pattern": "www.rcitcs.com",
+      "custom_domain": true
     }
   ],
   "secrets": {
