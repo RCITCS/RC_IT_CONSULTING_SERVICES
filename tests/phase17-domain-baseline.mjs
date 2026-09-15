@@ -57,23 +57,23 @@ assert.match(domainSmoke, /https:\/\/rcitcs\.com/);
 assert.match(domainSmoke, /test "\$alias_code" = '308'/);
 assert.match(domainSmoke, /test "\$post_code" = '404'/);
 
-// Phase 17.1 authoritative control-plane findings are intentionally recorded
-// as immutable audit evidence. These assertions do not pretend to query
-// Cloudflare; they protect the accepted audit ledger from being silently
-// reverted to the earlier incomplete assumptions.
-assert.match(auditDoc, /Status: \*\*17\.1 COMPLETE — read-only control-plane inventory closed\*\*/);
-assert.match(auditDoc, /exactly two Worker applications/i);
-assert.match(auditDoc, /`rcitcs-admin-production` \| \*\*not present in this Cloudflare account\*\*/);
-assert.match(auditDoc, /`rcitcservices` \| \*\*not present as a Worker application\*\*/);
+// Phase 17.1 audit ledger. The primary account inventory is complete, but
+// exact-head CI exposed a second Cloudflare account/build surface involving
+// the legacy rcitcservices Worker. These assertions prevent the blocker from
+// being silently lost before cross-account ownership is classified.
+assert.match(auditDoc, /Status: \*\*17\.1 OPEN — secondary Cloudflare ownership surface discovered during closure CI\*\*/);
+assert.match(auditDoc, /exactly two Worker applications in this account/i);
 assert.match(auditDoc, /`admin\.rcitcs\.com\/\*` \| Route/);
 assert.match(auditDoc, /`admin\.rcitcs\.com` \| Production Custom Domain/);
-assert.match(auditDoc, /`www\.rcitcs\.com` as a \*\*Production Custom Domain\*\*/);
-assert.match(auditDoc, /no A, AAAA, or CNAME answer for `www\.rcitcs\.com`/);
-assert.match(auditDoc, /Cloudflare displays an explicit configuration-drift warning/);
-assert.match(auditDoc, /no production behavior changed during the audit/i);
-assert.match(auditDoc, /Module 17\.1 is COMPLETE/);
+assert.match(auditDoc, /`www\.rcitcs\.com` as a Production Custom Domain/);
+assert.match(auditDoc, /Cloudflare displays a configuration-drift warning/);
+assert.match(auditDoc, /Workers Builds: rcitcservices/);
+assert.match(auditDoc, /20d349f3f75ab611adb3f987188636e7/);
+assert.match(auditDoc, /different Cloudflare account/);
+assert.match(auditDoc, /Module 17\.1 remains OPEN/);
+assert.match(auditDoc, /No production behavior was changed during this audit/);
 
 console.log('Phase 17.1 source/domain baseline and control-plane evidence ledger: PASS');
-console.log('CLOSED FINDING: authoritative Cloudflare inventory contains exactly two active RC IT Workers; rcitcs-admin-production and legacy rcitcservices are source-only today.');
-console.log('CLOSED FINDING: admin.rcitcs.com has competing Route and Custom Domain ownership, and www.rcitcs.com is configured as a Custom Domain but is not publicly resolvable.');
-console.log('NEXT GATE: do not begin 17.2 until this exact branch head passes CI.');
+console.log('PRIMARY ACCOUNT: inventory complete; admin ownership overlap and broken www state recorded without mutation.');
+console.log('OPEN BLOCKER: exact-head Cloudflare GitHub App check targets secondary account 20d349f3f75ab611adb3f987188636e7 and Worker rcitcservices.');
+console.log('NEXT GATE: classify the secondary account read-only before 17.1 can close or 17.2 can begin.');
