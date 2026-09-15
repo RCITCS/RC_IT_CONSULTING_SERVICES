@@ -1,0 +1,134 @@
+name: Phase 17.6 Public Admin Separation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-public-admin-separation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-admin-separation:
+    name: Verify public /admin redirect and admin-domain separation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.6 source/runtime contract
+        run: node tests/phase17-public-admin-separation.mjs
+
+      - name: Verify live public admin navigation and mutation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUBLIC='https://rcitcs.com'
+
+          root_code=$(curl -sS --max-time 20 -D /tmp/public-admin-root.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin")
+          test "$root_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/public-admin-root.headers
+          grep -qi '^cache-control:.*no-store' /tmp/public-admin-root.headers
+
+          deep_code=$(curl -sS --max-time 20 -D /tmp/public-admin-deep.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin/applications?status=review")
+          test "$deep_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/applications?status=review' /tmp/public-admin-deep.headers
+
+          for method in POST PUT PATCH DELETE OPTIONS; do
+            args=(-sS --max-time 20 -D "/tmp/public-admin-${method}.headers" -o "/tmp/public-admin-${method}.body" -w '%{http_code}' -X "$method")
+            if [[ "$method" == 'POST' || "$method" == 'PUT' || "$method" == 'PATCH' ]]; then
+              args+=(-H 'content-type: application/x-www-form-urlencoded' --data 'email=test@example.invalid&password=not-a-real-password')
+            fi
+            code=$(curl "${args[@]}" "${PUBLIC}/admin/login?return=%2Fapplications")
+            test "$code" = '404'
+            ! grep -qi '^location:' "/tmp/public-admin-${method}.headers"
+            ! grep -qi '^set-cookie:' "/tmp/public-admin-${method}.headers"
+            grep -qi '^cache-control:.*no-store' "/tmp/public-admin-${method}.headers"
+          done
+
+          echo 'Live public /admin navigation and mutation separation verified.'
+
+      - name: Classify pre-merge leading-slash redirect behavior
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe='https://rcitcs.com/admin//example.invalid/login?next=%2F'
+          code=$(curl -sS --max-time 20 -D /tmp/public-admin-probe.headers -o /dev/null -w '%{http_code}' "$probe")
+          test "$code" = '308'
+          location=$(awk -F': *' 'tolower($1)=="location" {gsub(/\r/,"",$2); print $2}' /tmp/public-admin-probe.headers | tail -n1)
+
+          case "$location" in
+            https://admin.rcitcs.com/*)
+              echo "Live production is already pinned to the trusted admin origin: ${location}"
+              ;;
+            https://example.invalid/*)
+              echo 'Pre-merge Phase-16 redirect construction still interprets a leading // suffix as an external host. Candidate 17.6 source fixes this; final-main activation is mandatory.'
+              ;;
+            *)
+              echo "Unexpected live redirect target: ${location:-none}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Verify final-main open-redirect hardening
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe='https://rcitcs.com/admin//example.invalid/login?next=%2F'
+
+          for attempt in $(seq 1 72); do
+            code=$(curl -sS --max-time 20 -D /tmp/public-admin-final.headers -o /dev/null -w '%{http_code}' "$probe" || true)
+            location=$(awk -F': *' 'tolower($1)=="location" {gsub(/\r/,"",$2); print $2}' /tmp/public-admin-final.headers | tail -n1)
+            if [[ "$code" == '308' && "$location" == 'https://admin.rcitcs.com//example.invalid/login?next=%2F' ]]; then
+              grep -qi '^cache-control:.*no-store' /tmp/public-admin-final.headers
+              grep -qi '^x-robots-tag:.*noindex' /tmp/public-admin-final.headers
+              echo "Safe public-admin redirect activated on attempt ${attempt}."
+              break
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo 'Final main did not activate the required pinned admin redirect.' >&2
+              echo "Last status=${code} location=${location:-none}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify production admin stays healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          root_code=$(curl -sS --max-time 20 -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
+          test "$root_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-root.html
+          grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-root.headers
+
+          session_code=$(curl -sS --max-time 20 -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/admin-session.json
+          echo 'Production admin remains healthy and dedicated.'
+
+      - name: Phase 17.6 acceptance
+        run: |
+          echo 'Phase 17.6 public /admin separation gate: PASS'
+          echo 'Safe GET/HEAD navigation is preserved; public-host mutations never proxy to admin authentication.'
