@@ -1,6 +1,6 @@
 # Phase 17.6 — Public `/admin` Redirect and Admin-Domain Separation
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **COMPLETE — branch-level separation and open-redirect hardening accepted; final-main live activation remains mandatory**
 
 Depends on: Phase 17.5 closure.
 
@@ -34,11 +34,11 @@ The Phase-16 shared runtime built the public admin redirect with URL-reference r
 
 `new URL(suffix, ADMIN_PRODUCTION_ORIGIN)`
 
-A suffix beginning with `//` can be interpreted as a protocol-relative hostname. Therefore a request shaped like:
+A suffix beginning with `//` is interpreted as a protocol-relative hostname. Read-only live verification on the Phase-16 production baseline confirmed that a request shaped like:
 
 `/admin//example.invalid/login`
 
-could escape the intended admin origin if that construction reached the public redirect path.
+produces a redirect to the external `example.invalid` origin.
 
 Phase 17.6 places the authoritative public-admin boundary in `worker/index.js`, before shared runtime dispatch. The implementation:
 
@@ -47,7 +47,7 @@ Phase 17.6 places the authoritative public-admin boundary in `worker/index.js`, 
 3. assigns the incoming query string separately;
 4. never resolves the suffix as a URL reference.
 
-Therefore a leading `//` remains a path on `admin.rcitcs.com` and cannot become an external hostname.
+Therefore a leading `//` remains a path on `admin.rcitcs.com` and cannot become an external hostname once the Phase-17 candidate reaches final `main` production.
 
 ## Boundary ordering
 
@@ -82,7 +82,7 @@ remain navigation-compatible:
 - dedicated admin hosts do not enter the public-host alias logic;
 - root/deep GET and HEAD redirects preserve path/query correctly;
 - redirect responses remain no-store/noindex/hardened;
-- a leading `//` suffix cannot escape `admin.rcitcs.com`;
+- a leading `//` suffix cannot escape `admin.rcitcs.com` in candidate source/runtime;
 - POST/PUT/PATCH/DELETE/OPTIONS are rejected with `404` and no redirect/session cookie;
 - `www` canonicalization remains 17.3-first;
 - dedicated-host legacy navigation/mutation behavior remains preserved;
@@ -96,10 +96,35 @@ The 17.6 workflow therefore:
 
 - proves candidate source/runtime behavior on every PR;
 - verifies the existing live `/admin` separation behavior read-only;
-- classifies the pre-merge leading-`//` redirect result without following it;
-- requires final `main` production to keep the redirect origin pinned to `admin.rcitcs.com`;
+- records the pre-merge Phase-16 leading-`//` redirect defect;
+- requires final `main` production to pin the redirect origin to `admin.rcitcs.com`;
 - requires all public-host mutation methods to remain rejected;
 - verifies production admin remains healthy throughout.
+
+## Acceptance evidence
+
+Implementation head `261933e73d1234bd2bf1ad0f3f774044469ff0fb` passed the complete exact-head suite, including:
+
+- Phase 17.6 Public Admin Separation;
+- Phase 17.5 Admin Staging Isolation;
+- Phase 17.4 Production Admin Domain;
+- Phase 17.3 WWW Canonical Redirect;
+- Phase 17.2 Public Production Domain;
+- Phase 17 Domain Baseline;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 12 Runtime Smoke;
+- Phase 13 Email Runtime Smoke;
+- Phase 13 Secret Availability;
+- Phase 14 Contact Inbox Runtime Smoke.
+
+The dedicated 17.6 gate proved:
+
+- normal live `GET /admin` and deep admin navigation still redirect to `admin.rcitcs.com`;
+- live POST/PUT/PATCH/DELETE/OPTIONS requests to the public `/admin` alias remain rejected with `404`, no redirect and no session cookie;
+- the pre-merge Phase-16 leading-`//` behavior redirects to an external origin, confirming the candidate hardening addresses a real live defect rather than only a theoretical construction issue;
+- the candidate source/runtime pins leading-`//` paths to `admin.rcitcs.com`;
+- production admin root and unauthenticated session behavior remain healthy.
 
 ## Explicit deferrals
 
@@ -111,16 +136,18 @@ The 17.6 workflow therefore:
 - workers.dev/direct-backend/Host/CORS hardening — 17.10;
 - final redirect minimization/canonical-host matrix — 17.12.
 
-## Closure criteria
+## 17.6 closure decision
 
-17.6 may close at branch level only when:
+Module 17.6 is closed at branch level because:
 
 - candidate source tests pass;
-- open-redirect defense is regression-locked;
+- the open-redirect defense is regression-locked;
 - all public-host mutation methods are proven non-proxying;
 - production admin remains healthy;
-- live pre-merge behavior is recorded truthfully;
-- inherited CI/build/security gates remain green;
+- the live pre-merge defect is recorded truthfully rather than represented as already fixed in production;
+- inherited CI/build/security gates are green;
 - final-main workflow makes safe live redirect activation mandatory.
 
-Final Phase-17 closure remains prohibited until the post-merge live gate confirms the safe redirect origin.
+Final Phase-17 closure remains prohibited until the post-merge live gate confirms that production no longer permits the host-escaping redirect.
+
+**Module 17.6 is COMPLETE at branch level. Module 17.7 may begin only after this closure commit itself passes exact-head CI.**
