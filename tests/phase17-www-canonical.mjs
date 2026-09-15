@@ -7,6 +7,8 @@ import { canonicalPublicRedirect } from '../worker/index.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const wrangler = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8'));
+const closureDoc = fs.readFileSync(path.join(root, 'docs/PHASE_17_3_WWW_CANONICAL_REDIRECT.md'), 'utf8');
+const workflow = fs.readFileSync(path.join(root, '.github/workflows/phase17-www-canonical.yml'), 'utf8');
 
 const customDomains = (wrangler.routes || [])
   .filter((route) => route?.custom_domain === true)
@@ -64,5 +66,14 @@ assert.equal(headResponse.status, 308, 'HEAD must canonicalize consistently.');
 assert.equal(headResponse.headers.get('location'), 'https://rcitcs.com/contact?from=head');
 assert.equal(await headResponse.text(), '', 'Canonical redirect must not render duplicate content.');
 
-console.log('Phase 17.3 www canonical redirect source/runtime contract: PASS');
-console.log('www.rcitcs.com -> 308 https://rcitcs.com with path/query preserved and open-redirect defense locked.');
+// Closure invariants: branch-level completion is allowed only because the
+// final main-push gate makes live DNS + 308 activation mandatory.
+assert.match(closureDoc, /Status: \*\*COMPLETE — source\/runtime\/build acceptance passed; final-main live 308 activation remains mandatory\*\*/);
+assert.match(closureDoc, /Module 17\.3 is COMPLETE at branch level/);
+assert.match(closureDoc, /final-main live `308` activation remains a required final-main production gate/i);
+assert.match(workflow, /Wait for final-main www DNS activation and verify permanent canonicalization/);
+assert.match(workflow, /www\.rcitcs\.com did not become a working 308 canonical alias/);
+assert.match(workflow, /test "\$post_code" = '308'/);
+
+console.log('Phase 17.3 www canonical redirect source/runtime/closure contract: PASS');
+console.log('www.rcitcs.com -> 308 https://rcitcs.com with path/query preserved, open-redirect defense locked, and final-main live activation mandatory.');
