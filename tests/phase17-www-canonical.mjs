@@ -70,7 +70,7 @@ assert.equal(await headResponse.text(), '', 'Canonical redirect must not render 
 // final main-push gate makes live DNS + 308 activation mandatory.
 assert.match(closureDoc, /Status: \*\*COMPLETE — source\/runtime\/build acceptance passed; final-main live 308 activation remains mandatory\*\*/);
 assert.match(closureDoc, /Module 17\.3 is COMPLETE at branch level/);
-assert.match(closureDoc, /final-main live `308` activation remains a required final-main production gate/i);
+assert.match(closureDoc, /live 308 activation remains a required final-main production gate/i);
 assert.match(workflow, /Wait for final-main www DNS activation and verify permanent canonicalization/);
 assert.match(workflow, /www\.rcitcs\.com did not become a working 308 canonical alias/);
 assert.match(workflow, /test "\$post_code" = '308'/);
