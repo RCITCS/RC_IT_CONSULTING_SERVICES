@@ -10,12 +10,19 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const publicConfig = read('wrangler.jsonc');
 const entryWorker = read('worker/index.js');
 const runtimeWorker = read('src/backend/runtime/worker.js');
+const seoConfig = read('src/frontend/seo/seo-config.js');
 const baseline = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 
 // 17.2 authority: the public production apex is owned by exactly the public Worker.
 assert.match(publicConfig, /"name"\s*:\s*"rc-it-consulting-services"/);
 assert.match(publicConfig, /"main"\s*:\s*"\.\/worker\/index\.js"/);
 assert.match(publicConfig, /"pattern"\s*:\s*"rcitcs\.com"\s*,?\s*\n\s*"custom_domain"\s*:\s*true/);
+
+// The canonical public identity must be source-controlled, not dependent on a
+// Cloudflare build variable that can silently drift to workers.dev or another host.
+assert.match(seoConfig, /export const SITE_ORIGIN = 'https:\/\/rcitcs\.com'/);
+assert.doesNotMatch(seoConfig, /PUBLIC_ORIGIN/);
+assert.doesNotMatch(seoConfig, /SITE_ORIGIN\s*=.*workers\.dev/);
 
 // 17.2 must not pull later modules forward. www is 17.3 and dedicated admin ownership is 17.4/17.7.
 assert.doesNotMatch(publicConfig, /"pattern"\s*:\s*"www\.rcitcs\.com"/);
@@ -44,4 +51,5 @@ assert.match(baseline, /does not manage the `rcitcs\.com` zone/i);
 
 console.log('Phase 17.2 public production domain source contract: PASS');
 console.log('AUTHORITATIVE APEX: rcitcs.com -> rc-it-consulting-services custom domain.');
+console.log('CANONICAL IDENTITY: https://rcitcs.com is source-controlled and workers.dev is non-canonical.');
 console.log('DEFERRED: www (17.3), admin ownership convergence (17.4/17.7), workers.dev exposure hardening (17.10).');
