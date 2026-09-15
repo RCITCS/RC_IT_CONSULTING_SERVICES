@@ -40,23 +40,51 @@ export type SecurityAuditEvent = {
   source_label?: string;
 };
 
+export type SecurityAuditFilters = {
+  page: number;
+  search: string;
+  action: string;
+  entityType: string;
+  outcome: "" | "success" | "failure" | "denied";
+  actor: "all" | "administrator" | "system";
+  fromDate: string;
+  toDate: string;
+};
+
 export type SecurityAuditContext = {
   events: SecurityAuditEvent[];
-  limit: number;
-  has_older: boolean;
+  page: number;
+  page_size: number;
+  has_previous: boolean;
+  has_next: boolean;
+  max_page: number;
   generated_at?: string;
   projection?: string;
 };
 
-export async function securityAuditContext(adminId: string): Promise<SecurityAuditContext> {
+export async function securityAuditContext(
+  adminId: string,
+  filters: SecurityAuditFilters
+): Promise<SecurityAuditContext> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(adminId)) {
     throw new Error("invalid admin authority");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_admin_audit_activity`, {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_admin_audit_activity_page`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ p_admin_id: adminId, p_limit: 100 }),
+    body: JSON.stringify({
+      p_admin_id: adminId,
+      p_page: filters.page,
+      p_page_size: 25,
+      p_search: filters.search || null,
+      p_action: filters.action || null,
+      p_entity_type: filters.entityType || null,
+      p_outcome: filters.outcome || null,
+      p_actor: filters.actor,
+      p_from_date: filters.fromDate || null,
+      p_to_date: filters.toDate || null
+    }),
     signal: AbortSignal.timeout(8000)
   });
   if (!response.ok) throw new Error("security activity unavailable");
@@ -65,9 +93,12 @@ export async function securityAuditContext(adminId: string): Promise<SecurityAud
   if (!context || !Array.isArray(context.events)) throw new Error("security activity response invalid");
 
   return {
-    events: context.events.slice(0, 100),
-    limit: Math.min(Math.max(Number(context.limit) || 100, 1), 100),
-    has_older: context.has_older === true,
+    events: context.events.slice(0, 25),
+    page: Math.min(Math.max(Number(context.page) || 1, 1), 20),
+    page_size: Math.min(Math.max(Number(context.page_size) || 25, 1), 25),
+    has_previous: context.has_previous === true,
+    has_next: context.has_next === true,
+    max_page: Math.min(Math.max(Number(context.max_page) || 20, 1), 20),
     generated_at: String(context.generated_at ?? ""),
     projection: String(context.projection ?? "")
   };
