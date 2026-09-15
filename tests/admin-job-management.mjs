@@ -94,10 +94,12 @@ assert.ok(publicRuntime.includes("robots = 'index,follow'"));
 const publicConfig = JSON.parse(wrangler);
 const companyAdminConfig = JSON.parse(companyAdminWrangler);
 const legacyConfig = JSON.parse(legacyWrangler);
-assert.equal(publicConfig.routes?.length, 1, 'Public Worker must own only rcitcs.com.');
-assert.equal(publicConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(publicConfig.routes?.[0]?.custom_domain, true, 'Public apex must be a Worker Custom Domain so Cloudflare provisions DNS/certificate automatically.');
-assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'Public Worker must not claim the admin hostname.');
+assert.deepEqual(
+  publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'Public Worker must own only the apex and www public Custom Domains.'
+);
+assert.equal(publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))), false, 'Public Worker must not claim an admin hostname.');
 assert.ok(companyAdminConfig.routes?.some((route) => route.pattern === 'admin.rcitcs.com' && route.custom_domain === true), 'Company admin Worker must provision admin.rcitcs.com as a Custom Domain.');
 assert.ok(companyAdminConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com' && route.custom_domain === true), 'Company admin staging hostname must remain available.');
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker must not claim company domains.');
@@ -108,4 +110,4 @@ for (const source of [streamlined,routes,ui,wrangler,companyAdminWrangler,legacy
   }
 }
 
-console.log('PASS: Phase 12 job authoring remains unchanged while rcitcs.com and admin.rcitcs.com are independently provisioned inside the correct Cloudflare ownership boundaries.');
+console.log('PASS: Phase 12 job authoring remains unchanged while rcitcs.com/www.rcitcs.com public ownership and admin.rcitcs.com isolation stay inside the correct Cloudflare boundaries.');
