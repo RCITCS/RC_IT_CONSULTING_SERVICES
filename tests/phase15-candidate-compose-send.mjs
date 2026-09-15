@@ -46,7 +46,7 @@ assert.match(applications, /verifyCandidatePreviewProof\(\{ \.\.\.previewFields,
 assert.match(applications, /Preview this exact message before sending/);
 
 const previewBranch = applications.indexOf('if (intent === "preview")');
-const verifyCall = applications.indexOf('verifyCandidatePreviewProof');
+const verifyCall = applications.indexOf('verifyCandidatePreviewProof({', previewBranch);
 const queueCall = applications.indexOf('rpc("admin_queue_candidate_message"');
 assert.ok(previewBranch >= 0 && verifyCall > previewBranch && queueCall > verifyCall, 'Preview proof must be issued before confirmation and verified before queueing.');
 
