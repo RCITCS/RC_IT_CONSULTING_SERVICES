@@ -45,6 +45,43 @@ jobs:
             fi
           done
 
+      - name: Record public DNS record surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(
+            rcitcs.com
+            www.rcitcs.com
+            admin.rcitcs.com
+            admin-staging.rcitcs.com
+          )
+          record_types=(A AAAA CNAME)
+
+          echo '===== ZONE NS ====='
+          dig +noall +answer rcitcs.com NS || true
+          echo '===== ZONE SOA ====='
+          dig +noall +answer rcitcs.com SOA || true
+          echo '===== ZONE MX ====='
+          dig +noall +answer rcitcs.com MX || true
+          echo '===== ZONE TXT ====='
+          dig +noall +answer rcitcs.com TXT || true
+          echo '===== ZONE CAA ====='
+          dig +noall +answer rcitcs.com CAA || true
+
+          for host in "${hosts[@]}"; do
+            for type in "${record_types[@]}"; do
+              echo "===== ${host} ${type} ====="
+              answer=$(dig +noall +answer "$host" "$type" || true)
+              if [ -n "$answer" ]; then
+                printf '%s\n' "$answer"
+              else
+                echo 'NO_PUBLIC_ANSWER'
+              fi
+            done
+          done
+
+          echo 'Public DNS snapshot recorded. Cloudflare proxy flags, hidden origin records, Worker Routes, Custom Domains and account ownership still require authoritative control-plane evidence.'
+
       - name: Record live pre-change host behavior
         shell: bash
         run: |
