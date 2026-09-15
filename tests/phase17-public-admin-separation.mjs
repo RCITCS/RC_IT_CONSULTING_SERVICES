@@ -96,7 +96,7 @@ const entryPost = await publicWorker.fetch(
 );
 assert.equal(entryPost.status, 404, 'Cloudflare entry must reject public-host admin mutations before shared runtime dispatch.');
 
-assert.ok(source.indexOf('const publicAdmin = publicAdminAliasRedirect(request)') < source.indexOf('return runtime.fetch(request, env, ctx)'), 'Public admin separation must execute before shared runtime dispatch.');
+assert.ok(source.indexOf('const publicAdmin = publicAdminAliasRedirect(request)') < source.indexOf('runtime.fetch(request, env, ctx)'), 'Public admin separation must execute before shared runtime dispatch, including when the runtime response is wrapped by transport-security headers.');
 
 console.log('Phase 17.6 public /admin redirect and admin-domain separation contract: PASS');
 console.log('GET/HEAD navigate to admin.rcitcs.com; mutation methods are rejected; leading // suffixes cannot escape the trusted admin origin.');
