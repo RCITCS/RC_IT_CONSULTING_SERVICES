@@ -30,11 +30,18 @@ import { handleJobRoute } from "./job-routes.ts";
 import { handleApplicationRoute } from "./applications.ts";
 import { handleContactRoute } from "./contacts.ts";
 import { securityPage } from "./security.ts";
+import { consumeAuthRateLimit } from "./rate-limit.ts";
 
 const ADMIN_EMAIL = "rcitcservices@gmail.com";
 const SESSION_TTL = 8 * 60 * 60;
 const IDLE_TTL = 30 * 60;
 const RECOVERY_TTL = 30 * 60;
+const LOGIN_IP_ATTEMPT_LIMIT = 10;
+const LOGIN_GLOBAL_ATTEMPT_LIMIT = 25;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const RESET_IP_ATTEMPT_LIMIT = 6;
+const RESET_GLOBAL_ATTEMPT_LIMIT = 10;
+const RESET_WINDOW_SECONDS = 60 * 60;
 const BOOTSTRAP_VERIFIER = Deno.env.get("ADMIN_BOOTSTRAP_PASSWORD_VERIFIER") ?? "";
 const ADMIN_PROXY_HEADER = "x-rcitcs-admin-proxy";
 const ADMIN_PROXY_VALUE = "cloudflare";
@@ -42,6 +49,24 @@ const ADMIN_PUBLIC_ORIGINS = new Set([
   "https://admin.rcitcs.com",
   "https://admin-staging.rcitcs.com"
 ]);
+const FORM_MEDIA_TYPES = new Set([
+  "application/x-www-form-urlencoded",
+  "multipart/form-data"
+]);
+const MUTATION_UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const STATIC_MUTATION_PATHS = new Set([
+  "/login",
+  "/forgot-password",
+  "/reset-password",
+  "/logout",
+  "/change-password",
+  "/jobs/create"
+]);
+const DYNAMIC_MUTATION_PATHS = [
+  new RegExp(`^/jobs/${MUTATION_UUID}/(?:update|transition|duplicate|delete)$`, "i"),
+  new RegExp(`^/applications/${MUTATION_UUID}/(?:message|status)$`, "i"),
+  new RegExp(`^/contacts/${MUTATION_UUID}/(?:read-state|workflow|archive-state|note|reply|assignment)$`, "i")
+];
 
 function base(url: URL): string {
   return url.hostname.endsWith(".supabase.co") ? "/functions/v1/admin-auth" : "";
@@ -114,6 +139,15 @@ function originOk(request: Request, url: URL): boolean {
   if (!origin || origin === "null") return false;
   const parsedOrigin = normalizedOrigin(origin);
   return parsedOrigin === `${url.protocol}//${url.host}`;
+}
+
+function allowedMutationPath(path: string): boolean {
+  return STATIC_MUTATION_PATHS.has(path) || DYNAMIC_MUTATION_PATHS.some((pattern) => pattern.test(path));
+}
+
+function formMediaTypeOk(request: Request): boolean {
+  const value = String(request.headers.get("content-type") ?? "").split(";", 1)[0].trim().toLowerCase();
+  return FORM_MEDIA_TYPES.has(value);
 }
 
 async function ipHash(request: Request): Promise<string> {
@@ -203,10 +237,32 @@ Deno.serve(async (request: Request) => {
       headers.set("allow", "GET, POST");
       return new Response("Method Not Allowed", { status: 405, headers });
     }
+    if (request.method === "POST" && !allowedMutationPath(path)) {
+      const headers = privateHeaders();
+      headers.set("allow", "GET");
+      return new Response("Method Not Allowed", { status: 405, headers });
+    }
+    if (request.method === "POST" && !formMediaTypeOk(request)) return authPage("Unsupported request", "<h1>Unsupported request</h1><p>Reload the administration page and submit the form again.</p>", 415);
     if (request.method === "POST" && !originOk(request, url)) return authPage("Request rejected", "<h1>Request rejected</h1><p>Reload the administration page and try again.</p>", 403);
     if (await requestTooLarge(request, path)) return authPage("Request rejected", "<h1>Request too large</h1>", 413);
 
     if (request.method === "POST" && path === "/login") {
+      const [networkLimit, globalLimit] = await Promise.all([
+        consumeAuthRateLimit("login_ip", clientHash, LOGIN_IP_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS),
+        consumeAuthRateLimit("login_global", "global", LOGIN_GLOBAL_ATTEMPT_LIMIT, LOGIN_WINDOW_SECONDS)
+      ]);
+      if (!networkLimit.allowed || !globalLimit.allowed) {
+        if (networkLimit.just_limited || globalLimit.just_limited) {
+          await audit("admin_login_rate_limit_blocked", null, clientHash, userAgent, {
+            source: "phase_16_atomic_rate_limit",
+            network_limited: !networkLimit.allowed,
+            global_limited: !globalLimit.allowed
+          });
+        }
+        const headers = new Headers();
+        headers.set("retry-after", String(Math.max(networkLimit.retry_after, globalLimit.retry_after, 1)));
+        return authPage("Sign in limited", "<h1>Too many sign-in attempts</h1><div class=\"msg error\">Try again later.</div>", 429, headers);
+      }
       if (await failedCount(clientHash) >= 5) {
         const headers = new Headers();
         headers.set("retry-after", "900");
@@ -247,7 +303,11 @@ Deno.serve(async (request: Request) => {
 
     if (request.method === "GET" && path === "/forgot-password") return forgotPage(basePath);
     if (request.method === "POST" && path === "/forgot-password") {
-      if (await resetRequestCount(clientHash) < 3) {
+      const [networkLimit, globalLimit] = await Promise.all([
+        consumeAuthRateLimit("reset_ip", clientHash, RESET_IP_ATTEMPT_LIMIT, RESET_WINDOW_SECONDS),
+        consumeAuthRateLimit("reset_global", "global", RESET_GLOBAL_ATTEMPT_LIMIT, RESET_WINDOW_SECONDS)
+      ]);
+      if (networkLimit.allowed && globalLimit.allowed && await resetRequestCount(clientHash) < 3) {
         const form = await request.formData();
         const email = String(form.get("email") ?? "").trim().toLowerCase();
         if (email === ADMIN_EMAIL) {
@@ -257,6 +317,12 @@ Deno.serve(async (request: Request) => {
             await audit("admin_password_reset_requested", admin.id, clientHash, userAgent, { delivery: "phase_13_queue" });
           }
         }
+      } else if (networkLimit.just_limited || globalLimit.just_limited) {
+        await audit("admin_password_reset_rate_limit_blocked", null, clientHash, userAgent, {
+          source: "phase_16_atomic_rate_limit",
+          network_limited: !networkLimit.allowed,
+          global_limited: !globalLimit.allowed
+        });
       }
       return forgotPage(basePath, true);
     }
@@ -328,7 +394,8 @@ Deno.serve(async (request: Request) => {
     if (request.method === "GET" && (path === "/security" || path === "/change-password")) {
       if (!authState) return loginPage(basePath, "Please sign in to continue.", true);
       if (authState.admin.role !== "super_admin") return authPage("Access denied", "<h1>Access denied</h1><p>This administration workspace requires super administrator authority.</p>", 403);
-      return securityPage(basePath, authState);
+      if (url.searchParams.size === 0) return securityPage(basePath, authState);
+      return securityPage(basePath, authState, "", false, 200, url.searchParams);
     }
 
     if (request.method === "POST" && path === "/change-password") {

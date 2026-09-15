@@ -220,9 +220,8 @@ function enhanceAdminHtml(body, publicBase) {
   return enhanced;
 }
 
-function proxyAdminResponse(upstream, bodyText, requestMethod, publicBase) {
+async function proxyAdminResponse(upstream, requestMethod, publicBase) {
   const headers = new Headers(upstream.headers);
-  headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
 
@@ -235,9 +234,15 @@ function proxyAdminResponse(upstream, bodyText, requestMethod, publicBase) {
     headers.append('set-cookie', rewriteAdminReference(cookie, publicBase));
   }
 
-  let body = bodyText;
-  if (body.trimStart().toLowerCase().startsWith('<!doctype html>')) {
-    body = enhanceAdminHtml(body, publicBase);
+  const bodyForbidden = requestMethod === 'HEAD' || [204, 205, 304].includes(upstream.status);
+  const contentType = String(headers.get('content-type') || '').toLowerCase();
+  const isHtml = contentType.includes('text/html');
+  let body = bodyForbidden ? null : upstream.body;
+
+  if (!bodyForbidden && isHtml) {
+    const bodyText = await upstream.text();
+    body = enhanceAdminHtml(bodyText, publicBase);
+    headers.delete('content-length');
     headers.set('content-type', 'text/html; charset=utf-8');
     headers.set('content-security-policy', ADMIN_HTML_CSP);
     headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
@@ -249,10 +254,14 @@ function proxyAdminResponse(upstream, bodyText, requestMethod, publicBase) {
   }
 
   headers.set('cache-control', 'no-store, no-transform, max-age=0, must-revalidate');
+  headers.set('pragma', 'no-cache');
+  headers.set('expires', '0');
+  headers.set('x-content-type-options', 'nosniff');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('cross-origin-resource-policy', 'same-origin');
   if (!headers.has('x-robots-tag')) headers.set('x-robots-tag', 'noindex, nofollow, noarchive');
 
-  const bodyForbidden = requestMethod === 'HEAD' || [204, 205, 304].includes(upstream.status);
-  return new Response(bodyForbidden ? null : body, { status: upstream.status, headers });
+  return new Response(body, { status: upstream.status, headers });
 }
 
 async function handleAdminRequest(request) {
@@ -273,8 +282,7 @@ async function handleAdminRequest(request) {
 
   try {
     const upstream = await fetch(upstreamRequest, { redirect: 'manual' });
-    const bodyText = request.method === 'HEAD' ? '' : await upstream.text();
-    return proxyAdminResponse(upstream, bodyText, request.method, publicBase);
+    return await proxyAdminResponse(upstream, request.method, publicBase);
   } catch {
     return new Response('Administration service unavailable', {
       status: 503,
