@@ -45,18 +45,31 @@ jobs:
           grep -q '"RC_ADMIN_STAGING_MODE": "unavailable"' wrangler.admin-staging.jsonc
           echo 'Staging deployment policy is source controlled; bundle compilation is enforced by Wrangler Deployment Validation.'
 
-      - name: Verify production admin remains healthy
+      - name: Classify production admin during activation
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
-          code=$(curl -sS --max-time 20 -D /tmp/admin-prod.headers -o /tmp/admin-prod.html -w '%{http_code}' "${ADMIN}/")
+
+          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              echo 'PR activation state: production admin is temporarily unresolved until rcitcs-admin-production receives the next main build.'
+              exit 0
+            fi
+            echo 'admin.rcitcs.com is unresolved on final main.' >&2
+            exit 1
+          fi
+
+          code=$(curl -sS --max-time 20 -D /tmp/admin-prod.headers -o /tmp/admin-prod.html -w '%{http_code}' "${ADMIN}/" || true)
           test "$code" = '200'
           grep -q 'Administrator sign in' /tmp/admin-prod.html
           grep -qi '^content-type: *text/html' /tmp/admin-prod.headers
           grep -qi '^cache-control:.*no-store' /tmp/admin-prod.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin-prod.headers
-          echo 'Production admin remains healthy while staging isolation is prepared.'
+          if [[ "${{ github.event_name }}" != 'pull_request' ]]; then
+            grep -qi '^x-rc-admin-environment: *production' /tmp/admin-prod.headers
+          fi
+          echo 'Production admin state is acceptable for the current activation stage.'
 
       - name: Classify current live staging state without mutation
         if: github.event_name == 'pull_request'

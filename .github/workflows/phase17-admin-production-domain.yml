@@ -1,6 +1,8 @@
 name: Phase 17.4 Production Admin Domain
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,7 +18,7 @@ jobs:
   production-admin-domain:
     name: Verify admin.rcitcs.com production admin contract
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Checkout repository
@@ -33,20 +35,52 @@ jobs:
       - name: Verify Phase 17.4 source ownership contract
         run: node tests/phase17-admin-production-domain.mjs
 
-      - name: Verify production admin DNS and hardened root
+      - name: Classify production admin activation state on PR
+        if: github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
 
-          getent ahosts admin.rcitcs.com >/tmp/admin-dns.txt
-          test -s /tmp/admin-dns.txt
+          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            echo 'PR activation state: admin.rcitcs.com is temporarily unresolved until rcitcs-admin-production receives the next main build.'
+            exit 0
+          fi
 
-          code=$(curl -sS --max-time 20 -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
+          code=$(curl -sS --max-time 20 -D /tmp/admin-pr.headers -o /tmp/admin-pr.html -w '%{http_code}' "${ADMIN}/" || true)
           test "$code" = '200'
-          grep -q '<!doctype html>' /tmp/admin-root.html
-          grep -q 'Administrator sign in' /tmp/admin-root.html
-          grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
+          grep -q 'Administrator sign in' /tmp/admin-pr.html
+          grep -qi '^cache-control:.*no-store' /tmp/admin-pr.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-pr.headers
+          echo 'PR activation state: production admin is already live and hardened.'
+
+      - name: Wait for production admin DNS and hardened root on final main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+
+          for attempt in $(seq 1 90); do
+            if getent ahosts admin.rcitcs.com >/tmp/admin-dns.txt 2>/dev/null && [[ -s /tmp/admin-dns.txt ]]; then
+              code=$(curl -sS --max-time 20 -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/" || true)
+              environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin-root.headers | tail -n1)
+              if [[ "$code" == '200' && "$environment" == 'production' ]] \
+                && grep -q '<!doctype html>' /tmp/admin-root.html \
+                && grep -q 'Administrator sign in' /tmp/admin-root.html \
+                && grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html; then
+                echo "Production admin activated on attempt ${attempt}."
+                break
+              fi
+            fi
+
+            if [[ "$attempt" == '90' ]]; then
+              echo 'admin.rcitcs.com did not converge to rcitcs-admin-production.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
           grep -q 'action="/login"' /tmp/admin-root.html
           ! grep -q 'action="/admin/login"' /tmp/admin-root.html
           ! grep -q '/functions/v1/admin-auth' /tmp/admin-root.html
@@ -63,10 +97,10 @@ jobs:
           grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin-root.headers
           grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-root.headers
           grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-root.headers
-
-          echo 'Production admin root remains dedicated, private and hardened.'
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-root.headers
 
       - name: Verify production admin private routes and session boundary
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -85,6 +119,7 @@ jobs:
             grep -qi '^x-robots-tag:.*noindex' "$headers"
             grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' "$headers"
             grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' "$headers"
+            grep -qi '^x-rc-admin-environment: *production' "$headers"
           done
 
           session_code=$(curl -sS --max-time 20 -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
@@ -93,10 +128,10 @@ jobs:
           grep -qi '^content-type:.*application/json' /tmp/admin-session.headers
           grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin-session.headers
-
-          echo 'Production admin applications/jobs/session boundaries verified.'
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-session.headers
 
       - name: Verify hostile-origin mutation rejection
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -111,10 +146,9 @@ jobs:
           grep -q 'Request rejected' /tmp/admin-rejected.txt
           grep -qi '^cache-control:.*no-store' /tmp/admin-rejected.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin-rejected.headers
-
-          echo 'Production admin hostile-origin POST rejection verified.'
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-rejected.headers
 
       - name: Phase 17.4 acceptance
         run: |
           echo 'Phase 17.4 production admin domain gate: PASS'
-          echo 'No Cloudflare ownership cutover was performed; that remains Module 17.7.'
+          echo 'PR proves source ownership; final main proves dedicated production-admin runtime ownership.'

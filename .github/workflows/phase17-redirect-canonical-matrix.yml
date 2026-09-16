@@ -44,9 +44,18 @@ jobs:
           test "$mutation" = '404'
           ! grep -qi '^location:' /tmp/public-admin-post.headers
 
-          legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
-          test "$legacy" = '308'
-          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy.headers
+          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              echo 'PR activation state: admin.rcitcs.com is temporarily unresolved; source/runtime tests already prove the legacy /admin redirect contract.'
+            else
+              echo 'admin.rcitcs.com is unresolved on final main.' >&2
+              exit 1
+            fi
+          else
+            legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
+            test "$legacy" = '308'
+            grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy.headers
+          fi
 
       - name: Verify final-main canonical host matrix
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -65,6 +74,10 @@ jobs:
           final=$(curl -L -sS -o /tmp/www-final.body -w '%{http_code} %{url_effective}' 'http://www.rcitcs.com/careers?from=matrix')
           [[ "$final" == 200\ https://rcitcs.com/careers?from=matrix ]]
           grep -q 'Technology that' /tmp/www-final.body
+
+          admin_legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy-final.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
+          test "$admin_legacy" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy-final.headers
 
           staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
           test "$staging" = '503'
