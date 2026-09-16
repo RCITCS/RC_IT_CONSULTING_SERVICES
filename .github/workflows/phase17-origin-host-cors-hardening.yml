@@ -1,0 +1,114 @@
+name: Phase 17.10 Origin Host CORS Hardening
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-origin-host-cors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exposure-hardening:
+    name: Verify origin Host CORS and backend exposure
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.10 source contract
+        run: node tests/phase17-origin-host-cors-hardening.mjs
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Validate hardened Wrangler candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --dry-run --config wrangler.jsonc >/tmp/public.log 2>&1
+          npx wrangler deploy --dry-run --config wrangler.admin-production.jsonc >/tmp/admin-production.log 2>&1
+          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc >/tmp/admin-staging.log 2>&1
+          echo 'All direct-exposure-hardened Wrangler candidates compile.'
+
+      - name: Classify current live alternate origins without mutation
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_code=$(curl -sS --max-time 20 -o /tmp/public.body -w '%{http_code}' https://rcitcs.com/ || true)
+          test "$public_code" = '200'
+
+          workers_code=$(curl -sS --max-time 20 -o /tmp/workers.body -w '%{http_code}' https://rc-it-consulting-services.rcitcservices.workers.dev/ || true)
+          echo "Pre-merge workers.dev classification: ${workers_code:-unreachable}"
+
+          careers_code=$(curl -sS --max-time 20 -o /tmp/careers.body -w '%{http_code}' \
+            -H 'content-type: application/json' \
+            --data '{"slug":null}' \
+            https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers || true)
+          echo "Pre-merge direct public-careers POST classification: ${careers_code:-unreachable}"
+
+          candidate_code=$(curl -sS --max-time 20 -o /tmp/candidate.body -w '%{http_code}' \
+            -H 'content-type: application/json' \
+            --data '{"action":"start"}' \
+            https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/candidate-applications || true)
+          echo "Pre-merge direct candidate POST classification: ${candidate_code:-unreachable}"
+          echo 'PR classification is read-only; branch source is not claimed as live.'
+
+      - name: Verify final-main alternate-origin shutdown
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          converged=0
+          for attempt in $(seq 1 72); do
+            public_code=$(curl -sS --max-time 20 -D /tmp/public.headers -o /tmp/public.body -w '%{http_code}' https://rcitcs.com/ || true)
+            workers_code=$(curl -sS --max-time 20 -o /tmp/workers.body -w '%{http_code}' https://rc-it-consulting-services.rcitcservices.workers.dev/ || true)
+
+            careers_code=$(curl -sS --max-time 20 -D /tmp/careers.headers -o /tmp/careers.body -w '%{http_code}' \
+              -H 'content-type: application/json' --data '{"slug":null}' \
+              https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers || true)
+            candidate_code=$(curl -sS --max-time 20 -D /tmp/candidate.headers -o /tmp/candidate.body -w '%{http_code}' \
+              -H 'content-type: application/json' --data '{"action":"start"}' \
+              https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/candidate-applications || true)
+
+            if [[ "$public_code" == '200' \
+              && "$workers_code" != '200' \
+              && "$careers_code" == '403' \
+              && "$candidate_code" == '403' ]] \
+              && ! grep -Eqi '^access-control-allow-origin: *\*' /tmp/public.headers \
+              && ! grep -Eqi '^access-control-allow-origin: *\*' /tmp/careers.headers \
+              && ! grep -Eqi '^access-control-allow-origin: *\*' /tmp/candidate.headers; then
+              converged=1
+              echo "Direct-exposure hardening verified on attempt ${attempt}."
+              break
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo "Exposure hardening did not converge: public=${public_code} workers.dev=${workers_code} careers=${careers_code} candidate=${candidate_code}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          test "$converged" = '1'
+
+      - name: Phase 17.10 acceptance
+        run: |
+          echo 'Phase 17.10 origin/Host/CORS/backend-exposure gate: PASS'
+          echo 'Custom Domains are authoritative; alternate Worker URLs are disabled and sensitive backend boundaries fail closed.'
