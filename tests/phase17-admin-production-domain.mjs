@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import adminWorker from '../worker/admin-only.js';
+import { productionAdminLegacyRedirect } from '../worker/admin-production.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -15,10 +16,11 @@ const publicConfig = readJson('wrangler.jsonc');
 const legacy = readJson('cloudflare/legacy-rcitcservices/wrangler.jsonc');
 const buildSelector = read('scripts/configure-cloudflare-workers-build.mjs');
 const adminSource = read('worker/admin-only.js');
+const productionAdminSource = read('worker/admin-production.js');
 const baseline = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 
 assert.equal(production.name, 'rcitcs-admin-production');
-assert.equal(production.main, './worker/admin-only.js');
+assert.equal(production.main, './worker/admin-production.js');
 assert.equal(production.workers_dev, false, 'Production admin must never expose a workers.dev endpoint.');
 assert.equal(
   Object.hasOwn(production, 'keep_vars'),
@@ -39,6 +41,7 @@ assert.deepEqual(
   [['admin-staging.rcitcs.com', true]],
   'After 17.7 the staging Worker must no longer claim the production admin hostname.'
 );
+assert.equal(staging.main, './worker/admin-only.js', 'Staging must remain on the shared hardened admin edge without the production legacy wrapper.');
 assert.equal(staging.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
 assert.equal(staging.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
 
@@ -51,6 +54,8 @@ assert.equal(Object.hasOwn(legacy, 'routes'), false, 'Legacy cross-account Worke
 
 assert.ok(buildSelector.includes("'rcitcs-admin-production': 'wrangler.admin-production.jsonc'"));
 assert.ok(buildSelector.includes("'rcitcs-admin-staging': 'wrangler.admin-staging.jsonc'"));
+assert.ok(productionAdminSource.includes("import adminWorker"), 'Production wrapper must delegate canonical routes to the hardened shared admin edge.');
+assert.ok(productionAdminSource.includes("return adminWorker.fetch(request, env, ctx)"), 'Production wrapper must not duplicate the admin runtime.');
 
 // The 17.1 ledger remains immutable historical evidence of the pre-convergence
 // control plane. Working source configuration is intentionally stricter after 17.7.
@@ -79,5 +84,13 @@ assert.equal(rejectedPublicHost.status, 404, 'Dedicated admin Worker must reject
 assert.match(rejectedPublicHost.headers.get('cache-control') || '', /no-store/i);
 assert.match(rejectedPublicHost.headers.get('x-robots-tag') || '', /noindex/i);
 
+const legacyNavigation = productionAdminLegacyRedirect(
+  new Request('https://admin.rcitcs.com/admin/applications?state=new')
+);
+assert.ok(legacyNavigation, 'Production wrapper must canonicalize legacy /admin navigation.');
+assert.equal(legacyNavigation.status, 308);
+assert.equal(legacyNavigation.headers.get('location'), 'https://admin.rcitcs.com/applications?state=new');
+assert.equal(legacyNavigation.headers.get('x-rc-admin-environment'), 'production');
+
 console.log('Phase 17.4 production admin-domain contract preserved after Phase 17.7 convergence: PASS');
-console.log('CANONICAL: admin.rcitcs.com -> rcitcs-admin-production / worker/admin-only.js.');
+console.log('CANONICAL: admin.rcitcs.com -> rcitcs-admin-production / worker/admin-production.js -> worker/admin-only.js.');
