@@ -24,7 +24,8 @@ for (const contract of [
   "headers.set('location', target.toString())"
 ]) assert.ok(worker.includes(contract), `Dedicated admin routing contract missing: ${contract}`);
 
-assert.ok(publicEntrypoint.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but routing must not expose it on admin.rcitcs.com.');
+assert.ok(publicEntrypoint.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but routing must not expose it on a public alternate origin.');
+assert.ok(publicEntrypoint.includes('if (!PUBLIC_ALLOWED_HOSTS.has(host)) return rejectedHostResponse()'), 'Public bundle must fail closed on an unowned Host even if a route is misconfigured.');
 
 const publicConfig = JSON.parse(wrangler);
 const productionAdminConfig = JSON.parse(productionAdminWrangler);
@@ -33,7 +34,8 @@ const legacyConfig = JSON.parse(legacyWrangler);
 
 assert.ok(Array.isArray(publicConfig.assets?.run_worker_first));
 assert.ok(publicConfig.assets.run_worker_first.includes('/*'), 'Public Worker must run before assets for dynamic Careers/API routing.');
-assert.equal(publicConfig.workers_dev, true, 'Primary public Worker remains reachable on its workers.dev deployment until the later Phase-17 exposure-hardening module.');
+assert.equal(publicConfig.workers_dev, false, 'Phase 17.10 must disable the public workers.dev production route.');
+assert.equal(publicConfig.preview_urls, false, 'Phase 17.10 must disable public Worker preview URLs.');
 assert.deepEqual(
   publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [['rcitcs.com', true], ['www.rcitcs.com', true]],
@@ -77,4 +79,4 @@ for (const expected of [
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: rcitcs.com/www stay public, admin.rcitcs.com belongs only to rcitcs-admin-production, admin-staging belongs only to rcitcs-admin-staging, and no legacy Worker owns a company hostname.');
+console.log('PASS: public and admin custom-domain ownership remains isolated while Phase 17.10 disables workers.dev/preview exposure and rejects unowned public Hosts.');
