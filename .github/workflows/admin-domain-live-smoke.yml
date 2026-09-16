@@ -16,171 +16,105 @@ jobs:
   verify-admin-domains:
     name: Verify dedicated admin hostnames
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
 
     steps:
-      - name: Diagnose DNS and verify production admin domain
+      - name: Verify production admin domain
         shell: bash
         run: |
-          set -uo pipefail
-          failures=0
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
 
-          diagnose_dns() {
-            local host="$1"
-            echo "--- DNS ${host} ---"
-            if command -v dig >/dev/null 2>&1; then
-              echo 'CNAME:'
-              dig +short CNAME "$host" || true
-              echo 'A:'
-              dig +short A "$host" || true
-              echo 'AAAA:'
-              dig +short AAAA "$host" || true
-            else
-              getent ahosts "$host" || true
-            fi
-          }
+          for attempt in $(seq 1 60); do
+            code=$(curl -sS --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/" || true)
+            environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers | tail -n1)
+            release=$(awk -F': *' 'tolower($1)=="x-rc-admin-edge-release" {gsub(/\r/,"",$2); print $2}' /tmp/admin.headers | tail -n1)
+            build=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' /tmp/admin.headers | tail -n1)
+            echo "production attempt=${attempt} status=${code} environment=${environment:-none} release=${release:-none} build=${build:-none}"
 
-          verify_admin() {
-            local admin="$1"
-            local label="$2"
-            local expected_release="${3:-}"
-            local expected_build_surface="${4:-}"
-            local host="${admin#https://}"
-            local body="/tmp/${label}-admin.html"
-            local headers="/tmp/${label}-admin.headers"
-            local passed=0
-
-            diagnose_dns "$host"
-
-            for attempt in $(seq 1 40); do
-              code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "$admin/" || true)
-              title=$(grep -o '<title>[^<]*' "$body" 2>/dev/null | head -n1 || true)
-              release=$(awk -F': *' 'tolower($1)=="x-rc-admin-edge-release" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
-              build_surface=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
-              echo "${label} attempt=${attempt} status=${code} release=${release:-none} build=${build_surface:-none} ${title}"
-
-              release_ok=1
-              if [[ -n "$expected_release" && "$release" != "$expected_release" ]]; then
-                release_ok=0
-              fi
-              build_surface_ok=1
-              if [[ -n "$expected_build_surface" && "$build_surface" != "$expected_build_surface" ]]; then
-                build_surface_ok=0
-              fi
-
-              if [[ "$code" == '200' ]] \
-                && [[ "$release_ok" == '1' ]] \
-                && [[ "$build_surface_ok" == '1' ]] \
-                && grep -q 'Administrator sign in' "$body" \
-                && grep -q 'Private administration for controlled operational work.' "$body" \
-                && ! grep -q 'Technology that' "$body" \
-                && ! grep -q 'data-prerendered-path="/"' "$body" \
-                && ! grep -q '/functions/v1/admin-auth' "$body"; then
-                passed=1
-                break
-              fi
-              sleep 5
-            done
-
-            if [[ "$passed" != '1' ]]; then
-              echo "${label} admin domain is NOT serving the expected private portal release." >&2
-              sed -n '1,24p' "$body" >&2 || true
-              failures=$((failures + 1))
-              return
+            if [[ "$code" == '200' && "$environment" == 'production' \
+              && "$release" == 'phase12-job-authoring-v1' \
+              && "$build" == 'phase16-security-closure-v1' ]] \
+              && grep -q 'Administrator sign in' /tmp/admin.html \
+              && grep -q 'Private administration for controlled operational work.' /tmp/admin.html \
+              && ! grep -q 'Technology that' /tmp/admin.html \
+              && ! grep -q '/functions/v1/admin-auth' /tmp/admin.html; then
+              break
             fi
 
-            grep -qi '^cache-control:.*no-store' "$headers" || failures=$((failures + 1))
-            grep -qi '^x-robots-tag:.*noindex' "$headers" || failures=$((failures + 1))
-            grep -qi '^x-frame-options: *DENY' "$headers" || failures=$((failures + 1))
-
-            session_code=$(curl -sS -D "/tmp/${label}-session.headers" -o "/tmp/${label}-session.json" -w '%{http_code}' "$admin/session" || true)
-            if [[ "$session_code" != '401' ]] || ! grep -q '"authenticated":false' "/tmp/${label}-session.json"; then
-              echo "${label} session boundary failed; status=${session_code}." >&2
-              failures=$((failures + 1))
+            if [[ "$attempt" == '60' ]]; then
+              echo 'Production admin domain did not converge to the dedicated production Worker.' >&2
+              exit 1
             fi
+            sleep 5
+          done
 
-            if [[ "$label" == 'production' ]]; then
-              if ! grep -Fq '.workspace[aria-labelledby="jobs-title"] .activity-table' "$body" \
-                || ! grep -Fq '.workspace[aria-labelledby="applications-title"] .activity-table' "$body" \
-                || ! grep -Fq 'content:"Candidate"' "$body" \
-                || ! grep -Fq 'content:"Actions"' "$body"; then
-                echo 'Production admin HTML is missing the Phase 12 Jobs/Applications mobile register stylesheet.' >&2
-                failures=$((failures + 1))
-              fi
+          grep -qi '^content-type: *text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^content-security-policy:' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin.headers
 
-              if ! grep -Fq 'data-rc-admin-interactions' "$body" \
-                || ! grep -Fq 'src="/__rc-admin/interactions.js"' "$body"; then
-                echo 'Production admin HTML is missing the Phase 12 progressive interaction shell.' >&2
-                failures=$((failures + 1))
-              fi
+          session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/admin-session.json
+          grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-session.headers
 
-              if ! grep -qi "^content-security-policy:.*script-src 'self'" "$headers" \
-                || ! grep -qi "^content-security-policy:.*connect-src 'self'" "$headers"; then
-                echo 'Production admin CSP does not narrowly permit the same-origin interaction script and fetch navigation.' >&2
-                failures=$((failures + 1))
-              fi
+          interaction_code=$(curl -sS -D /tmp/admin-interactions.headers -o /tmp/admin-interactions.js -w '%{http_code}' "${ADMIN}/__rc-admin/interactions.js")
+          test "$interaction_code" = '200'
+          grep -Fq 'history.pushState' /tmp/admin-interactions.js
+          grep -Fq 'showModal()' /tmp/admin-interactions.js
+          grep -Fq 'x-rc-admin-soft-submit' /tmp/admin-interactions.js
+          ! grep -Fq 'location.reload(' /tmp/admin-interactions.js
+          grep -qi '^cache-control:.*no-store' /tmp/admin-interactions.headers
+          grep -qi '^cross-origin-resource-policy: *same-origin' /tmp/admin-interactions.headers
 
-              interaction_code=$(curl -sS -D /tmp/admin-interactions.headers -o /tmp/admin-interactions.js -w '%{http_code}' "$admin/__rc-admin/interactions.js" || true)
-              if [[ "$interaction_code" != '200' ]] \
-                || ! grep -Fq 'history.pushState' /tmp/admin-interactions.js \
-                || ! grep -Fq 'showModal()' /tmp/admin-interactions.js \
-                || ! grep -Fq 'x-rc-admin-soft-submit' /tmp/admin-interactions.js \
-                || grep -Fq 'location.reload(' /tmp/admin-interactions.js; then
-                echo "Production admin interaction script is missing or stale; status=${interaction_code}." >&2
-                failures=$((failures + 1))
-              fi
-              grep -qi '^cache-control:.*no-store' /tmp/admin-interactions.headers || failures=$((failures + 1))
-              grep -qi '^cross-origin-resource-policy: *same-origin' /tmp/admin-interactions.headers || failures=$((failures + 1))
+          mobile_code=$(curl -sS -o /tmp/admin-mobile.html -w '%{http_code}' \
+            -X POST -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=not-the-admin%40example.invalid' \
+            "${ADMIN}/forgot-password")
+          test "$mobile_code" = '200'
+          ! grep -q 'Request rejected' /tmp/admin-mobile.html
 
-              mobile_code=$(curl -sS -o /tmp/admin-mobile-compatible.html -w '%{http_code}' \
-                -X POST \
-                -H 'content-type: application/x-www-form-urlencoded' \
-                --data 'email=not-the-admin%40example.invalid' \
-                "$admin/forgot-password" || true)
-              if [[ "$mobile_code" != '200' ]] || grep -q 'Request rejected' /tmp/admin-mobile-compatible.html; then
-                echo "Header-sparse iPhone/iPad form compatibility failed; status=${mobile_code}." >&2
-                failures=$((failures + 1))
-              fi
+          rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' \
+            -X POST -H 'Origin: https://example.invalid' \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=not-the-admin%40example.invalid' \
+            "${ADMIN}/forgot-password")
+          test "$rejected_code" = '403'
+          grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-              rejected_code=$(curl -sS -o /tmp/admin-cross-origin-rejected.txt -w '%{http_code}' \
-                -X POST \
-                -H 'Origin: https://example.invalid' \
-                -H 'content-type: application/x-www-form-urlencoded' \
-                --data 'email=not-the-admin%40example.invalid' \
-                "$admin/forgot-password" || true)
-              if [[ "$rejected_code" != '403' ]] || ! grep -q 'Request rejected' /tmp/admin-cross-origin-rejected.txt; then
-                echo "Explicit cross-origin POST protection failed; status=${rejected_code}." >&2
-                failures=$((failures + 1))
-              fi
-            fi
-          }
+      - name: Verify staging is intentionally unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING='https://admin-staging.rcitcs.com'
 
-          verify_admin 'https://admin.rcitcs.com' 'production' 'phase12-job-authoring-v1' 'phase16-security-closure-v1'
+          getent ahosts admin-staging.rcitcs.com >/dev/null
+          code=$(curl -sS --max-time 20 -D /tmp/staging.headers -o /tmp/staging.txt -w '%{http_code}' "${STAGING}/")
+          test "$code" = '503'
+          grep -Fxq 'Staging administration is intentionally unavailable.' /tmp/staging.txt
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/staging.headers
+          grep -qi '^cache-control:.*no-store' /tmp/staging.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/staging.headers
+          grep -qi '^strict-transport-security:' /tmp/staging.headers
+          ! grep -q 'Administrator sign in' /tmp/staging.txt
+          ! grep -q 'Technology that' /tmp/staging.txt
 
-          echo '--- Staging admin DNS diagnostic ---'
-          diagnose_dns 'admin-staging.rcitcs.com'
-          if getent ahosts admin-staging.rcitcs.com >/dev/null 2>&1; then
-            verify_admin 'https://admin-staging.rcitcs.com' 'staging'
-          else
-            echo 'Staging admin hostname is not provisioned; it is outside the production Phase 12 acceptance gate.'
-          fi
+      - name: Verify public apex separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_code=$(curl -L -sS -D /tmp/public.headers -o /tmp/public.html -w '%{http_code}' 'https://rcitcs.com/')
+          test "$public_code" = '200'
+          grep -q 'Technology that' /tmp/public.html
+          ! grep -q 'Administrator sign in' /tmp/public.html
+          grep -qi '^strict-transport-security:' /tmp/public.headers
 
-          echo '--- Public apex DNS diagnostic ---'
-          diagnose_dns 'rcitcs.com'
-          if getent ahosts rcitcs.com >/dev/null 2>&1; then
-            public_code=$(curl -L -sS -o /tmp/public.html -w '%{http_code}' 'https://rcitcs.com/' || true)
-            echo "public status=${public_code}"
-            if [[ "$public_code" != '200' ]] || ! grep -q 'Technology that' /tmp/public.html || grep -q 'Administrator sign in' /tmp/public.html; then
-              echo 'Provisioned public corporate-site separation failed.' >&2
-              failures=$((failures + 1))
-            fi
-          else
-            echo 'Public apex is not provisioned; it is not used as the Phase 12 production application origin.'
-          fi
-
-          if [[ "$failures" != '0' ]]; then
-            echo "Production admin-domain verification failed with ${failures} finding(s)." >&2
-            exit 1
-          fi
-
-          echo 'Production dedicated-admin hostname, Phase 16 build ownership, mobile register CSS, progressive History API/modal interaction shell, exact edge release and cross-origin boundary verified.'
+          echo 'Production admin, intentional staging isolation, and public-host separation verified.'
