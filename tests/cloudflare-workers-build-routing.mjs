@@ -65,7 +65,11 @@ assert.deepEqual(
 assert.equal(productionConfig.name, 'rcitcs-admin-production');
 assert.equal(productionConfig.main, './worker/admin-only.js');
 assert.equal(productionConfig.workers_dev, false);
-assert.equal(productionConfig.keep_vars, true);
+assert.equal(
+  Object.hasOwn(productionConfig, 'keep_vars'),
+  false,
+  'Production admin Worker must use Wrangler configuration as the source of truth for non-secret runtime variables.'
+);
 assert.equal(productionConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
 assert.equal(Object.hasOwn(productionConfig.vars || {}, 'RC_ADMIN_STAGING_MODE'), false);
 assert.equal(Object.hasOwn(productionConfig, 'secrets'), false, 'Production admin edge must not inherit the public Worker secret requirement.');
