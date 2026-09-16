@@ -1,6 +1,6 @@
 # Phase 17.16 — Cleanup, exact-SHA merge and production closure
 
-Status: **IMPLEMENTED — 17.16 OPEN pending final DNS, merge and production convergence**
+Status: **IMPLEMENTED — 17.16 OPEN pending exact-head DNS validation, merge and production convergence**
 
 Depends on Phase 17.15 closure SHA `bfaa45326170bbd2da6c355c995278bcdd72cfa1`.
 
@@ -29,7 +29,9 @@ A guarded GitHub Actions activation probe was run against the Phase-17 branch to
 
 The probe found **neither repository secret configured**. It terminated before any Cloudflare API request or DNS mutation. The temporary probe workflow was then removed so it cannot remain as a permanent failing or privileged workflow.
 
-Therefore there is no repository-authorized DNS mutation path available to this closure process. Publication of `_dmarc.rcitcs.com` must occur in the authoritative Cloudflare control plane (account `3fdd024f6fbc25c03ed4481352576540`, zone `cf815244b9dbd51a490747f597867c68`) before the exact-head merge gate can pass. This requirement is not waived.
+Therefore there is no repository-authorized DNS mutation path available to this closure process. Publication of `_dmarc.rcitcs.com` had to occur in the authoritative Cloudflare control plane (account `3fdd024f6fbc25c03ed4481352576540`, zone `cf815244b9dbd51a490747f597867c68`). This requirement was not waived.
+
+On September 16, 2026, the authoritative client Cloudflare DNS control plane showed the new TXT record `_dmarc.rcitcs.com` saved with TTL `Auto`, increasing the zone record count from 14 to 15. The configured value is the required Phase-17 policy above. Existing Cloudflare Email Routing MX records, apex SPF, Resend return-path/SPF, DKIM and tracking records remained present and were not modified. Public resolver validation remains mandatory on the exact branch head before merge.
 
 ## Exact merge and mirror contract
 
