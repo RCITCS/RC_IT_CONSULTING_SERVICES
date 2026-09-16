@@ -1,6 +1,6 @@
 # Phase 17.16 — Cleanup, exact-SHA merge and production closure
 
-Status: **IMPLEMENTED — pre-merge exact-head verification pending**
+Status: **IMPLEMENTED — 17.16 OPEN pending final DNS, merge and production convergence**
 
 Depends on Phase 17.15 closure SHA `bfaa45326170bbd2da6c355c995278bcdd72cfa1`.
 
@@ -16,8 +16,12 @@ Before PR #85 may merge:
 - the final branch head must pass the complete inherited CI suite plus this 17.16 gate;
 - `docs/DOMAIN_CUTOVER.md` must describe the Phase-17 architecture rather than the superseded workers.dev fallback;
 - PR #85 must describe the final module status and outstanding production activation gates;
-- the required DMARC TXT record must be publicly resolvable before a merge is allowed, because main-only security workflows intentionally fail without it;
+- the required DMARC TXT record must be publicly resolvable before a merge is allowed, because final-main security workflows intentionally fail without it;
 - the merge must use an exact verified head SHA, never an unreviewed moving branch tip.
+
+The required initial DMARC value is:
+
+`v=DMARC1; p=none; rua=mailto:dmarc@rcitcs.com; adkim=s; aspf=s; pct=100`
 
 ## Exact merge and mirror contract
 
@@ -46,9 +50,18 @@ The final runtime topology must simultaneously prove:
 
 ## Security closure
 
-After production activation, Supabase Security Advisor must be queried directly for the production RC IT project. Overall Phase 17 remains open if a release-relevant security advisory remains unresolved.
+The production Supabase project was identified through the authenticated Supabase control plane as:
 
-This advisor check is deliberately not faked inside GitHub CI because it requires the authenticated Supabase control plane. The final closure record must capture the actual advisor result.
+- project: `RCITCS`
+- project ref: `chsizmffzpxcqhaptjeu`
+- region: `eu-west-2`
+- project status at the pre-merge check: `ACTIVE_HEALTHY`
+
+An authenticated **pre-merge** Supabase Security Advisor query returned **zero security lints**. This is real control-plane evidence, not a simulated CI result.
+
+The Security Advisor must be queried again after the final production/main convergence. Overall Phase 17 remains open if a release-relevant security advisory appears at final closure.
+
+The advisor check is deliberately not faked inside GitHub CI because it requires the authenticated Supabase control plane. The final closure record must capture the post-convergence result as well.
 
 ## Stale cross-account Cloudflare integration
 
@@ -66,7 +79,7 @@ Phase 17 may be marked **CLOSED** only after all of these are true on the exact 
 4. authoritative production domain/runtime checks passed;
 5. DMARC and existing email DNS checks passed together;
 6. alternate ingress shutdown checks passed;
-7. Supabase Security Advisor has no unresolved release-blocking security finding;
-8. the closure document is updated with the actual merge SHA and verification evidence.
+7. post-convergence Supabase Security Advisor has no unresolved release-blocking security finding;
+8. the closure document is updated with the actual final main SHA and verification evidence.
 
 Until then the correct overall status is **17.16 OPEN** even when every implementation module is branch-complete.
