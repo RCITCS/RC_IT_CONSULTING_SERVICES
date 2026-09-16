@@ -31,7 +31,7 @@ jobs:
       - name: Verify Phase 17.14 acceptance contract
         run: node tests/phase17-production-runtime-acceptance.mjs
 
-      - name: Verify current apex and production-admin baseline
+      - name: Verify current apex and public admin boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -43,14 +43,6 @@ jobs:
           grep -qi '^content-type:.*text/html' /tmp/public.headers
           grep -qi '^strict-transport-security:' /tmp/public.headers
 
-          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/')
-          test "$admin_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin.html
-          ! grep -q 'Technology that' /tmp/admin.html
-          grep -qi '^content-type:.*text/html' /tmp/admin.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
-
           alias_code=$(curl -sS -o /dev/null -D /tmp/admin-alias.headers -w '%{http_code}' 'https://rcitcs.com/admin')
           test "$alias_code" = '308'
           grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-alias.headers
@@ -58,6 +50,31 @@ jobs:
           mutation=$(curl -sS -o /tmp/admin-mutation.body -D /tmp/admin-mutation.headers -w '%{http_code}' -X POST 'https://rcitcs.com/admin/login')
           test "$mutation" = '404'
           ! grep -qi '^location:' /tmp/admin-mutation.headers
+
+      - name: Classify current production-admin runtime during activation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              echo 'PR activation state: admin.rcitcs.com is temporarily unresolved until the dedicated production Worker receives the next main build.'
+              exit 0
+            fi
+            echo 'admin.rcitcs.com is unresolved on final main.' >&2
+            exit 1
+          fi
+
+          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/' || true)
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          ! grep -q 'Technology that' /tmp/admin.html
+          grep -qi '^content-type:.*text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          if [[ "${{ github.event_name }}" != 'pull_request' ]]; then
+            grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
+          fi
 
       - name: Verify final-main exact browser/runtime acceptance
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -69,14 +86,14 @@ jobs:
           BASE='https://rcitcs.com'
           ADMIN='https://admin.rcitcs.com'
 
-          for attempt in $(seq 1 72); do
+          for attempt in $(seq 1 90); do
             code=$(curl -sS -o /tmp/root.html -D /tmp/root.headers -w '%{http_code}' "${BASE}/" || true)
             if [[ "$code" == '200' ]] \
               && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/root.html \
               && grep -q 'Technology that' /tmp/root.html; then
               break
             fi
-            if [[ "$attempt" == '72' ]]; then
+            if [[ "$attempt" == '90' ]]; then
               echo "Exact main SHA ${EXPECTED_SHA} did not become visible on rcitcs.com." >&2
               exit 1
             fi
@@ -97,9 +114,19 @@ jobs:
           test "$www" = '308'
           grep -qi '^location: *https://rcitcs\.com/careers?acceptance=17' /tmp/www.headers
 
-          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/")
-          test "$admin_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin.html
+          for attempt in $(seq 1 90); do
+            admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/" || true)
+            environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers | tail -n1)
+            if [[ "$admin_code" == '200' && "$environment" == 'production' ]] && grep -q 'Administrator sign in' /tmp/admin.html; then
+              break
+            fi
+            if [[ "$attempt" == '90' ]]; then
+              echo 'Production admin did not converge to the dedicated production Worker.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
           grep -qi '^content-type:.*text/html' /tmp/admin.headers
           grep -qi '^cache-control:.*no-store' /tmp/admin.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
@@ -108,12 +135,14 @@ jobs:
           grep -qi '^strict-transport-security:' /tmp/admin.headers
           grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
 
-          session=$(curl -sS -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
+          session=$(curl -sS -o /tmp/session.json -D /tmp/session.headers -w '%{http_code}' "${ADMIN}/session")
           test "$session" = '401'
           grep -q '"authenticated":false' /tmp/session.json
+          grep -qi '^x-rc-admin-environment: *production' /tmp/session.headers
 
-          hostile=$(curl -sS -o /tmp/hostile.body -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
+          hostile=$(curl -sS -o /tmp/hostile.body -D /tmp/hostile.headers -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
           test "$hostile" = '403'
+          grep -qi '^x-rc-admin-environment: *production' /tmp/hostile.headers
 
           staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
           test "$staging" = '503'
