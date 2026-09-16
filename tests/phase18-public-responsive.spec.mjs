@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { ALL_ROUTES } from '../src/frontend/app/site-config.js';
 import { getPrerenderRoutes } from '../src/frontend/seo/seo-model.js';
 
 const representativeRoutes = [
@@ -109,10 +110,17 @@ test('contact controls remain usable on narrow viewports', async ({ page }) => {
 test('legal table overflow is contained by its own scroller', async ({ page }) => {
   await page.goto('/privacy', { waitUntil: 'domcontentloaded' });
   const wrap = page.locator('.legal-table-wrap').first();
-  if (await wrap.count()) {
-    const containment = await wrap.evaluate((node) => ({ clientWidth: node.clientWidth, scrollWidth: node.scrollWidth }));
-    expect(containment.scrollWidth).toBeGreaterThanOrEqual(containment.clientWidth);
-  }
+  await expect(wrap).toBeVisible();
+  await expect(wrap).toHaveCSS('overflow-x', 'auto');
+
+  const table = wrap.locator('table').first();
+  await expect(table).toBeVisible();
+  await table.evaluate((node) => {
+    node.style.minWidth = '1200px';
+  });
+
+  const containment = await wrap.evaluate((node) => ({ clientWidth: node.clientWidth, scrollWidth: node.scrollWidth }));
+  expect(containment.scrollWidth, 'legal table should overflow only inside its local scroller').toBeGreaterThan(containment.clientWidth);
   await expectNoDocumentOverflow(page, 'legal page');
 });
 
@@ -137,5 +145,10 @@ test('official breakpoint boundaries remain overflow-free', async ({ page }, tes
 
 const routeInventory = getPrerenderRoutes();
 test('static responsive inventory stays aligned with canonical route source', async () => {
-  expect(routeInventory.length).toBeGreaterThanOrEqual(representativeRoutes.length);
+  for (const route of ALL_ROUTES) {
+    expect(routeInventory, `canonical route ${route} must be included in the responsive prerender inventory`).toContain(route);
+  }
+  for (const route of representativeRoutes) {
+    expect(routeInventory, `representative responsive route ${route} must remain prerendered`).toContain(route);
+  }
 });
