@@ -3,6 +3,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configureWorkersBuild } from './configure-cloudflare-workers-build.mjs';
+import { convergeLegacyAdminWorkerRoutes } from './converge-cloudflare-worker-routes.mjs';
 import { siteShell } from '../src/frontend/layouts/site-shell.js';
 import { routeContent } from '../src/frontend/router/router.js';
 import { routeStyleKeys } from '../src/frontend/app/route-styles.js';
@@ -142,5 +143,6 @@ await writeFile(path.join(out, 'robots.txt'), renderRobotsTxt(), 'utf8');
 await writeFile(path.join(out, '_redirects'), renderRedirectsFile(), 'utf8');
 
 await configureWorkersBuild();
+await convergeLegacyAdminWorkerRoutes();
 
 console.log(`Built prerendered SEO site: ${prerenderRoutes.length} route HTML files, sitemap.xml, robots.txt and 404.html; ${cssFile}, ${overridesFile}, ${jsFile}; route CSS ${Object.values(routeStyles).join(', ')}; deployment SHA ${deploymentSha}`);
