@@ -15,7 +15,6 @@ const [edge, gateway, router, handlers, supabaseConfig, wranglerText] = await Pr
   read('wrangler.jsonc')
 ]);
 const wrangler = JSON.parse(wranglerText);
-const productionWorkerOrigin = 'https://rc-it-consulting-services.rcitcservices.workers.dev';
 
 assert.ok(edge.includes('bearerCredential(request)'), 'Candidate intake must authenticate the server proxy credential.');
 assert.ok(edge.includes('constantTimeEqual(presented, serviceKey)'), 'Proxy credential comparison must avoid ordinary early-exit string equality.');
@@ -25,20 +24,27 @@ assert.ok(!edge.includes('request.headers.get("x-rcitcs-original-origin") || req
 assert.ok(edge.includes('MAX_CANDIDATE_JSON_BYTES'));
 assert.ok(edge.includes('request.body.getReader()'));
 assert.ok(edge.includes('reader.cancel()'));
-assert.ok(edge.includes(productionWorkerOrigin), 'The candidate Edge boundary must trust the actual Cloudflare production Worker origin.');
-assert.ok(!edge.includes('https://rcitcservices.frsmkgit.workers.dev'), 'The retired workers.dev origin must not remain trusted by the candidate Edge boundary.');
+assert.ok(edge.includes('"https://rcitcs.com"'), 'The candidate Edge boundary must trust the canonical public production origin.');
+assert.ok(edge.includes('"https://www.rcitcs.com"'), 'The candidate Edge boundary may accept the approved canonical www compatibility origin.');
+assert.ok(edge.includes('const ALLOWED_PROXIES = new Set(["cloudflare"])'), 'Candidate intake must accept only the Cloudflare production proxy.');
+assert.ok(!edge.includes('workers.dev'), 'No workers.dev origin may remain trusted by the candidate Edge boundary after Phase 17.10.');
+assert.ok(!edge.includes('vercel.app'), 'No Vercel origin may remain trusted by the candidate Edge boundary after Phase 17.10.');
 
 assert.ok(gateway.includes('authorization: `Bearer ${persistence.secretKey}`'));
 assert.ok(gateway.includes("headerValue(headers, 'cf-connecting-ip')"));
-assert.ok(gateway.includes("headerValue(headers, 'x-vercel-forwarded-for')"));
+assert.ok(!gateway.includes("headerValue(headers, 'x-vercel-forwarded-for')"), 'Retired Vercel forwarding metadata must no longer establish trusted client identity.');
 assert.ok(gateway.includes("'x-rcitcs-client-ip': clientIp"));
 assert.ok(!gateway.includes("headerValue(headers, 'x-rcitcs-client-ip')"), 'RC gateway must not trust a browser-supplied forwarded client-IP header.');
-assert.ok(gateway.includes(productionWorkerOrigin), 'The RC gateway must trust the actual Cloudflare production Worker origin.');
-assert.ok(!gateway.includes('https://rcitcservices.frsmkgit.workers.dev'), 'The retired workers.dev origin must not remain trusted by the RC gateway.');
+assert.ok(gateway.includes("'https://rcitcs.com'"));
+assert.ok(gateway.includes("'https://www.rcitcs.com'"));
+assert.ok(!gateway.includes('workers.dev'), 'No workers.dev public origin may remain trusted by the RC gateway.');
+assert.ok(!gateway.includes('vercel.app'), 'No Vercel public origin may remain trusted by the RC gateway.');
 assert.ok(router.includes("'career-application': { methods: ['POST'], handler: 'candidateApplication', body: true }"));
 assert.ok(handlers.includes('candidateApplicationGateway.forward'));
 
 assert.equal(wrangler.name, 'rc-it-consulting-services', 'Wrangler must target the Cloudflare Worker connected in production.');
+assert.equal(wrangler.workers_dev, false, 'Phase 17.10 must close the public workers.dev production URL.');
+assert.equal(wrangler.preview_urls, false, 'Phase 17.10 must close public preview URLs.');
 assert.equal(wrangler.vars?.SUPABASE_URL, 'https://chsizmffzpxcqhaptjeu.supabase.co', 'The production public Worker must bind the Supabase project origin required by the Phase 12 candidate gateway.');
 assert.deepEqual(wrangler.secrets?.required, ['SUPABASE_SECRET_KEY'], 'Production deploys must fail unless the encrypted Supabase server credential is configured as a Worker runtime secret.');
 assert.ok(!('SUPABASE_SECRET_KEY' in (wrangler.vars || {})), 'Supabase server credentials must remain secret bindings, never plaintext Wrangler vars.');
@@ -55,4 +61,4 @@ for (const source of [edge, gateway, router, handlers, supabaseConfig, wranglerT
   assert.ok(!/SUPABASE_SECRET_KEY\s*=/.test(source), 'No Supabase secret assignment may be committed in Phase 12 source.');
 }
 
-console.log('PASS: Phase 12 rejects forged direct-proxy authority, locks the actual Cloudflare Worker identity/origin, explicitly binds its Supabase project origin, requires an encrypted runtime secret, keeps server credentials out of source, and keeps candidate JSON bounded.');
+console.log('PASS: Phase 12 candidate authority now accepts only canonical Cloudflare production origins, rejects retired alternate ingress, authenticates the Supabase boundary and keeps secrets out of source.');
