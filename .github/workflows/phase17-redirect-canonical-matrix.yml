@@ -63,29 +63,46 @@ jobs:
           set -euo pipefail
 
           http_apex=$(curl -sS -o /dev/null -D /tmp/http-apex.headers -w '%{http_code}' --max-redirs 0 'http://rcitcs.com/careers?from=matrix' || true)
+          echo "HTTP apex redirect status: ${http_apex}"
           case "$http_apex" in
             301|308) ;;
             *)
               echo "Expected a permanent HTTP-to-HTTPS redirect (301 or 308), got ${http_apex}." >&2
+              cat /tmp/http-apex.headers >&2 || true
               exit 1
               ;;
           esac
-          grep -qi '^location: *https://rcitcs\.com/careers?from=matrix' /tmp/http-apex.headers
+          grep -qi '^location: *https://rcitcs\.com/careers?from=matrix' /tmp/http-apex.headers || {
+            echo 'HTTP apex redirect did not preserve the exact canonical HTTPS destination.' >&2
+            cat /tmp/http-apex.headers >&2
+            exit 1
+          }
 
           www=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' --max-redirs 0 'https://www.rcitcs.com/services?from=matrix')
+          echo "WWW canonical redirect status: ${www}"
           test "$www" = '308'
           grep -qi '^location: *https://rcitcs\.com/services?from=matrix' /tmp/www.headers
 
           final=$(curl -L -sS -o /tmp/www-final.body -w '%{http_code} %{url_effective}' 'http://www.rcitcs.com/careers?from=matrix')
+          echo "Final canonical careers response: ${final}"
           [[ "$final" == 200\ https://rcitcs.com/careers?from=matrix ]]
-          grep -q 'Technology that' /tmp/www-final.body
+          grep -q 'id="main-content"' /tmp/www-final.body || {
+            echo 'Canonical careers response is missing the approved main-content structural marker.' >&2
+            exit 1
+          }
+          grep -q 'data-prerendered-path="/careers"' /tmp/www-final.body || {
+            echo 'Canonical careers response is missing the /careers prerendered-path marker.' >&2
+            exit 1
+          }
 
           admin_legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy-final.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
+          echo "Production admin legacy redirect status: ${admin_legacy}"
           test "$admin_legacy" = '308'
           grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy-final.headers
           grep -qi '^x-rc-admin-environment: *production' /tmp/admin-legacy-final.headers
 
           staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          echo "Admin staging isolation status: ${staging}"
           test "$staging" = '503'
           grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
           grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
