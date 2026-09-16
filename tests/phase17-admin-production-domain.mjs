@@ -20,7 +20,11 @@ const baseline = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 assert.equal(production.name, 'rcitcs-admin-production');
 assert.equal(production.main, './worker/admin-only.js');
 assert.equal(production.workers_dev, false, 'Production admin must never expose a workers.dev endpoint.');
-assert.equal(production.keep_vars, true, 'Production admin deployment must preserve managed runtime bindings.');
+assert.equal(
+  Object.hasOwn(production, 'keep_vars'),
+  false,
+  'Production admin Wrangler config must be authoritative for its non-secret runtime variables.'
+);
 assert.equal(production.vars?.RC_ADMIN_ENVIRONMENT, 'production');
 assert.equal(Object.hasOwn(production.vars || {}, 'RC_ADMIN_STAGING_MODE'), false, 'Production config must never inherit staging-unavailable mode.');
 assert.deepEqual(
