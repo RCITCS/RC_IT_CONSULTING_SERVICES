@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { ADMIN_RESPONSIVE_STYLE } from '../worker/admin-responsive.js';
+import { ADMIN_INTERACTION_STYLE } from '../worker/admin-interactions.js';
 
 function adminHarness() {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">${ADMIN_RESPONSIVE_STYLE}</head><body>
@@ -57,4 +58,14 @@ test('applications register uses the responsive card contract and contains extre
     await expect(page.locator('.activity-table')).toHaveCSS('display', 'block');
     await expect(page.locator('.activity-table tbody td').first()).toHaveCSS('overflow-wrap', 'anywhere');
   }
+});
+
+test('admin action dialog remains bounded and internally scrollable', async ({ page }) => {
+  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">${ADMIN_RESPONSIVE_STYLE}${ADMIN_INTERACTION_STYLE}</head><body><dialog class="rc-admin-dialog" open><div class="rc-admin-dialog-shell"><header class="rc-admin-dialog-bar"><h2>Very long administrative action title that must remain contained</h2><button class="rc-admin-dialog-close" type="button">×</button></header><div class="rc-admin-dialog-body"><main class="workspace"><div class="page-heading"><div><h1>Edit vacancy</h1></div></div><section class="data-plane"><form class="job-editor-form" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"><label>Title<input value="Principal Platform Engineering Architect"></label><label>Location<input value="London"></label><label style="grid-column:1/-1">Description<textarea id="job-description">Long form content</textarea></label><div class="actions" style="grid-column:1/-1"><button class="btn">Save</button><button class="btn secondary">Cancel</button></div></form></section></main></div></div></dialog></body></html>`);
+  await expect(page.locator('.rc-admin-dialog')).toBeVisible();
+  const bounds = await page.locator('.rc-admin-dialog').boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds?.width ?? Infinity).toBeLessThanOrEqual((viewport?.width ?? 1280) + 1);
+  expect(bounds?.height ?? Infinity).toBeLessThanOrEqual((viewport?.height ?? 800) + 1);
+  await expectNoDocumentOverflow(page, 'admin dialog');
 });
