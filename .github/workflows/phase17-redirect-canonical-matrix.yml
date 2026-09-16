@@ -1,0 +1,76 @@
+name: Phase 17.12 Redirect Canonical Matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-redirect-canonical-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  redirect-canonical:
+    name: Verify redirect and canonical-host matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 17.12 source/runtime matrix
+        run: node tests/phase17-redirect-canonical-matrix.mjs
+
+      - name: Classify current public/admin redirect behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          public_admin=$(curl -sS -o /dev/null -D /tmp/public-admin.headers -w '%{http_code}' 'https://rcitcs.com/admin?from=matrix')
+          test "$public_admin" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/.*from=matrix' /tmp/public-admin.headers
+
+          mutation=$(curl -sS -o /dev/null -D /tmp/public-admin-post.headers -w '%{http_code}' -X POST 'https://rcitcs.com/admin/login')
+          test "$mutation" = '404'
+          ! grep -qi '^location:' /tmp/public-admin-post.headers
+
+          legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
+          test "$legacy" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy.headers
+
+      - name: Verify final-main canonical host matrix
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          http_apex=$(curl -sS -o /dev/null -D /tmp/http-apex.headers -w '%{http_code}' --max-redirs 0 'http://rcitcs.com/careers?from=matrix' || true)
+          test "$http_apex" = '308'
+          grep -qi '^location: *https://rcitcs\.com/careers?from=matrix' /tmp/http-apex.headers
+
+          www=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' --max-redirs 0 'https://www.rcitcs.com/services?from=matrix')
+          test "$www" = '308'
+          grep -qi '^location: *https://rcitcs\.com/services?from=matrix' /tmp/www.headers
+
+          final=$(curl -L -sS -o /tmp/www-final.body -w '%{http_code} %{url_effective}' 'http://www.rcitcs.com/careers?from=matrix')
+          [[ "$final" == 200\ https://rcitcs.com/careers?from=matrix ]]
+          grep -q 'Technology that' /tmp/www-final.body
+
+          staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          test "$staging" = '503'
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+
+      - name: Phase 17.12 acceptance
+        run: |
+          echo 'Phase 17.12 redirect and canonical-host matrix: PASS'
