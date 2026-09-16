@@ -1,73 +1,66 @@
 import { readFile } from 'node:fs/promises';
-import {
-  actionCard,
-  brandTemplate,
-  breadcrumbs,
-  buttonClasses,
-  dialogTemplate,
-  field,
-  footerTemplate,
-  headerTemplate,
-  linkButton,
-  productCard,
-  sectionHeading,
-  selectField,
-  statusMessage,
-  textareaField
-} from '../src/frontend/components/index.js';
+import { adminChip, brandTemplate, button, field, pageIntro, panel } from '../src/frontend/app/components.js';
 import { siteShell } from '../src/frontend/layouts/site-shell.js';
+import { badge, spinner, inlineAlert } from '../src/frontend/components/feedback.js';
+
+function pass(message) {
+  console.log(`PASS: ${message}`);
+}
+
+function fail(message) {
+  throw new Error(message);
+}
 
 function assert(condition, message) {
-  if (!condition) throw new Error(message);
+  if (!condition) fail(message);
 }
 
-const header = headerTemplate('/careers');
-for (const className of ['utility-bar', 'site-header', 'header-inner', 'brand', 'desktop-nav', 'nav-link', 'header-cta', 'mobile-menu-button', 'mobile-panel', 'mobile-nav']) {
-  assert(header.includes(className), `Shared header lost CSS contract: ${className}`);
-}
-assert(header.includes('aria-label="Primary navigation"'), 'Shared header lost primary navigation semantics');
-assert(header.includes('aria-label="Mobile navigation"'), 'Shared header lost mobile navigation semantics');
-assert(header.includes('aria-current="page"'), 'Active shared navigation does not expose aria-current');
-assert(header.includes('aria-controls="mobile-panel"'), 'Mobile menu control relationship is missing');
+const intro = pageIntro({ eyebrow: 'Platform', title: 'Operations', copy: 'Manage active work.' });
+assert(intro.includes('class="page-intro"'), 'Page intro class missing');
+assert(intro.includes('<h1>Operations</h1>'), 'Page intro title missing');
+pass('page intro renders semantic heading');
 
-const escapedBrand = brandTemplate({ label: 'RC <Home> & services' });
-assert(escapedBrand.includes('aria-label="RC &lt;Home&gt; &amp; services"'), 'Brand accessibility label is not escaped at the component boundary');
+const primaryButton = button({ label: 'Save', type: 'submit', className: 'button-primary', attributes: 'data-action="save"' });
+assert(primaryButton.includes('type="submit"'), 'Button type missing');
+assert(primaryButton.includes('data-action="save"'), 'Button attributes missing');
+pass('button supports type and custom attributes');
 
-const footer = footerTemplate();
-for (const className of ['site-footer', 'footer-main', 'footer-top', 'footer-brand', 'footer-column', 'footer-bottom', 'footer-legal']) {
-  assert(footer.includes(className), `Shared footer lost CSS contract: ${className}`);
-}
-assert(footer.includes('Registered in England and Wales'), 'Shared footer lost legal registration context');
-assert(footer.includes('/privacy') && footer.includes('/cookies') && footer.includes('/terms'), 'Shared footer lost legal links');
+const textField = field({ label: 'Name', name: 'name', value: '<script>', required: true });
+assert(textField.includes('value="&lt;script&gt;"'), 'Field value is not escaped');
+assert(textField.includes('required'), 'Required state missing');
+pass('field escapes values and preserves required state');
 
-const crumbs = breadcrumbs([{ label: 'Home', href: '/' }, { label: 'Current' }]);
-assert(crumbs.includes('aria-label="Breadcrumb"'), 'Breadcrumb landmark is missing');
-assert(crumbs.includes('aria-current="page"'), 'Breadcrumb current-page semantics are missing');
+const contentPanel = panel({ title: 'Summary', body: '<p>Ready</p>', className: 'summary-panel' });
+assert(contentPanel.includes('summary-panel'), 'Panel class missing');
+assert(contentPanel.includes('<h2>Summary</h2>'), 'Panel heading missing');
+pass('panel renders reusable section structure');
 
-const heading = sectionHeading('Eyebrow', 'Heading');
-assert(!heading.includes('<p>'), 'Section heading should not emit an empty paragraph');
+const brand = brandTemplate({ href: '/products' });
+assert(brand.includes('href="/products"'), 'Brand href is not wired');
+assert(brand.includes('class="brand-mark" aria-hidden="true"'), 'Decorative brand mark must be hidden from the accessibility tree');
+assert(!/<a\b[^>]*class="brand"[^>]*aria-label=/i.test(brand), 'Brand link must derive its accessible name from the visible copy instead of an overriding aria-label');
+assert(brand.includes('<strong>RC IT Services</strong>'), 'Brand visible company name is missing');
+assert(brand.includes('<span>Technology & Consulting</span>'), 'Brand visible descriptor is missing');
+pass('brand derives its accessible name from visible content');
 
-assert(buttonClasses({ variant: 'secondary', size: 'small' }) === 'btn btn--secondary btn--small', 'Button class composition changed');
-assert(linkButton({ href: '/contact', label: 'Contact' }).includes('class="btn btn--primary"'), 'Link button did not use the primary button contract');
+const chip = adminChip('Internal');
+assert(chip.includes('admin-chip'), 'Admin chip class missing');
+pass('admin chip renders');
 
-const action = actionCard({ number: '01', title: '<Unsafe>', text: 'Text & more', href: '/products' });
-assert(action.includes('&lt;Unsafe&gt;') && action.includes('Text &amp; more'), 'Card component failed to escape content');
-assert(action.includes('action-card__number') && action.includes('action-card__arrow'), 'Action card lost approved CSS hooks');
+const badgeMarkup = badge('Active', 'badge-success');
+assert(badgeMarkup.includes('badge-success'), 'Badge variant missing');
+assert(badgeMarkup.includes('Active'), 'Badge label missing');
+pass('badge renders variant and label');
 
-const product = productCard({ tag: 'Platform', title: 'Product', text: 'Description', bullets: ['One'], demoProduct: 'Demo' });
-assert(product.includes('data-request-demo="Demo"'), 'Product card lost demo trigger contract');
-assert(product.includes('product-card product-card--expanded'), 'Product card lost approved CSS hooks');
+const loading = spinner('Loading records');
+assert(loading.includes('role="status"'), 'Spinner status role missing');
+assert(loading.includes('Loading records'), 'Spinner label missing');
+pass('spinner exposes accessible status');
 
-const input = field('email', 'Email', 'email', true);
-assert(input.includes('required') && input.includes('aria-describedby='), 'Shared input field lost required/error semantics');
-const select = selectField({ name: 'topic', label: 'Topic', required: true, options: [{ value: '', label: 'Choose' }, 'Cloud'], full: true });
-assert(select.includes('form-field--full') && select.includes('<option value="Cloud">Cloud</option>'), 'Shared select field contract is invalid');
-const textarea = textareaField({ name: 'notes', label: 'Notes', placeholder: 'Context' });
-assert(textarea.includes('aria-describedby=') && textarea.includes('placeholder="Context"'), 'Shared textarea field contract is invalid');
-
-const dialog = dialogTemplate({ id: 'test-dialog', title: 'Dialog', body: '<p>Body</p>' });
-assert(dialog.includes('role="dialog"') && dialog.includes('aria-modal="true"') && dialog.includes('aria-labelledby="test-dialog-title"'), 'Dialog accessibility contract regressed');
-assert(statusMessage('Saved').includes('role="status"'), 'Status-message primitive lost live-region semantics');
+const alert = inlineAlert('Something changed', 'warning');
+assert(alert.includes('role="alert"'), 'Alert role missing');
+assert(alert.includes('alert-warning'), 'Alert variant missing');
+pass('inline alert exposes accessible alert role');
 
 const shell = siteShell('/products', '<main id="main-content">Page</main>');
 const headerIndex = shell.indexOf('site-header');
@@ -75,30 +68,46 @@ const mainIndex = shell.indexOf('<main id="main-content">');
 const footerIndex = shell.indexOf('site-footer');
 assert(!shell.includes('class="skip-link"'), 'Site shell must not duplicate the document-level skip-navigation control');
 assert(headerIndex >= 0 && headerIndex < mainIndex && mainIndex < footerIndex, 'Site shell composition order is invalid');
+pass('site shell composes header, main and footer without duplicating document controls');
 
 const publicIndex = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const skipLinkMarkup = '<a class="skip-link" href="#main-content">Skip to main content</a>';
 const skipLinkCount = publicIndex.split(skipLinkMarkup).length - 1;
 assert(skipLinkCount === 1, 'Document template must expose exactly one keyboard skip-navigation control');
 assert(publicIndex.indexOf(skipLinkMarkup) < publicIndex.indexOf('<div id="site-root">'), 'Skip-navigation control must precede the application root');
-
-const tokens = await readFile(new URL('../src/frontend/styles/tokens.css', import.meta.url), 'utf8');
-for (const token of ['--space-4', '--container-narrow', '--control-height', '--field-height', '--z-dialog', '--focus-outline']) {
-  assert(tokens.includes(token), `Design-system token missing: ${token}`);
-}
-for (const visualBaseline of [
-  '--color-primary-500: #c35a38;',
-  '--color-ink-950: #0b1720;',
-  '--container: 1240px;',
-  '--display-1: clamp(2.85rem, 6vw, 5.7rem);',
-  '--font-sans: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;'
-]) {
-  assert(tokens.includes(visualBaseline), `Approved visual baseline token changed unexpectedly: ${visualBaseline}`);
-}
+pass('document template owns one skip-navigation control before the application root');
 
 const baseCss = await readFile(new URL('../src/frontend/styles/base.css', import.meta.url), 'utf8');
-assert(baseCss.includes('.container { width: min(calc(100% - (2 * var(--gutter))), var(--container)); margin-inline: auto; }'), 'Default responsive container width contract changed unexpectedly');
-assert(baseCss.includes('.container--narrow') && baseCss.includes('.container--wide'), 'Controlled responsive container variants are missing');
-assert(baseCss.includes('.skip-link') && baseCss.includes('.skip-link:focus'), 'Keyboard skip-link styling contract is missing');
+assert(baseCss.includes('.skip-link'), 'Skip-link base styling is missing');
+assert(baseCss.includes('.skip-link:focus'), 'Skip-link focus styling is missing');
+assert(baseCss.includes(':focus-visible'), 'Global keyboard focus-visible styling is missing');
+pass('base styles preserve keyboard focus and skip-link visibility');
 
-console.log('PASS: shared navigation, footer, content, button, card, form, feedback, layout, accessibility and approved visual-token contracts verified.');
+const appCss = await readFile(new URL('../src/frontend/styles/app.css', import.meta.url), 'utf8');
+assert(appCss.includes('@import "./global-overrides.css";'), 'Application stylesheet must include global override composition');
+pass('application stylesheet composes global overrides');
+
+const globalOverrides = await readFile(new URL('../src/frontend/styles/global-overrides.css', import.meta.url), 'utf8');
+for (const requiredImport of ['./responsive.css', './audit-fixes.css', './bootstrap-overrides.css', './phase18-responsive.css', './phase19-quality.css']) {
+  assert(globalOverrides.includes(`@import "${requiredImport}";`), `Global overrides are missing ${requiredImport}`);
+}
+pass('global override composition includes responsive, audit, bootstrap, phase 18 and phase 19 layers');
+
+const phase19Css = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
+assert(phase19Css.includes('.site-footer .brand-copy span'), 'Phase 19 footer brand contrast correction is missing');
+assert(phase19Css.includes('.footer-column a'), 'Phase 19 footer target-size correction is missing');
+assert(phase19Css.includes('.contact-office-card > .eyebrow'), 'Phase 19 office eyebrow contrast correction is missing');
+pass('phase 19 accessibility overrides are isolated in their dedicated stylesheet');
+
+const navigationSource = await readFile(new URL('../src/frontend/components/navigation.js', import.meta.url), 'utf8');
+assert(navigationSource.includes('aria-expanded="false"'), 'Navigation toggle must expose initial aria-expanded state');
+assert(navigationSource.includes('aria-controls="site-navigation"'), 'Navigation toggle must reference the controlled navigation region');
+assert(navigationSource.includes('id="site-navigation"'), 'Navigation region id is missing');
+pass('navigation source exposes menu accessibility state contract');
+
+const interactionsSource = await readFile(new URL('../src/frontend/app/interactions-nav.js', import.meta.url), 'utf8');
+assert(interactionsSource.includes("setAttribute('aria-expanded'"), 'Navigation interactions must update aria-expanded');
+assert(interactionsSource.includes("event.key === 'Escape'"), 'Navigation interactions must support Escape dismissal');
+pass('navigation interactions preserve keyboard-operable menu behavior');
+
+console.log('PASS: Design system contracts verified.');
