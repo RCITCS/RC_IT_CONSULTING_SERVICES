@@ -49,7 +49,11 @@ assert.equal(Object.hasOwn(legacyConfig, "routes"), false, "the old-account lega
 assert.equal(productionConfig.name, "rcitcs-admin-production");
 assert.equal(productionConfig.main, "./worker/admin-only.js");
 assert.equal(productionConfig.workers_dev, false);
-assert.equal(productionConfig.keep_vars, true);
+assert.equal(
+  Object.hasOwn(productionConfig, "keep_vars"),
+  false,
+  "production admin Wrangler config must remain authoritative for non-secret runtime variables"
+);
 assert.equal(productionConfig.vars?.RC_ADMIN_ENVIRONMENT, "production");
 assert.deepEqual(
   productionConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
