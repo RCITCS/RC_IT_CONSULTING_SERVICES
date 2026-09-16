@@ -128,7 +128,11 @@ assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker m
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
-assert.equal(productionAdminConfig.keep_vars, true);
+assert.equal(
+  Object.hasOwn(productionAdminConfig, 'keep_vars'),
+  false,
+  'Production admin Wrangler config must be authoritative for non-secret runtime variables.'
+);
 assert.equal(productionAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
 assert.deepEqual(
   productionAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
@@ -153,11 +157,16 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'A
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
-  "ADMIN_STAGING='https://admin-staging.rcitcs.com'",
+  "STAGING='https://admin-staging.rcitcs.com'",
+  "test \"$code\" = '503'",
+  'Staging administration is intentionally unavailable.',
+  'x-rc-admin-staging-state: *intentionally-unavailable',
   "PUBLIC='https://rcitcs.com'",
+  "test \"$alias_code\" = '308'",
+  "test \"$post_code\" = '404'",
   '${ADMIN}/applications',
   '${ADMIN}/session',
-  'Production admin routes remain private and host-local'
+  'Production admin, intentional staging isolation, and public admin separation verified.'
 ]) {
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
