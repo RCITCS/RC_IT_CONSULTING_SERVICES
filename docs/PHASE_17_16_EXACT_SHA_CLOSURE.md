@@ -1,6 +1,6 @@
 # Phase 17.16 — Cleanup, exact-SHA merge and production closure
 
-Status: **IMPLEMENTED — 17.16 OPEN pending exact-head DNS validation, merge and production convergence**
+Status: **IMPLEMENTED — 17.16 OPEN pending final production-admin activation and post-activation convergence**
 
 Depends on Phase 17.15 closure SHA `bfaa45326170bbd2da6c355c995278bcdd72cfa1`.
 
@@ -31,7 +31,7 @@ The probe found **neither repository secret configured**. It terminated before a
 
 Therefore there is no repository-authorized DNS mutation path available to this closure process. Publication of `_dmarc.rcitcs.com` had to occur in the authoritative Cloudflare control plane (account `3fdd024f6fbc25c03ed4481352576540`, zone `cf815244b9dbd51a490747f597867c68`). This requirement was not waived.
 
-On September 16, 2026, the authoritative client Cloudflare DNS control plane showed the new TXT record `_dmarc.rcitcs.com` saved with TTL `Auto`, increasing the zone record count from 14 to 15. The configured value is the required Phase-17 policy above. Existing Cloudflare Email Routing MX records, apex SPF, Resend return-path/SPF, DKIM and tracking records remained present and were not modified. Public resolver validation remains mandatory on the exact branch head before merge.
+On September 16, 2026, the authoritative client Cloudflare DNS control plane showed the new TXT record `_dmarc.rcitcs.com` saved with TTL `Auto`, increasing the zone record count from 14 to 15. The configured value is the required Phase-17 policy above. Existing Cloudflare Email Routing MX records, apex SPF, Resend return-path/SPF, DKIM and tracking records remained present and were not modified. Public resolver validation then passed on the exact branch head before merge.
 
 ## Exact merge and mirror contract
 
@@ -41,6 +41,12 @@ Primary `main` is the source repository authority. After merge:
 2. the mirror workflow pushes that exact SHA to `RCITCS/RC_IT_CONSULTING_SERVICES` `main`;
 3. final closure requires primary and mirror main SHAs to be identical;
 4. a branch-only or cross-account Cloudflare build cannot substitute for mirror convergence.
+
+PR #85 was merged after exact-head CI passed. The first Phase-17 production merge SHA was:
+
+`dd004504825066bb045963dbb75c9a2b5d28b147`
+
+Primary and mirror `main` were both verified at that SHA.
 
 ## Production activation contract
 
@@ -58,6 +64,26 @@ The final runtime topology must simultaneously prove:
 - sensitive direct backend URLs are not accepted browser authorities;
 - public mail MX/SPF, Resend DKIM/return-path/tracking and exactly one DMARC policy coexist.
 
+The authoritative client Cloudflare builds for `rc-it-consulting-services` and `rcitcs-admin-staging` succeeded on the first Phase-17 merge SHA, and the public exact-SHA marker became live. During the ownership cutover, however, `admin.rcitcs.com` lost DNS resolution because the dedicated production Worker declared in source (`rcitcs-admin-production`) did not yet exist in the client Cloudflare account.
+
+## Production-admin Worker bootstrap evidence
+
+To complete the intended one-owner topology without reattaching production admin to the staging Worker, the missing Worker shell was created manually in the authoritative RC IT Cloudflare account with the exact name:
+
+`rcitcs-admin-production`
+
+The shell was then connected to repository `RCITCS/RC_IT_CONSULTING_SERVICES`, production branch `main`, with:
+
+- build command: `npm run build`;
+- deploy command: `npx wrangler deploy --config wrangler.admin-production.jsonc`;
+- root directory: `/`;
+- non-production/preview builds disabled;
+- dedicated token label: `rcitcs-admin-production build token`.
+
+The temporary Hello World version exists only as the bootstrap shell and is not accepted as production evidence. The first repository build had not yet run because the Worker was connected after the existing `main` commit. A new documentation-only final activation commit is therefore required to produce a fresh `main` push, trigger the real repository deployment, and establish the final exact production closure SHA.
+
+The Cloudflare dashboard warning suggesting that root `wrangler.jsonc` be renamed to `rcitcs-admin-production` is intentionally not followed. This Worker must deploy through `wrangler.admin-production.jsonc`; the repository root `wrangler.jsonc` remains the canonical public Worker configuration for `rc-it-consulting-services`.
+
 ## Security closure
 
 The production Supabase project was identified through the authenticated Supabase control plane as:
@@ -67,9 +93,9 @@ The production Supabase project was identified through the authenticated Supabas
 - region: `eu-west-2`
 - project status at the pre-merge check: `ACTIVE_HEALTHY`
 
-An authenticated **pre-merge** Supabase Security Advisor query returned **zero security lints**. This is real control-plane evidence, not a simulated CI result.
+An authenticated pre-merge Supabase Security Advisor query returned zero security lints.
 
-The Security Advisor must be queried again after the final production/main convergence. Overall Phase 17 remains open if a release-relevant security advisory appears at final closure.
+After the first Phase-17 merge and before the final production-admin activation commit, the authenticated Supabase Security Advisor was queried again and returned **zero security lints**. A final post-activation check is still required after the dedicated production-admin Worker is live.
 
 The advisor check is deliberately not faked inside GitHub CI because it requires the authenticated Supabase control plane. The final closure record must capture the post-convergence result as well.
 
@@ -81,15 +107,16 @@ It is classified as non-authoritative legacy integration evidence. It must not b
 
 ## Final closure rule
 
-Phase 17 may be marked **CLOSED** only after all of these are true on the exact merged main SHA:
+Phase 17 may be marked **CLOSED** only after all of these are true on the final exact main SHA:
 
-1. exact-head branch CI passed before merge;
+1. exact-head CI passed before each merge/activation step;
 2. exact-SHA merge completed;
 3. primary and mirror main SHAs match;
-4. authoritative production domain/runtime checks passed;
-5. DMARC and existing email DNS checks passed together;
-6. alternate ingress shutdown checks passed;
-7. post-convergence Supabase Security Advisor has no unresolved release-blocking security finding;
-8. the closure document is updated with the actual final main SHA and verification evidence.
+4. the authoritative client Cloudflare build for `rcitcs-admin-production` succeeds from repository `main` using `wrangler.admin-production.jsonc`;
+5. authoritative production domain/runtime checks pass, including `X-RC-Admin-Environment: production` on `admin.rcitcs.com`;
+6. DMARC and existing email DNS checks pass together;
+7. alternate ingress shutdown checks pass;
+8. post-convergence Supabase Security Advisor has no unresolved release-blocking security finding;
+9. this closure document is updated with the actual final main SHA and final verification evidence.
 
-Until then the correct overall status is **17.16 OPEN** even when every implementation module is branch-complete.
+Until then the correct overall status is **17.16 OPEN**.
