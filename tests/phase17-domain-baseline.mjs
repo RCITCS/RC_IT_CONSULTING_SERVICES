@@ -19,19 +19,22 @@ const auditDoc = read('docs/PHASE_17_DOMAIN_BASELINE.md');
 // 17.1 permanently locks the historical audit ledger. Working configuration is
 // allowed to converge in later modules without rewriting what was observed then.
 assert.match(publicConfig, /"name"\s*:\s*"rc-it-consulting-services"/);
-assert.match(publicConfig, /"workers_dev"\s*:\s*true/);
+assert.match(publicConfig, /"workers_dev"\s*:\s*false/);
+assert.match(publicConfig, /"preview_urls"\s*:\s*false/);
 assert.match(publicConfig, /"pattern"\s*:\s*"rcitcs\.com"/);
 assert.match(publicConfig, /"pattern"\s*:\s*"www\.rcitcs\.com"/);
 assert.doesNotMatch(publicConfig, /"pattern"\s*:\s*"admin(?:-staging)?\.rcitcs\.com/);
 
 assert.match(adminProductionConfig, /"name"\s*:\s*"rcitcs-admin-production"/);
 assert.match(adminProductionConfig, /"workers_dev"\s*:\s*false/);
+assert.match(adminProductionConfig, /"preview_urls"\s*:\s*false/);
 assert.match(adminProductionConfig, /"RC_ADMIN_ENVIRONMENT"\s*:\s*"production"/);
 assert.match(adminProductionConfig, /"pattern"\s*:\s*"admin\.rcitcs\.com"/);
 assert.doesNotMatch(adminProductionConfig, /admin-staging\.rcitcs\.com/);
 
 assert.match(adminStagingConfig, /"name"\s*:\s*"rcitcs-admin-staging"/);
 assert.match(adminStagingConfig, /"workers_dev"\s*:\s*false/);
+assert.match(adminStagingConfig, /"preview_urls"\s*:\s*false/);
 assert.match(adminStagingConfig, /"RC_ADMIN_ENVIRONMENT"\s*:\s*"staging"/);
 assert.match(adminStagingConfig, /"RC_ADMIN_STAGING_MODE"\s*:\s*"unavailable"/);
 assert.doesNotMatch(adminStagingConfig, /"pattern"\s*:\s*"admin\.rcitcs\.com"/);
@@ -77,6 +80,10 @@ assert.match(auditDoc, /do not deploy RC IT to account `20d349f3f75ab611adb3f987
 assert.match(auditDoc, /No production behavior was changed during this audit/);
 assert.match(auditDoc, /Module 17\.1 is COMPLETE/);
 
+// Historical evidence must still record that workers.dev was enabled at audit
+// time even though 17.10 intentionally hardens the current source to false.
+assert.match(auditDoc, /workers\.dev.*ON|Production.*toggle ON|production and preview URLs are ON/is);
+
 console.log('Phase 17.1 historical control-plane baseline ledger: PASS');
-console.log('Working source topology may converge after 17.1; the historical Cloudflare evidence remains unchanged.');
+console.log('Working source topology has converged after 17.1; the historical Cloudflare evidence remains unchanged.');
 console.log('CROSS-ACCOUNT: personal account 20d349f3f75ab611adb3f987188636e7 remains outside the rcitcs.com ownership boundary and prohibited as an RC IT deployment target.');
