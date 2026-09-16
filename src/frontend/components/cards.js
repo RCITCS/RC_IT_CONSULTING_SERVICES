@@ -22,7 +22,7 @@ export function topicCard({ title, text = 'Considered explicitly in data design,
 }
 
 export function helpCard({ item, servicePath }) {
-  return `<article class="help-card"><h3>${esc(item.title)}</h3><p class="help-card__summary">${esc(item.summary)}</p><p class="help-card__detail">${esc(item.detail)}</p>${linkButton({ href: `${servicePath}/${item.slug}`, label: 'Read More', variant: 'text', icon: arrow() })}</article>`;
+  return `<article class="help-card"><h3>${esc(item.title)}</h3><p class="help-card__summary">${esc(item.summary)}</p><p class="help-card__detail">${esc(item.detail)}</p>${linkButton({ href: `${servicePath}/${item.slug}`, label: `Read more about ${item.title}`, variant: 'text', icon: arrow() })}</article>`;
 }
 
 export function productCard({ tag, title, text, bullets = [], demoProduct }) {
