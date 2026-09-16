@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { ALL_ROUTES } from '../src/frontend/app/site-config.js';
 import { getPrerenderRoutes } from '../src/frontend/seo/seo-model.js';
+import { getPublishedJobs } from '../src/frontend/app/career-job-catalog.js';
 import { ADMIN_RESPONSIVE_STYLE } from '../worker/admin-responsive.js';
 
 const [phase18Css, responsiveCss, careersCss, careerApplicationCss, legalCss, globalOverrides, navSource] = await Promise.all([
@@ -64,7 +65,7 @@ assert.ok(prerenderRoutes.length >= ALL_ROUTES.length, 'Responsive route invento
 for (const route of ['/', '/about-us', '/contact', '/careers', '/privacy', '/terms']) {
   assert.ok(prerenderRoutes.includes(route), `Responsive route inventory is missing ${route}.`);
 }
-assert.ok(prerenderRoutes.some((route) => /^\/careers\/jobs\/[^/]+$/.test(route)), 'Responsive route inventory must include at least one dynamic job detail route.');
-assert.ok(prerenderRoutes.some((route) => /^\/careers\/jobs\/[^/]+\/apply$/.test(route)), 'Responsive route inventory must include at least one candidate application route.');
+assert.deepEqual(getPublishedJobs(), [], 'Static builds must keep the server-authoritative no-openings baseline; Phase 18 must not reintroduce a source-code vacancy catalog.');
+assert.ok(careersCss.includes('.career-role-detail') && careersCss.includes('.career-application-layout'), 'Runtime job-detail and candidate-application responsive selectors must remain available for database-backed vacancies.');
 
-console.log(`PASS: Phase 18 responsive contracts cover ${prerenderRoutes.length} prerendered public routes plus public shell, Careers/application, forms, legal tables and admin breakpoint/touch behavior.`);
+console.log(`PASS: Phase 18 responsive contracts cover ${prerenderRoutes.length} static public routes plus runtime Careers/application selectors, forms, legal tables and admin breakpoint/touch behavior.`);
