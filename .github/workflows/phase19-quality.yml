@@ -27,6 +27,8 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Phase 19 source quality contract
         run: node tests/phase19-quality-contract.mjs
+      - name: Phase 19 first-party media delivery contract
+        run: node tests/phase19-public-media.mjs
       - name: Existing SEO regression suite
         run: npm run test:seo
       - name: Preview indexation regression suite
