@@ -1,7 +1,7 @@
 const PUBLIC_MEDIA_PREFIX = '/media/pexels/';
 const PEXELS_PHOTO_ID = /^\d{1,12}$/;
-const ALLOWED_WIDTHS = new Set([360, 480, 640, 720, 960, 1200, 1800]);
-const DEFAULT_WIDTH = 1200;
+const ALLOWED_WIDTHS = new Set([320, 360, 480, 640, 720, 960, 1200, 1280, 1600, 1800]);
+const DEFAULT_WIDTH = 1280;
 const PUBLIC_CACHE_CONTROL = 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400';
 
 export function isPublicMediaPath(pathname = '') {
