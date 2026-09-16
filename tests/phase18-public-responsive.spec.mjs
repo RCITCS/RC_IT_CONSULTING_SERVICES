@@ -125,6 +125,16 @@ test('orientation-like resizing does not create document overflow', async ({ pag
   await expectNoDocumentOverflow(page, 'portrait');
 });
 
+test('official breakpoint boundaries remain overflow-free', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium-1280', 'Boundary sweep runs once in Chromium.');
+  for (const width of [374, 375, 767, 768, 1023, 1024, 1279, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/careers', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#main-content')).toBeVisible();
+    await expectNoDocumentOverflow(page, `official boundary ${width}px`);
+  }
+});
+
 const routeInventory = getPrerenderRoutes();
 test('static responsive inventory stays aligned with canonical route source', async () => {
   expect(routeInventory.length).toBeGreaterThanOrEqual(representativeRoutes.length);
