@@ -1,20 +1,5 @@
 @import "./responsive.css";
 @import "./audit-fixes.css";
 @import "./bootstrap-overrides.css";
+@import "./phase19-quality.css";
 @import "./phase18-responsive.css";
-
-/* Phase 19 WCAG 2.2 hardening: preserve the approved footer/contact composition while
-   correcting proven contrast and target-size failures from the browser audit. */
-.site-footer .brand-copy span {
-  color: #b9c6ca;
-}
-
-.footer-column a {
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-}
-
-.contact-office-card > .eyebrow {
-  color: var(--color-primary-300);
-}
