@@ -23,6 +23,14 @@ The required initial DMARC value is:
 
 `v=DMARC1; p=none; rua=mailto:dmarc@rcitcs.com; adkim=s; aspf=s; pct=100`
 
+## DMARC activation authority evidence
+
+A guarded GitHub Actions activation probe was run against the Phase-17 branch to determine whether an already-authorized Cloudflare API path existed in repository secrets. It checked only the conventional `CLOUDFLARE_API_TOKEN` and `CF_API_TOKEN` secret names and was designed to verify the exact RC IT account/zone before any write, create the record only when absent, and refuse to overwrite an existing or duplicate policy.
+
+The probe found **neither repository secret configured**. It terminated before any Cloudflare API request or DNS mutation. The temporary probe workflow was then removed so it cannot remain as a permanent failing or privileged workflow.
+
+Therefore there is no repository-authorized DNS mutation path available to this closure process. Publication of `_dmarc.rcitcs.com` must occur in the authoritative Cloudflare control plane (account `3fdd024f6fbc25c03ed4481352576540`, zone `cf815244b9dbd51a490747f597867c68`) before the exact-head merge gate can pass. This requirement is not waived.
+
 ## Exact merge and mirror contract
 
 Primary `main` is the source repository authority. After merge:
