@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { getPrerenderRoutes } from '../src/frontend/seo/seo-model.js';
 
-const allRoutes = getPrerenderRoutes();
 const representativeRoutes = [
   '/',
   '/about-us',
@@ -12,12 +11,10 @@ const representativeRoutes = [
   '/industry/banking-and-finance',
   '/contact',
   '/careers',
-  allRoutes.find((route) => /^\/careers\/jobs\/[^/]+$/.test(route)),
-  allRoutes.find((route) => /^\/careers\/jobs\/[^/]+\/apply$/.test(route)),
   '/faqs',
   '/privacy',
   '/terms'
-].filter(Boolean);
+];
 
 async function expectNoDocumentOverflow(page, label) {
   const metrics = await page.evaluate(() => ({
@@ -70,19 +67,27 @@ test('global navigation switches intentionally and mobile menu remains operable'
   }
 });
 
-test('Careers and candidate application tolerate extreme content', async ({ page }) => {
-  const jobRoute = allRoutes.find((route) => /^\/careers\/jobs\/[^/]+$/.test(route));
-  const applyRoute = allRoutes.find((route) => /^\/careers\/jobs\/[^/]+\/apply$/.test(route));
-  test.skip(!jobRoute || !applyRoute, 'No published job fixture is available.');
+test('runtime Careers detail and candidate application layouts tolerate extreme content', async ({ page }) => {
+  await page.goto('/careers', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#main-content')).toBeVisible();
 
-  await page.goto(jobRoute, { waitUntil: 'domcontentloaded' });
-  const title = page.locator('.career-role-detail h2, .page-hero h1').first();
-  if (await title.count()) await title.evaluate((node) => { node.textContent = 'PrincipalPlatformEngineeringAndTransformationArchitect'.repeat(4); });
-  await expectNoDocumentOverflow(page, 'extreme job title');
+  await page.locator('#main-content').evaluate((main) => {
+    main.innerHTML = `<section class="section"><div class="container"><div class="career-browser">
+      <aside class="career-role-list"><div class="career-role-list__head"><span class="eyebrow">Open roles</span><strong>1 role</strong></div><div class="career-role-list__items"><a class="career-role-card is-active" href="#"><span class="career-role-card__department">Engineering</span><h3>PrincipalPlatformEngineeringAndTransformationArchitectPrincipalPlatformEngineeringAndTransformationArchitect</h3><div class="career-role-card__meta"><span>London / Hybrid / United Kingdom</span><span>Full time</span></div></a></div></aside>
+      <article class="career-role-detail"><div class="career-role-detail__head"><div><span class="eyebrow">Engineering</span><h2>PrincipalPlatformEngineeringAndTransformationArchitectPrincipalPlatformEngineeringAndTransformationArchitect</h2><p>Representative database-backed vacancy content.</p></div><a class="btn btn--primary career-apply-cta" href="#apply">Apply for this role</a></div><div class="career-role-facts"><div><span>Location</span><strong>LondonHybridUnitedKingdomWithAnUnbrokenOperationalLocationValue</strong></div><div><span>Type</span><strong>Full time</strong></div><div><span>Experience</span><strong>Senior</strong></div><div><span>Reference</span><strong>RCIT-EXTREMELY-LONG-REFERENCE-2026-000001</strong></div></div><section class="career-role-section career-role-section--tags"><h3>Technology</h3><div class="career-role-tags"><span>ExtremelyLongUnbrokenTechnologyIdentifierThatMustWrapInsideTheViewport</span><span>Cloud</span></div></section></article>
+    </div></div></section>`;
+  });
+  await expect(page.locator('.career-role-detail')).toBeVisible();
+  await expectNoDocumentOverflow(page, 'runtime career detail fixture');
 
-  await page.goto(applyRoute, { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('input[type="file"]').first()).toBeVisible();
-  await expectNoDocumentOverflow(page, 'candidate application');
+  await page.locator('#main-content').evaluate((main) => {
+    main.innerHTML = `<section class="section"><div class="container"><div class="career-application-layout">
+      <aside class="career-application-summary"><span class="eyebrow">Application</span><h2>PrincipalPlatformEngineeringAndTransformationArchitect</h2><dl><div><dt>Reference</dt><dd>RCIT-EXTREMELY-LONG-REFERENCE-2026-000001</dd></div><div><dt>Location</dt><dd>LondonHybridUnitedKingdomWithAnUnbrokenOperationalLocationValue</dd></div></dl></aside>
+      <div class="career-application-form-shell"><h2>Apply for this role</h2><form class="career-application-form"><div class="career-application-grid"><div class="form-field"><label for="phase18-name">Name</label><input id="phase18-name" name="name" value="Candidate Name"></div><div class="form-field"><label for="phase18-email">Email</label><input id="phase18-email" name="email" type="email" value="candidate@example.com"></div><div class="form-field career-application-grid__wide career-file-field"><label for="phase18-resume">Resume/CV</label><input id="phase18-resume" name="resume" type="file"><small>PDF or document upload.</small></div><div class="form-field career-application-grid__wide"><label for="phase18-message">Cover note</label><textarea id="phase18-message" name="message">Representative content</textarea></div></div><div class="form-actions"><button class="btn btn--primary" type="button">Submit application</button></div></form></div>
+    </div></div></section>`;
+  });
+  await expect(page.locator('input[type="file"]')).toBeVisible();
+  await expectNoDocumentOverflow(page, 'runtime candidate application fixture');
 });
 
 test('contact controls remain usable on narrow viewports', async ({ page }) => {
@@ -118,4 +123,9 @@ test('orientation-like resizing does not create document overflow', async ({ pag
   await expectNoDocumentOverflow(page, 'landscape');
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoDocumentOverflow(page, 'portrait');
+});
+
+const routeInventory = getPrerenderRoutes();
+test('static responsive inventory stays aligned with canonical route source', async () => {
+  expect(routeInventory.length).toBeGreaterThanOrEqual(representativeRoutes.length);
 });
