@@ -35,8 +35,8 @@ assert(contentPanel.includes('summary-panel'), 'Panel class missing');
 assert(contentPanel.includes('<h2>Summary</h2>'), 'Panel heading missing');
 pass('panel renders reusable section structure');
 
-const brand = brandTemplate({ href: '/products' });
-assert(brand.includes('href="/products"'), 'Brand href is not wired');
+const brand = brandTemplate();
+assert(brand.includes('href="/"'), 'Brand must link to the canonical public home route');
 assert(brand.includes('class="brand-mark" aria-hidden="true"'), 'Decorative brand mark must be hidden from the accessibility tree');
 assert(!/<a\b[^>]*class="brand"[^>]*aria-label=/i.test(brand), 'Brand link must derive its accessible name from the visible copy instead of an overriding aria-label');
 assert(brand.includes('<strong>RC IT Services</strong>'), 'Brand visible company name is missing');
