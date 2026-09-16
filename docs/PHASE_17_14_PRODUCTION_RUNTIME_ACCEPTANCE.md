@@ -1,8 +1,10 @@
 # Phase 17.14 — Production browser/runtime acceptance
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **CLOSED — branch/runtime baseline verified; exact-main live activation remains Phase 17.16**
 
 Depends on Phase 17.13 closure SHA `227af34a185311a2250274eff213f1a5a186a6c4`.
+
+Verification head: `d5049b42750c18d501c3410e39f267db05872579`.
 
 ## Objective
 
@@ -19,9 +21,9 @@ Make the final Phase-17 production acceptance executable against the actual brow
 
 ## Inherited CI correction
 
-The historical `RC IT Services CI` main-only production smoke still targeted `rc-it-consulting-services.rcitcservices.workers.dev`, tested a Vercel fallback and used raw backend surfaces as positive browser/runtime acceptance endpoints. Those assumptions conflict with Phase 17.10, which deliberately closes alternate production ingress.
+The historical `RC IT Services CI` main-only production smoke targeted `rc-it-consulting-services.rcitcservices.workers.dev`, tested a Vercel fallback and used raw backend surfaces as positive browser/runtime acceptance endpoints. Those assumptions conflict with Phase 17.10, which deliberately closes alternate production ingress.
 
-17.14 therefore moves that smoke coverage to `https://rcitcs.com` and `https://admin.rcitcs.com` while retaining the useful page, Careers, application, SEO, cache, authentication and security assertions.
+17.14 moved that smoke coverage to `https://rcitcs.com` and `https://admin.rcitcs.com` while retaining the useful page, Careers, application, SEO, cache, authentication and security assertions. Its main-only deployment assertions now also verify staging isolation and `workers.dev` shutdown.
 
 ## Acceptance matrix
 
@@ -39,6 +41,10 @@ Final-main browser/runtime acceptance requires:
 - staging returns the intentional `503` state with staging markers;
 - public `workers.dev` does not serve the site after Phase-17 deployment;
 - the exact merged main SHA is observable from the public deployment marker before final closure.
+
+## Closure evidence
+
+Verification head `d5049b42750c18d501c3410e39f267db05872579` completed 22 check runs with no failures. The dedicated 17.14 gate proved the source acceptance contract plus the current apex/admin production baseline. Full CI and all inherited Phase-17 workflows were green; final-main-only deployment assertions remained correctly skipped on the pull request.
 
 ## Scope boundary
 
