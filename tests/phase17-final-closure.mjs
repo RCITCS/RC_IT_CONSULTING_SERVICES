@@ -5,6 +5,7 @@ const closure = fs.readFileSync('docs/PHASE_17_16_EXACT_SHA_CLOSURE.md', 'utf8')
 const cutover = fs.readFileSync('docs/DOMAIN_CUTOVER.md', 'utf8');
 const mirror = fs.readFileSync('.github/workflows/mirror-to-rcitcs.yml', 'utf8');
 const exact = fs.readFileSync('.github/workflows/cloudflare-exact-deployment.yml', 'utf8');
+const finalGate = fs.readFileSync('.github/workflows/phase17-final-closure.yml', 'utf8');
 
 const moduleDocs = [
   'docs/PHASE_17_DOMAIN_BASELINE.md',
@@ -30,7 +31,10 @@ assert.match(closure, /exact verified head SHA/i);
 assert.match(closure, /RCITCS\/RC_IT_CONSULTING_SERVICES/);
 assert.match(closure, /primary and mirror main SHAs to be identical/i);
 assert.match(closure, /Supabase Security Advisor/i);
+assert.match(closure, /zero security lints/i);
+assert.match(closure, /chsizmffzpxcqhaptjeu/);
 assert.match(closure, /_dmarc/i);
+assert.match(closure, /v=DMARC1; p=none; rua=mailto:dmarc@rcitcs\.com; adkim=s; aspf=s; pct=100/);
 assert.match(closure, /20d349f3f75ab611adb3f987188636e7/);
 assert.match(closure, /3fdd024f6fbc25c03ed4481352576540/);
 assert.match(closure, /must not be deleted blindly/i);
@@ -51,5 +55,15 @@ assert.match(mirror, /Source and destination SHAs differ/);
 assert.match(exact, /EXPECTED_SHA: \$\{\{ github\.sha \}\}/);
 assert.match(exact, /rc-deployment-sha/);
 assert.match(exact, /BASE='https:\/\/rcitcs\.com'/);
+
+assert.match(finalGate, /pull_request:/);
+assert.match(finalGate, /push:/);
+assert.match(finalGate, /Require one complete DMARC policy before merge or final main closure/);
+assert.match(finalGate, /Expected exactly one DMARC TXT record/);
+assert.match(finalGate, /x-rc-admin-environment: \*production/i);
+assert.match(finalGate, /x-rc-admin-staging-state: \*intentionally-unavailable/i);
+assert.match(finalGate, /rc-it-consulting-services\.rcitcservices\.workers\.dev/);
+assert.match(finalGate, /RCITCS\/RC_IT_CONSULTING_SERVICES\.git/);
+assert.match(finalGate, /EXPECTED_SHA: \$\{\{ github\.sha \}\}/);
 
 console.log('Phase 17.16 exact-SHA production closure contract: PASS');
