@@ -71,12 +71,17 @@ assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker m
 
 for (const expected of [
   "ADMIN='https://admin.rcitcs.com'",
-  "ADMIN_STAGING='https://admin-staging.rcitcs.com'",
+  "STAGING='https://admin-staging.rcitcs.com'",
+  "test \"$code\" = '503'",
+  'Staging administration is intentionally unavailable.',
+  'x-rc-admin-staging-state: *intentionally-unavailable',
   '! grep -q \'Technology that moves business forward\'',
   'action="/login"',
   "PUBLIC='https://rcitcs.com'",
-  'Production admin routes remain private and host-local'
+  "test \"$alias_code\" = '308'",
+  "test \"$post_code\" = '404'",
+  'Production admin, intentional staging isolation, and public admin separation verified.'
 ]) assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 
 assert.ok(!worker.includes("ADMIN_PRODUCTION_ORIGIN = 'https://rcitcservices.frsmkgit.workers.dev"), 'workers.dev must not be the company admin origin.');
-console.log('PASS: public and admin custom-domain ownership remains isolated while Phase 17.10 disables workers.dev/preview exposure and rejects unowned public Hosts.');
+console.log('PASS: public and admin custom-domain ownership remains isolated; production admin stays authoritative, staging is intentionally unavailable, and public admin aliases cannot accept credentials.');
