@@ -19,73 +19,63 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Wait for production admin portal
+      - name: Verify production admin portal
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
-          ADMIN_STAGING='https://admin-staging.rcitcs.com'
 
-          verify_admin_root() {
-            local origin="$1"
-            local label="$2"
-            local expected_build_surface="${3:-}"
-            local expected_media_fix="${4:-}"
-            local body="/tmp/${label}-admin-root.html"
-            local headers="/tmp/${label}-admin-root.headers"
+          for attempt in $(seq 1 60); do
+            code=$(curl -sS --max-time 20 -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/" || true)
+            environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin-root.headers | tail -n1)
+            build=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' /tmp/admin-root.headers | tail -n1)
+            media=$(awk -F': *' 'tolower($1)=="x-rc-admin-html-media-fix" {gsub(/\r/,"",$2); print $2}' /tmp/admin-root.headers | tail -n1)
 
-            for attempt in $(seq 1 40); do
-              code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "${origin}/" || true)
-              build_surface=$(awk -F': *' 'tolower($1)=="x-rc-admin-build-surface" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
-              media_fix=$(awk -F': *' 'tolower($1)=="x-rc-admin-html-media-fix" {gsub(/\r/,"",$2); print $2}' "$headers" | tail -n1)
-              content_type=$(awk -F': *' 'tolower($1)=="content-type" {gsub(/\r/,"",$2); print tolower($2)}' "$headers" | tail -n1)
-              build_surface_ok=1
-              if [[ -n "$expected_build_surface" && "$build_surface" != "$expected_build_surface" ]]; then
-                build_surface_ok=0
-              fi
-              media_fix_ok=1
-              if [[ -n "$expected_media_fix" && "$media_fix" != "$expected_media_fix" ]]; then
-                media_fix_ok=0
-              fi
+            if [[ "$code" == '200' && "$environment" == 'production' \
+              && "$build" == 'phase16-security-closure-v1' \
+              && "$media" == 'phase16-html-content-type-v1' ]] \
+              && grep -q '<!doctype html>' /tmp/admin-root.html \
+              && grep -q 'Administrator sign in' /tmp/admin-root.html \
+              && grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html \
+              && grep -q 'action="/login"' /tmp/admin-root.html \
+              && ! grep -q 'action="/admin/login"' /tmp/admin-root.html \
+              && ! grep -q '/functions/v1/admin-auth' /tmp/admin-root.html \
+              && ! grep -q 'Technology that moves business forward' /tmp/admin-root.html; then
+              break
+            fi
 
-              if [[ "$code" == '200' ]] \
-                && [[ "$build_surface_ok" == '1' ]] \
-                && [[ "$media_fix_ok" == '1' ]] \
-                && [[ "$content_type" == text/html* ]] \
-                && grep -q '<!doctype html>' "$body" \
-                && grep -q 'Administrator sign in' "$body" \
-                && grep -q 'Private administration for controlled operational work.' "$body" \
-                && grep -q 'action="/login"' "$body" \
-                && ! grep -q 'action="/admin/login"' "$body" \
-                && ! grep -q '/functions/v1/admin-auth' "$body" \
-                && ! grep -q 'Technology that moves business forward' "$body" \
-                && ! grep -q 'data-prerendered-path="/"' "$body"; then
-                grep -qi '^cache-control:.*no-store' "$headers"
-                grep -qi '^x-robots-tag:.*noindex' "$headers"
-                grep -qi '^x-frame-options: *DENY' "$headers"
-                grep -qi '^content-security-policy:' "$headers"
-                grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' "$headers"
-                echo "${label} dedicated admin root verified on attempt ${attempt}; build=${build_surface:-none} media_fix=${media_fix:-none} content_type=${content_type:-none}."
-                return 0
-              fi
+            if [[ "$attempt" == '60' ]]; then
+              echo 'Production admin portal did not converge.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
-              if [[ "$attempt" == '40' ]]; then
-                echo "${label} did not converge to the dedicated admin portal." >&2
-                echo "Last HTTP status: ${code}; build=${build_surface:-none}; media_fix=${media_fix:-none}; content_type=${content_type:-none}" >&2
-                sed -n '1,40p' "$body" >&2 || true
-                return 1
-              fi
-              sleep 5
-            done
-          }
+          grep -qi '^content-type: *text/html' /tmp/admin-root.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-root.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin-root.headers
+          grep -qi '^content-security-policy:' /tmp/admin-root.headers
+          grep -qi '^strict-transport-security:' /tmp/admin-root.headers
+          grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin-root.headers
 
-          verify_admin_root "$ADMIN" production 'phase16-security-closure-v1' 'phase16-html-content-type-v1'
+      - name: Verify staging isolation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING='https://admin-staging.rcitcs.com'
 
-          if getent ahosts admin-staging.rcitcs.com >/dev/null 2>&1; then
-            verify_admin_root "$ADMIN_STAGING" staging 'phase16-security-closure-v1' 'phase16-html-content-type-v1'
-          else
-            echo 'admin-staging.rcitcs.com is not provisioned yet; staging cutover is tracked separately from the production Phase 12 gate.'
-          fi
+          getent ahosts admin-staging.rcitcs.com >/dev/null
+          code=$(curl -sS --max-time 20 -D /tmp/staging.headers -o /tmp/staging.txt -w '%{http_code}' "${STAGING}/")
+          test "$code" = '503'
+          grep -Fxq 'Staging administration is intentionally unavailable.' /tmp/staging.txt
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/staging.headers
+          grep -qi '^cache-control:.*no-store' /tmp/staging.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
+          grep -qi '^content-security-policy:' /tmp/staging.headers
+          grep -qi '^strict-transport-security:' /tmp/staging.headers
 
       - name: Verify production admin routes stay on the admin host
         shell: bash
@@ -93,31 +83,27 @@ jobs:
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
 
-          applications_code=$(curl -sS -D /tmp/admin-apps.headers -o /tmp/admin-apps.html -w '%{http_code}' "${ADMIN}/applications")
-          test "$applications_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-apps.html
-          ! grep -q 'Technology that moves business forward' /tmp/admin-apps.html
-          ! grep -q '/functions/v1/admin-auth' /tmp/admin-apps.html
-          grep -qi '^content-type: *text/html' /tmp/admin-apps.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin-apps.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-apps.headers
-          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-apps.headers
-          grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-apps.headers
-
-          jobs_code=$(curl -sS -D /tmp/admin-jobs.headers -o /tmp/admin-jobs.html -w '%{http_code}' "${ADMIN}/jobs")
-          test "$jobs_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-jobs.html
-          grep -qi '^content-type: *text/html' /tmp/admin-jobs.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin-jobs.headers
-          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-jobs.headers
-          grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-jobs.headers
+          for route in /applications /jobs; do
+            body="/tmp/admin$(echo "$route" | tr '/' '-').html"
+            headers="/tmp/admin$(echo "$route" | tr '/' '-').headers"
+            code=$(curl -sS -D "$headers" -o "$body" -w '%{http_code}' "${ADMIN}${route}")
+            test "$code" = '200'
+            grep -q 'Administrator sign in' "$body"
+            ! grep -q 'Technology that moves business forward' "$body"
+            ! grep -q '/functions/v1/admin-auth' "$body"
+            grep -qi '^content-type: *text/html' "$headers"
+            grep -qi '^cache-control:.*no-store' "$headers"
+            grep -qi '^x-robots-tag:.*noindex' "$headers"
+            grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' "$headers"
+            grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' "$headers"
+            grep -qi '^x-rc-admin-environment: *production' "$headers"
+          done
 
           session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/admin-session.json
           grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
-          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-session.headers
-          grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-session.headers
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-session.headers
 
           rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
             -H 'Origin: https://example.invalid' \
@@ -127,18 +113,11 @@ jobs:
           test "$rejected_code" = '403'
           grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-          echo 'Production admin routes remain private and host-local; dedicated-edge ownership and HTML media type verified.'
-
-      - name: Diagnose public apex separation when provisioned
+      - name: Verify public admin separation
         shell: bash
         run: |
           set -euo pipefail
           PUBLIC='https://rcitcs.com'
-
-          if ! getent ahosts rcitcs.com >/dev/null 2>&1; then
-            echo 'Public rcitcs.com is not provisioned yet; production admin verification remains authoritative.'
-            exit 0
-          fi
 
           alias_code=$(curl -sS -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' "${PUBLIC}/admin")
           test "$alias_code" = '308'
@@ -151,4 +130,4 @@ jobs:
             "${PUBLIC}/admin/login")
           test "$post_code" = '404'
 
-          echo 'Public rcitcs.com does not accept admin authentication; admin.rcitcs.com is authoritative.'
+          echo 'Production admin, intentional staging isolation, and public admin separation verified.'
