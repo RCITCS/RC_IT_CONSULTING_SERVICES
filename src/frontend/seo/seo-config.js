@@ -1,11 +1,14 @@
 import { IMAGES } from '../app/site-config.js';
 
 const environment = typeof process !== 'undefined' ? process.env || {} : {};
-const configuredOrigin = environment.PUBLIC_ORIGIN || '';
 const workersBuildBranch = String(environment.WORKERS_CI_BRANCH || '').trim();
 
 export const SITE_NAME = 'RC IT Services';
-export const SITE_ORIGIN = String(configuredOrigin || 'https://rc-it-consulting-services.rcitcservices.workers.dev').replace(/\/+$/, '');
+export const SITE_ORIGIN = 'https://rcitcs.com';
+
+// Phase 17.2 establishes rcitcs.com as the single canonical public production
+// origin. Preview, workers.dev and fallback deployments may render the site but
+// must never become alternate canonical identities.
 
 // Cloudflare Workers Builds exposes WORKERS_CI_BRANCH. Non-main branch builds are
 // preview deployments and must never become a second indexable copy of production.

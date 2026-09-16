@@ -90,22 +90,35 @@ const completedNavigation = enhanceAdminNavigation(partiallyNativeNavigation, ''
 assert.equal((completedNavigation.match(/href="\/applications"/g) || []).length, 2, 'A missing mobile Applications entry must be added without duplicating the native desktop entry.');
 
 assert.equal(primaryConfig.main, './worker/index.js');
-assert.equal(primaryConfig.workers_dev, true, 'The primary Phase 12 public Worker must remain reachable on its workers.dev production origin.');
+assert.equal(primaryConfig.workers_dev, false, 'Phase 17.10 must disable the primary public workers.dev route.');
+assert.equal(primaryConfig.preview_urls, false, 'Phase 17.10 must disable public Worker preview URLs.');
 assert.equal(Object.hasOwn(primaryConfig, 'route'), false);
-assert.equal(primaryConfig.routes?.length, 1, 'The public Worker must own only the public apex Custom Domain.');
-assert.equal(primaryConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(primaryConfig.routes?.[0]?.custom_domain, true, 'The public apex must remain a Worker Custom Domain.');
-assert.equal(primaryConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'The public Worker must never claim the admin hostname.');
+assert.deepEqual(
+  primaryConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'The public Worker must own only the approved apex and www public Custom Domains.'
+);
+assert.equal(
+  primaryConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
+  false,
+  'The public Worker must never claim a dedicated admin hostname.'
+);
 assert.deepEqual(primaryConfig.assets?.run_worker_first, ['/*']);
 assert.deepEqual(primaryConfig.triggers?.crons, ['*/15 * * * *']);
-assert.ok(publicEntrypointSource.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain the hardened admin fallback implementation, but public routing must not expose it on admin.rcitcs.com.');
+assert.ok(publicEntrypointSource.includes("import adminWorker from './admin-only.js'"), 'Public bundle may retain hardened admin fallback code, but public routing must not expose it through an alternate Host.');
+assert.ok(publicEntrypointSource.includes('if (!PUBLIC_ALLOWED_HOSTS.has(host)) return rejectedHostResponse()'), 'Unowned public hosts must fail closed.');
 
 assert.equal(stagingConfig.name, 'rcitcs-admin-staging');
 assert.equal(stagingConfig.main, './worker/admin-only.js');
 assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.keep_vars, true);
-assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must provision production admin DNS/TLS.');
-assert.ok(stagingConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com' && route.custom_domain === true), 'Connected company admin Worker must preserve staging admin DNS/TLS.');
+assert.equal(stagingConfig.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
+assert.equal(stagingConfig.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.deepEqual(
+  stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin-staging.rcitcs.com', true]],
+  'Staging admin Worker must preserve only staging DNS/TLS ownership after Phase 17.7 convergence.'
+);
 
 assert.equal(legacyConfig.name, 'rcitcservices');
 assert.equal(legacyConfig.workers_dev, false);
@@ -115,13 +128,19 @@ assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker m
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
 assert.equal(productionAdminConfig.main, './worker/admin-only.js');
 assert.equal(productionAdminConfig.workers_dev, false);
-assert.equal(productionAdminConfig.routes?.[0]?.pattern, 'admin.rcitcs.com');
-assert.equal(productionAdminConfig.routes?.[0]?.custom_domain, true, 'The canonical production admin config remains ready for a future dedicated build migration.');
+assert.equal(productionAdminConfig.keep_vars, true);
+assert.equal(productionAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
+assert.deepEqual(
+  productionAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true]],
+  'Canonical production admin Worker must provision only admin.rcitcs.com DNS/TLS ownership.'
+);
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
-assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method);'));
+assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method, env);'));
+assert.ok(adminOnlySource.includes("headers.set('x-rc-admin-environment', environment);"));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
 assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1'"));
 assert.ok(adminOnlySource.includes('ADMIN_INTERACTION_PATH'));
@@ -143,4 +162,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: public and admin delivery remain isolated, with admin.rcitcs.com provisioned by the already-connected company admin Worker and the old Cloudflare account holding no company routes.');
+console.log('PASS: public apex/www and dedicated admin delivery remain isolated; Phase 17.10 closes workers.dev/preview exposure and rejects unowned public Hosts.');

@@ -1,0 +1,73 @@
+name: Phase 17.11 Email Domain DNS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-email-domain-dns-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  email-domain-dns:
+    name: Verify email-domain DNS identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 17.11 source contract
+        run: node tests/phase17-email-domain-dns.mjs
+
+      - name: Verify Cloudflare Email Routing MX and SPF
+        shell: bash
+        run: |
+          set -euo pipefail
+          mx=$(dig +short MX rcitcs.com | tr '[:upper:]' '[:lower:]')
+          txt=$(dig +short TXT rcitcs.com | tr -d '\r')
+          grep -q 'route1.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route2.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route3.mx.cloudflare.net' <<< "$mx"
+          grep -Fq 'v=spf1 include:_spf.mx.cloudflare.net ~all' <<< "$txt"
+
+      - name: Verify Resend DKIM return-path and tracking DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          dkim=$(dig +short TXT resend._domainkey.rcitcs.com | tr -d '\r')
+          send_mx=$(dig +short MX send.rcitcs.com | tr '[:upper:]' '[:lower:]')
+          send_txt=$(dig +short TXT send.rcitcs.com | tr -d '\r')
+          links=$(dig +short CNAME links.rcitcs.com | tr '[:upper:]' '[:lower:]' | tr -d '\r')
+          grep -Eq 'p=MIG|p=MIIB|v=DKIM1' <<< "$dkim"
+          grep -q 'feedback-smtp.eu-west-1.amazonses.com' <<< "$send_mx"
+          grep -Fq 'v=spf1 include:amazonses.com ~all' <<< "$send_txt"
+          grep -q 'links1.resend-dns.com' <<< "$links"
+
+      - name: Classify DMARC state
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmarc=$(dig +short TXT _dmarc.rcitcs.com | tr -d '\r' || true)
+          echo "DMARC=${dmarc:-<absent>}"
+          if [[ "${{ github.event_name }}" == 'push' && "${{ github.ref }}" == 'refs/heads/main' ]]; then
+            test -n "$dmarc"
+            grep -Fq 'v=DMARC1;' <<< "$dmarc"
+          else
+            echo 'PR classifies current DMARC state without mutating production DNS.'
+          fi
+
+      - name: Phase 17.11 acceptance
+        run: |
+          echo 'Phase 17.11 email-domain DNS verification gate: PASS'

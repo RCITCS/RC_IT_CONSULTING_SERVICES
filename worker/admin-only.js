@@ -8,6 +8,8 @@ import {
 } from './admin-interactions.js';
 
 const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
+const ADMIN_STAGING_HOST = 'admin-staging.rcitcs.com';
+const ADMIN_STAGING_MODE_UNAVAILABLE = 'unavailable';
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const UNAUTHENTICATED_FORM_PATHS = new Set(['/login', '/forgot-password']);
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
@@ -15,6 +17,7 @@ const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';
+export const ADMIN_TRANSPORT_SECURITY_POLICY = 'max-age=31536000; includeSubDomains; preload';
 
 export function rewriteAdminEdgeReference(value = '') {
   let rewritten = String(value).replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, '');
@@ -44,14 +47,17 @@ function copyResponseHeaders(source) {
   return headers;
 }
 
-function setBuildMarkers(headers) {
+function setBuildMarkers(headers, env = {}) {
   headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
   headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);
+  headers.set('strict-transport-security', ADMIN_TRANSPORT_SECURITY_POLICY);
+  const environment = String(env?.RC_ADMIN_ENVIRONMENT || '').trim().toLowerCase();
+  if (environment) headers.set('x-rc-admin-environment', environment);
 }
 
-function markAdminBuildSurface(response) {
+function markAdminBuildSurface(response, env = {}) {
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -176,6 +182,7 @@ function adminInteractionResponse() {
       'x-content-type-options': 'nosniff',
       'x-robots-tag': 'noindex, nofollow, noarchive',
       'cross-origin-resource-policy': 'same-origin',
+      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
       'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE,
       'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX
     }
@@ -198,14 +205,14 @@ function textualCandidate(contentType = '') {
   return normalized === '' || normalized.startsWith('text/') || normalized.includes('application/xhtml+xml');
 }
 
-function enhancedHtmlResponse(response, body) {
+function enhancedHtmlResponse(response, body, env = {}) {
   const rewritten = rewriteAdminEdgeReference(body);
   const enhanced = injectAdminInteractionHtml(injectAdminResponsiveHtml(rewritten));
   const headers = copyResponseHeaders(response.headers);
   headers.set('content-type', 'text/html; charset=utf-8');
   headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
   headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(enhanced, {
     status: response.status,
     statusText: response.statusText,
@@ -213,31 +220,76 @@ function enhancedHtmlResponse(response, body) {
   });
 }
 
-export async function enhanceAdminResponse(response, requestMethod) {
+export async function enhanceAdminResponse(response, requestMethod, env = {}) {
   if (requestMethod === 'HEAD' || BODYLESS_STATUSES.has(response.status)) {
-    return markAdminBuildSurface(response);
+    return markAdminBuildSurface(response, env);
   }
 
   const contentType = response.headers.get('content-type') || '';
   const declaredHtml = contentType.toLowerCase().includes('text/html');
   if (declaredHtml) {
-    return enhancedHtmlResponse(response, await response.text());
+    return enhancedHtmlResponse(response, await response.text(), env);
   }
 
   // Some upstream/edge combinations can strip or downgrade the media type while
   // leaving an HTML document body intact. Only sniff responses that are already
   // textual (or have no media type); binary/private documents remain streamed.
-  if (!textualCandidate(contentType)) return markAdminBuildSurface(response);
+  if (!textualCandidate(contentType)) return markAdminBuildSurface(response, env);
 
   const body = await response.text();
-  if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body);
+  if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body, env);
 
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers);
+  setBuildMarkers(headers, env);
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
     headers
+  });
+}
+
+export function isAdminStagingUnavailable(hostname = '', env = {}) {
+  return String(hostname).toLowerCase() === ADMIN_STAGING_HOST
+    && String(env?.RC_ADMIN_STAGING_MODE || '').trim().toLowerCase() === ADMIN_STAGING_MODE_UNAVAILABLE;
+}
+
+export function adminStagingUnavailableResponse(requestMethod = 'GET') {
+  const headers = new Headers({
+    'content-type': 'text/plain; charset=utf-8',
+    'cache-control': 'no-store, no-transform, max-age=0, must-revalidate',
+    pragma: 'no-cache',
+    expires: '0',
+    'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+    'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
+    'cross-origin-opener-policy': 'same-origin',
+    'cross-origin-resource-policy': 'same-origin',
+    'x-permitted-cross-domain-policies': 'none',
+    'x-rc-admin-environment': 'staging',
+    'x-rc-admin-staging-state': 'intentionally-unavailable',
+    'retry-after': '3600'
+  });
+  setBuildMarkers(headers);
+  const body = requestMethod === 'HEAD' ? null : 'Staging administration is intentionally unavailable.';
+  return new Response(body, { status: 503, headers });
+}
+
+function forceAdminHttps(request) {
+  const url = new URL(request.url);
+  if (url.protocol !== 'http:' || !ADMIN_HOSTS.has(url.hostname.toLowerCase())) return null;
+  url.protocol = 'https:';
+  return new Response(null, {
+    status: 308,
+    headers: {
+      location: url.toString(),
+      'cache-control': 'no-store, max-age=0, must-revalidate',
+      'x-content-type-options': 'nosniff',
+      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY
+    }
   });
 }
 
@@ -255,6 +307,11 @@ export default {
         }
       });
     }
+    const httpsRedirect = forceAdminHttps(request);
+    if (httpsRedirect) return httpsRedirect;
+    if (isAdminStagingUnavailable(host, env)) {
+      return adminStagingUnavailableResponse(request.method);
+    }
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === ADMIN_INTERACTION_PATH) {
       if (request.method === 'HEAD') {
         const response = adminInteractionResponse();
@@ -264,6 +321,6 @@ export default {
     }
     request = await normalizeAdminBrowserPost(request);
     const response = await runtime.fetch(request, env, ctx);
-    return enhanceAdminResponse(response, request.method);
+    return enhanceAdminResponse(response, request.method, env);
   }
 };

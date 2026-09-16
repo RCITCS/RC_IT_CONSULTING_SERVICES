@@ -18,13 +18,15 @@ for (const [label, workflow] of [
 
 assert.ok(!liveCi.includes("| head -n1"), "live CI must not use early-exit head pipelines under pipefail");
 
+// Phase 17 moved the production smoke to canonical company domains and
+// consolidated the production-admin response into /tmp/admin.headers. Keep
+// the Phase 16 safety invariant while following the current canonical smoke.
 for (const fragment of [
-  "grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers",
-  "grep -qi '^content-security-policy:' /tmp/admin-root.headers",
-  "grep -qi '^cache-control:.*no-store' /tmp/admin-visual.headers",
-  "grep -qi '^x-frame-options: *DENY' /tmp/admin-visual.headers",
-  "curl -sSI \"${BASE}${app_asset}\" -o /tmp/app-asset.headers",
-  "curl -sSI \"${BASE}/careers/job-opportunities\" -o /tmp/careers-alias.headers"
+  "grep -qi '^cache-control:.*no-store' /tmp/admin.headers",
+  "grep -qi '^content-security-policy:' /tmp/admin.headers",
+  "grep -qi '^x-frame-options: *DENY' /tmp/admin.headers",
+  "grep -qi '^strict-transport-security:' /tmp/admin.headers",
+  "curl -sSI \"${BASE}${app_asset}\" -o /tmp/app-asset.headers"
 ]) assert.ok(liveCi.includes(fragment), `live CI is missing robust header assertion contract: ${fragment}`);
 
 for (const fragment of [
@@ -39,4 +41,4 @@ for (const workflow of [adminDomain, adminPortal]) {
   assert.ok(workflow.includes("/functions/v1/admin-auth"), "dedicated admin smoke must explicitly detect raw Supabase admin-auth leakage");
 }
 
-console.log("Phase 16 workflow pipefail/header assertion safety: PASS");
+console.log("Phase 16 workflow pipefail/header assertion safety remains preserved under Phase 17 canonical-domain smoke: PASS");

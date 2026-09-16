@@ -1,0 +1,92 @@
+name: Phase 17.13 Domain Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-domain-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-security:
+    name: Verify domain security boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify source security invariants
+        run: node tests/phase17-domain-security.mjs
+
+      - name: Verify current public security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/public.body -D /tmp/public.headers -w '%{http_code}' 'https://rcitcs.com/')
+          test "$code" = '200'
+          grep -qi '^strict-transport-security:.*max-age=' /tmp/public.headers
+          grep -qi '^x-content-type-options: *nosniff' /tmp/public.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/public.headers
+
+      - name: Verify current production-admin security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/admin.body -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/')
+          test "$code" = '200'
+          grep -qi '^strict-transport-security:.*max-age=' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^content-security-policy:.*frame-ancestors' /tmp/admin.headers
+          ! grep -qi '^access-control-allow-origin: *\*' /tmp/admin.headers
+
+      - name: Classify current DMARC state without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmarc=$(dig +short TXT _dmarc.rcitcs.com | tr -d '\r' || true)
+          echo "DMARC=${dmarc:-<absent>}"
+          if [[ "${{ github.event_name }}" == 'push' && "${{ github.ref }}" == 'refs/heads/main' ]]; then
+            count=$(grep -c 'v=DMARC1;' <<< "$dmarc" || true)
+            test "$count" = '1'
+            grep -Fq 'p=none' <<< "$dmarc"
+            grep -Fq 'rua=mailto:dmarc@rcitcs.com' <<< "$dmarc"
+            grep -Fq 'adkim=s' <<< "$dmarc"
+            grep -Fq 'aspf=s' <<< "$dmarc"
+          else
+            echo 'Pull request records the current DMARC finding; final main requires remediation.'
+          fi
+
+      - name: Verify final-main ownership security markers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS -o /tmp/prod-admin.body -D /tmp/prod-admin.headers 'https://admin.rcitcs.com/'
+          grep -qi '^x-rc-admin-environment: *production' /tmp/prod-admin.headers
+
+          staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          test "$staging" = '503'
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+
+          workers_code=$(curl -sS --connect-timeout 10 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          test "$workers_code" != '200'
+
+      - name: Phase 17.13 acceptance
+        run: |
+          echo 'Phase 17.13 domain security verification: PASS'

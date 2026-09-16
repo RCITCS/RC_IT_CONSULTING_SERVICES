@@ -23,12 +23,16 @@ for (const required of [
   'INVALID_SLUG',
   '/rest/v1/rpc/get_public_careers_context',
   'publicProjection(payload)',
-  'phase11-public-read-v1'
+  'phase17-cloudflare-boundary-v2',
+  'x-rcitcs-public-proxy',
+  'proxyBoundaryOk(request, key)',
+  'REQUEST_REJECTED'
 ]) assert.ok(edge.includes(required), `Public Careers Edge boundary missing: ${required}`);
 
 assert.ok(edge.includes('SUPABASE_SECRET_KEYS'), 'Supabase-owned server boundary must consume its managed secret internally.');
 assert.ok(edge.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Legacy service-role fallback remains internal to Supabase Edge runtime.');
-assert.ok(!edge.includes('access-control-allow-origin'), 'Public Careers server-to-server boundary must not enable browser CORS by default.');
+assert.ok(edge.includes('constantTimeEqual'), 'Backend bearer authentication must use a constant-time comparison.');
+assert.ok(!edge.includes('access-control-allow-origin'), 'Public Careers server-to-server boundary must not enable browser CORS.');
 assert.ok(!edge.includes('Deno.env.toObject'), 'Edge boundary must not enumerate environment secrets.');
 assert.ok(!edge.includes('select *'), 'Edge boundary must not introduce an unrestricted table query.');
 
@@ -41,6 +45,8 @@ for (const field of [
 assert.ok(repository.includes('PUBLIC_CAREERS_API_URL'));
 assert.ok(repository.includes("source: 'public-careers-edge'"));
 assert.ok(repository.includes('body: JSON.stringify({ slug:'));
+assert.ok(repository.includes("authorization: `Bearer ${secretKey}`"), 'Cloudflare must authenticate to the public Careers Edge boundary.');
+assert.ok(repository.includes("'x-rcitcs-public-proxy': 'cloudflare'"));
 assert.ok(repository.includes("source: 'direct-supabase-server'"), 'Local/server compatibility fallback must remain explicit.');
 
 assert.equal(
@@ -48,6 +54,7 @@ assert.equal(
   'https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/public-careers',
   'Cloudflare public Careers must continue using the narrow Supabase-owned public projection.'
 );
+assert.ok((wrangler.secrets?.required || []).includes('SUPABASE_SECRET_KEY'), 'Cloudflare must require the encrypted modern Supabase secret for server-to-server boundaries.');
 assert.ok(!('SUPABASE_SECRET_KEY' in (wrangler.vars || {})), 'Privileged Supabase credentials must never be committed as plaintext Wrangler vars.');
 assert.ok(!('SUPABASE_SERVICE_ROLE_KEY' in (wrangler.vars || {})), 'Legacy service-role credentials must never be committed as plaintext Wrangler vars.');
 assert.ok(!(wrangler.secrets?.required || []).includes('SUPABASE_SERVICE_ROLE_KEY'), 'Cloudflare must not require the legacy service-role JWT binding.');
@@ -58,4 +65,4 @@ assert.ok(migration.includes('get_public_careers_context'));
 assert.ok(migration.includes('security invoker'));
 assert.ok(!/grant\s+execute[\s\S]{0,180}\bto\s+(?:anon|authenticated)\b/i.test(migration), 'Phase 11 database RPC must remain unavailable to browser roles.');
 
-console.log('PASS: Phase 11 public Careers remains on its bounded Supabase-owned public projection; Phase 12 may declare a separate encrypted Worker secret name without exposing credential material or broadening browser database grants.');
+console.log('PASS: Public Careers remains a narrow projection while Phase 17.10 makes the Supabase Edge hop an authenticated Cloudflare-only server boundary with no browser CORS.');

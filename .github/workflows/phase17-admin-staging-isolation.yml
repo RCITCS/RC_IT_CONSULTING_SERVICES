@@ -1,0 +1,145 @@
+name: Phase 17.5 Admin Staging Isolation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-admin-staging-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  admin-staging-isolation:
+    name: Verify admin-staging.rcitcs.com isolation policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.5 source/runtime isolation contract
+        run: node tests/phase17-admin-staging-isolation.mjs
+
+      - name: Verify staging deployment policy is source controlled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"name": "rcitcs-admin-staging"' wrangler.admin-staging.jsonc
+          grep -q '"workers_dev": false' wrangler.admin-staging.jsonc
+          grep -q '"RC_ADMIN_ENVIRONMENT": "staging"' wrangler.admin-staging.jsonc
+          grep -q '"RC_ADMIN_STAGING_MODE": "unavailable"' wrangler.admin-staging.jsonc
+          echo 'Staging deployment policy is source controlled; bundle compilation is enforced by Wrangler Deployment Validation.'
+
+      - name: Verify production admin remains healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          code=$(curl -sS --max-time 20 -D /tmp/admin-prod.headers -o /tmp/admin-prod.html -w '%{http_code}' "${ADMIN}/")
+          test "$code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-prod.html
+          grep -qi '^content-type: *text/html' /tmp/admin-prod.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-prod.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-prod.headers
+          echo 'Production admin remains healthy while staging isolation is prepared.'
+
+      - name: Classify current live staging state without mutation
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING='https://admin-staging.rcitcs.com'
+
+          if ! getent ahosts admin-staging.rcitcs.com >/dev/null 2>&1; then
+            echo 'Pre-merge staging hostname is unresolved. Candidate source still requires intentional unavailability on final main.'
+            exit 0
+          fi
+
+          code=$(curl -sS --max-time 20 -D /tmp/admin-staging.headers -o /tmp/admin-staging.body -w '%{http_code}' "${STAGING}/" || true)
+          if [[ "$code" == '503' ]]; then
+            grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/admin-staging.headers
+            grep -qi '^cache-control:.*no-store' /tmp/admin-staging.headers
+            grep -qi '^x-robots-tag:.*noindex' /tmp/admin-staging.headers
+            ! grep -q 'Administrator sign in' /tmp/admin-staging.body
+            echo 'Live staging is already intentionally unavailable.'
+            exit 0
+          fi
+
+          if [[ "$code" == '200' ]]; then
+            grep -q 'Administrator sign in' /tmp/admin-staging.body
+            grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-staging.headers
+            grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-staging.headers
+            echo 'Live staging still exposes the Phase-16 production-connected baseline pre-merge; this is recorded, not accepted as final isolation.'
+            exit 0
+          fi
+
+          echo "Unexpected pre-merge admin-staging status: ${code}" >&2
+          cat /tmp/admin-staging.headers >&2 || true
+          exit 1
+
+      - name: Wait for final-main staging isolation activation
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING='https://admin-staging.rcitcs.com'
+
+          for attempt in $(seq 1 72); do
+            code=$(curl -sS --max-time 20 -D /tmp/admin-staging-final.headers -o /tmp/admin-staging-final.body -w '%{http_code}' "${STAGING}/" || true)
+            state=$(awk -F': *' 'tolower($1)=="x-rc-admin-staging-state" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin-staging-final.headers | tail -n1)
+
+            if [[ "$code" == '503' && "$state" == 'intentionally-unavailable' ]]; then
+              grep -Fq 'Staging administration is intentionally unavailable.' /tmp/admin-staging-final.body
+              grep -qi '^cache-control:.*no-store' /tmp/admin-staging-final.headers
+              grep -qi '^x-robots-tag:.*noindex' /tmp/admin-staging-final.headers
+              grep -qi '^x-content-type-options: *nosniff' /tmp/admin-staging-final.headers
+              grep -qi '^x-frame-options: *DENY' /tmp/admin-staging-final.headers
+              grep -qi '^content-security-policy:' /tmp/admin-staging-final.headers
+              grep -qi '^strict-transport-security:' /tmp/admin-staging-final.headers
+              grep -qi '^x-rc-admin-environment: *staging' /tmp/admin-staging-final.headers
+              ! grep -qi '^set-cookie:' /tmp/admin-staging-final.headers
+              ! grep -qi '^location:' /tmp/admin-staging-final.headers
+              ! grep -q 'Administrator sign in' /tmp/admin-staging-final.body
+              echo "Live staging isolation activated on attempt ${attempt}."
+              break
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo 'admin-staging.rcitcs.com did not become the required intentionally unavailable 503 surface.' >&2
+              echo "Last status=${code} staging_state=${state:-none}" >&2
+              cat /tmp/admin-staging-final.headers >&2 || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+          post_code=$(curl -sS --max-time 20 -D /tmp/admin-staging-post.headers -o /tmp/admin-staging-post.body -w '%{http_code}' -X POST \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=x&password=x' \
+            "${STAGING}/login")
+          test "$post_code" = '503'
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/admin-staging-post.headers
+          ! grep -qi '^set-cookie:' /tmp/admin-staging-post.headers
+          ! grep -qi '^location:' /tmp/admin-staging-post.headers
+          echo 'Final-main staging GET/POST isolation verified.'
+
+      - name: Phase 17.5 acceptance
+        run: |
+          echo 'Phase 17.5 staging isolation gate: PASS'
+          echo 'Wrangler Deployment Validation separately proves the staging Worker bundle compiles.'
+          echo 'Staging is intentionally unavailable in candidate source until a separately isolated staging backend/data plane is approved.'

@@ -1,0 +1,140 @@
+name: Phase 17.7 Domain Ownership Convergence
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-domain-ownership-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-ownership:
+    name: Verify one authoritative Worker owner per hostname
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.7 source ownership contract
+        run: node tests/phase17-domain-ownership-convergence.mjs
+
+      - name: Build production assets for Wrangler validation
+        run: npm run build
+
+      - name: Validate all canonical Wrangler candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --dry-run --config wrangler.jsonc
+          npx wrangler deploy --dry-run --config wrangler.admin-production.jsonc
+          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc
+          echo 'Public, production-admin and staging-admin Wrangler candidates compile successfully.'
+
+      - name: Classify current live control-plane state without mutation
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          admin_code=$(curl -sS --max-time 20 -D /tmp/admin-live.headers -o /tmp/admin-live.body -w '%{http_code}' https://admin.rcitcs.com/ || true)
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-live.body
+          admin_env=$(grep -i '^x-rc-admin-environment:' /tmp/admin-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+
+          staging_code=$(curl -sS --max-time 20 -D /tmp/staging-live.headers -o /tmp/staging-live.body -w '%{http_code}' https://admin-staging.rcitcs.com/ || true)
+          staging_env=$(grep -i '^x-rc-admin-environment:' /tmp/staging-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+          staging_state=$(grep -i '^x-rc-admin-staging-state:' /tmp/staging-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+
+          echo "Pre-merge production-admin classification: status=${admin_code} env=${admin_env:-unmarked}"
+          echo "Pre-merge staging classification: status=${staging_code} env=${staging_env:-unmarked} state=${staging_state:-unmarked}"
+
+          case "$staging_code" in
+            200)
+              grep -q 'Administrator sign in' /tmp/staging-live.body
+              echo 'Historical Phase-16 staging exposure is still live pre-merge; candidate source no longer accepts this as final ownership.'
+              ;;
+            503)
+              grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging-live.headers
+              echo 'Staging intentional-unavailability policy is already live.'
+              ;;
+            *)
+              echo "Unexpected live staging status ${staging_code}." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Verify final-main authoritative owner markers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          converged=0
+          for attempt in $(seq 1 72); do
+            admin_code=$(curl -sS --max-time 20 -D /tmp/admin-final.headers -o /tmp/admin-final.body -w '%{http_code}' https://admin.rcitcs.com/ || true)
+            admin_env=$(grep -i '^x-rc-admin-environment:' /tmp/admin-final.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+
+            staging_code=$(curl -sS --max-time 20 -D /tmp/staging-final.headers -o /tmp/staging-final.body -w '%{http_code}' https://admin-staging.rcitcs.com/ || true)
+            staging_env=$(grep -i '^x-rc-admin-environment:' /tmp/staging-final.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+            staging_state=$(grep -i '^x-rc-admin-staging-state:' /tmp/staging-final.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+
+            if [[ "$admin_code" == '200' \
+              && "$admin_env" == 'production' \
+              && "$staging_code" == '503' \
+              && "$staging_env" == 'staging' \
+              && "$staging_state" == 'intentionally-unavailable' ]]; then
+              grep -q 'Administrator sign in' /tmp/admin-final.body
+              grep -qi '^cache-control:.*no-store' /tmp/admin-final.headers
+              grep -qi '^x-robots-tag:.*noindex' /tmp/admin-final.headers
+              ! grep -q 'Administrator sign in' /tmp/staging-final.body
+              converged=1
+              echo "Authoritative admin ownership converged on attempt ${attempt}."
+              break
+            fi
+
+            if [[ "$attempt" == '72' ]]; then
+              echo 'Cloudflare admin ownership did not converge to the required production/staging owners.' >&2
+              echo "Last production: status=${admin_code} env=${admin_env:-none}" >&2
+              echo "Last staging: status=${staging_code} env=${staging_env:-none} state=${staging_state:-none}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          test "$converged" = '1'
+
+      - name: Verify public hostname remains isolated from admin ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          public_code=$(curl -sS --max-time 20 -D /tmp/public-root.headers -o /tmp/public-root.body -w '%{http_code}' https://rcitcs.com/)
+          test "$public_code" = '200'
+          grep -q 'Technology that' /tmp/public-root.body
+          ! grep -q 'Administrator sign in' /tmp/public-root.body
+          ! grep -qi '^x-rc-admin-environment:' /tmp/public-root.headers
+
+          alias_code=$(curl -sS --max-time 20 -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' https://rcitcs.com/admin)
+          test "$alias_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/public-admin.headers
+          echo 'Public Worker remains isolated from dedicated admin ownership.'
+
+      - name: Phase 17.7 acceptance
+        run: |
+          echo 'Phase 17.7 domain ownership convergence gate: PASS'
+          echo 'Source ownership is one-authoritative-owner-per-host; final main additionally requires runtime owner markers to prove live Cloudflare convergence.'

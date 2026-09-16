@@ -1,0 +1,109 @@
+name: Phase 17.9 TLS HTTPS HSTS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-transport-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transport-security:
+    name: Verify TLS HTTPS and HSTS
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify source HTTPS and HSTS contract
+        run: node tests/phase17-transport-security.mjs
+
+      - name: Build candidate production assets
+        run: npm run build
+
+      - name: Validate transport-hardened Wrangler candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --dry-run --config wrangler.jsonc >/tmp/public.log 2>&1
+          npx wrangler deploy --dry-run --config wrangler.admin-production.jsonc >/tmp/admin-production.log 2>&1
+          npx wrangler deploy --dry-run --config wrangler.admin-staging.jsonc >/tmp/admin-staging.log 2>&1
+          echo 'Transport-hardened public, production-admin and staging-admin bundles compile.'
+
+      - name: Classify current live HTTPS surfaces without mutation
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for target in https://rcitcs.com/ https://admin.rcitcs.com/ https://admin-staging.rcitcs.com/; do
+            code=$(curl --tlsv1.2 -sS --max-time 20 -D /tmp/live.headers -o /dev/null -w '%{http_code}' "$target" || true)
+            hsts=$(grep -i '^strict-transport-security:' /tmp/live.headers 2>/dev/null | tail -n1 | tr -d '\r' || true)
+            echo "${target} status=${code:-none} hsts=${hsts:-not-yet-present}"
+            test -n "$code"
+          done
+          www_code=$(curl --tlsv1.2 -sS --max-time 20 -D /tmp/www.headers -o /dev/null -w '%{http_code}' https://www.rcitcs.com/ || true)
+          echo "https://www.rcitcs.com/ pre-merge status=${www_code:-unresolved}"
+          echo 'PR classification is read-only; final-main activation enforces the complete transport contract.'
+
+      - name: Verify final-main TLS HTTPS and HSTS contract
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(rcitcs.com www.rcitcs.com admin.rcitcs.com admin-staging.rcitcs.com)
+          for attempt in $(seq 1 72); do
+            all_ok=1
+            for host in "${hosts[@]}"; do
+              https_code=$(curl --tlsv1.2 -sS --max-time 20 -D /tmp/https.headers -o /dev/null -w '%{http_code}' "https://${host}/" || true)
+              if [[ -z "$https_code" || "$https_code" == '000' ]]; then
+                all_ok=0
+                break
+              fi
+              if ! grep -Eqi '^strict-transport-security:.*max-age=31536000.*includesubdomains' /tmp/https.headers; then
+                all_ok=0
+                break
+              fi
+
+              http_code=$(curl -sS --max-time 20 -D /tmp/http.headers -o /dev/null -w '%{http_code}' "http://${host}/" || true)
+              if ! [[ "$http_code" =~ ^30[1278]$ ]]; then
+                all_ok=0
+                break
+              fi
+              if ! grep -Eqi '^location: *https://' /tmp/http.headers; then
+                all_ok=0
+                break
+              fi
+            done
+
+            if [[ "$all_ok" == '1' ]]; then
+              echo "TLS/HTTPS/HSTS convergence verified on attempt ${attempt}."
+              break
+            fi
+            if [[ "$attempt" == '72' ]]; then
+              echo 'TLS/HTTPS/HSTS contract did not converge on all approved hostnames.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Phase 17.9 acceptance
+        run: |
+          echo 'Phase 17.9 transport-security gate: PASS'
+          echo 'Source enforces HTTPS/HSTS; final-main additionally proves the live Cloudflare TLS and HTTP redirect surface.'

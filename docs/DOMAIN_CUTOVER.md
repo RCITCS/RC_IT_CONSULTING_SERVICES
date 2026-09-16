@@ -1,30 +1,72 @@
-# RC IT Services — rcitcs.com Cutover Status
+# RC IT Services — Production Domain Cutover Runbook
 
-## Status
+## Current authority
 
-`PENDING CLOUDFLARE ACCOUNT / ZONE LINKAGE`
+`rcitcs.com` is the public production identity. The Phase-17 source topology is:
 
-The requested production domain is `rcitcs.com` with `www.rcitcs.com` normalized to the apex domain. Two controlled production attempts were made after all application and preview checks passed:
+| Hostname | Worker | Final role |
+| --- | --- | --- |
+| `rcitcs.com` | `rc-it-consulting-services` | canonical public production |
+| `www.rcitcs.com` | `rc-it-consulting-services` | permanent canonical alias to apex |
+| `admin.rcitcs.com` | `rcitcs-admin-production` | dedicated production administration |
+| `admin-staging.rcitcs.com` | `rcitcs-admin-staging` | isolated staging hostname, intentionally unavailable after Phase 17 |
 
-1. Worker Custom Domains for `rcitcs.com` and `www.rcitcs.com`.
-2. Zone-scoped Worker routes for `rcitcs.com/*` and `www.rcitcs.com/*`.
+The authoritative RC IT Cloudflare control plane established by the Phase-17.1 audit is account `3fdd024f6fbc25c03ed4481352576540`, zone `cf815244b9dbd51a490747f597867c68`.
 
-Both were rejected by Cloudflare at production route promotion while the same source built successfully and uploaded as a branch Worker version. This proves the application bundle is valid and isolates the blocker to production access to the `rcitcs.com` Cloudflare zone from the existing `rcitcservices` Worker/Workers Builds deployment identity.
+The separate Cloudflare GitHub-App build named `rcitcservices` in account `20d349f3f75ab611adb3f987188636e7` is not RC IT production authority. A green check from that integration is not evidence that `rcitcs.com` was deployed.
 
-## Safety recovery
+## Source-controlled deployment targets
 
-Until the account/zone linkage is corrected, production configuration intentionally remains on the verified Workers endpoint:
+Canonical Wrangler configurations are:
 
-`https://rcitcservices.frsmkgit.workers.dev`
+- `wrangler.jsonc` → `rc-it-consulting-services`
+- `wrangler.admin-production.jsonc` → `rcitcs-admin-production`
+- `wrangler.admin-staging.jsonc` → `rcitcs-admin-staging`
 
-The SEO canonical origin, sitemap, robots reference and production route verification also remain on that working origin. This avoids advertising an unreachable canonical domain or accidentally applying `noindex` to the only live production origin.
+All three disable `workers.dev` and preview URLs. Company hostnames are Custom Domains; legacy overlapping Worker Routes are not part of the target topology.
 
-## Required infrastructure resolution
+## Canonical request behavior
 
-The Worker deployment identity and the `rcitcs.com` zone must be in an accessible Cloudflare account scope with permission to attach the Worker to the zone. Once that is true, the preferred final model remains Worker Custom Domains because this Worker is the website origin; Cloudflare can then own the DNS mapping and TLS issuance.
+- `http://rcitcs.com/*` → permanent HTTPS redirect.
+- `https://www.rcitcs.com/*` → `308` to the same path/query on `https://rcitcs.com`.
+- public `GET/HEAD /admin*` → `308` to `https://admin.rcitcs.com`.
+- public `/admin*` mutations → fail closed, no credential replay or proxy.
+- `admin.rcitcs.com` must return the `X-RC-Admin-Environment: production` ownership marker.
+- `admin-staging.rcitcs.com` must return the intentional `503` staging-unavailable state and staging ownership marker after cutover.
+- public `workers.dev` must not remain a live production website endpoint.
 
-The cutover must be re-applied and live-verified before `rcitcs.com` is declared production.
+## Email DNS boundary
 
-## Email boundary
+Existing working mail records are preserved:
 
-The intended inbound destination remains `rcitcservices@gmail.com`. Cloudflare Email Routing aliases are still planned for `info@rcitcs.com`, `contact@rcitcs.com`, `support@rcitcs.com`, `career@rcitcs.com` and `legal@rcitcs.com`. Email Routing requires the destination verification and zone-level routing configuration; it has not been falsely marked configured.
+- Cloudflare Email Routing apex MX and SPF;
+- Resend DKIM at `resend._domainkey`;
+- Resend/Amazon SES return-path MX/SPF at `send`;
+- Resend tracking CNAME at `links`.
+
+Phase 17 additionally requires one DMARC TXT record at `_dmarc.rcitcs.com`:
+
+`v=DMARC1; p=none; rua=mailto:dmarc@rcitcs.com; adkim=s; aspf=s; pct=100`
+
+The `p=none` policy is monitoring-only. Do not replace working MX/SPF/DKIM records while adding DMARC.
+
+## Final cutover sequence
+
+1. Require the exact Phase-17 branch head to be fully green.
+2. Ensure the DMARC requirement is publicly resolvable.
+3. Merge PR #85 using the exact verified head SHA only.
+4. Mirror primary `main` to `RCITCS/RC_IT_CONSULTING_SERVICES` and require identical `main` SHA.
+5. Allow the authoritative RC IT Cloudflare builds/deployment path to converge all three canonical Worker targets.
+6. Prove the exact merged SHA on `https://rcitcs.com`.
+7. Prove public/www/admin/staging/alternate-origin runtime boundaries.
+8. Prove email DNS remains intact and DMARC is present.
+9. Run Supabase Security Advisor and require no unresolved release-blocking security finding.
+10. Record the final evidence in the Phase-17.16 closure document.
+
+## Safety rules
+
+- Do not transfer RC IT domains or secrets into the unrelated account solely to satisfy a green GitHub check.
+- Do not delete historical DNS or Worker routes without dependency/ownership proof.
+- Do not treat branch builds as production activation.
+- Do not declare Phase 17 closed from compile success, Wrangler dry-run, or PR CI alone.
+- Do not delete/disconnect the stale cross-account Cloudflare integration until its unrelated workload ownership is understood.

@@ -35,6 +35,7 @@ const selectedJob = {
 function env(html = baseHtml) {
   return {
     PUBLIC_CAREERS_API_URL: 'https://example.supabase.co/functions/v1/public-careers',
+    SUPABASE_SECRET_KEY: 'sb_secret_phase17_test_only',
     ASSETS: { async fetch() { return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=0, must-revalidate' } }); } }
   };
 }
@@ -44,8 +45,9 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
     assert.equal(String(url), 'https://example.supabase.co/functions/v1/public-careers');
     assert.equal(init.method, 'POST');
     const headers = new Headers(init.headers);
-    assert.equal(headers.get('apikey'), null);
-    assert.equal(headers.get('authorization'), null);
+    assert.equal(headers.get('apikey'), 'sb_secret_phase17_test_only');
+    assert.equal(headers.get('authorization'), 'Bearer sb_secret_phase17_test_only');
+    assert.equal(headers.get('x-rcitcs-public-proxy'), 'cloudflare');
     return new Response(JSON.stringify({ jobs, selected }), { status: 200, headers: { 'content-type': 'application/json' } });
   };
 }
@@ -161,4 +163,11 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
   assert.equal(await response.text(), '');
 }
 
-console.log('PASS: Phase 12 public Careers preserves canonical vacancy content, emits JobPosting only on eligible production job pages, preserves preview noindex isolation, exposes the real noindex application form, keeps secrets server-side, and fails closed.');
+{
+  const missingSecret = env();
+  delete missingSecret.SUPABASE_SECRET_KEY;
+  const response = await handlePublicCareersRequest(new Request('https://preview.example/careers'), missingSecret, { fetchImpl: async () => { throw new Error('must not call unauthenticated edge boundary'); } });
+  assert.equal(response.status, 503, 'Cloudflare Careers must fail closed when the backend boundary secret is unavailable.');
+}
+
+console.log('PASS: Phase 12 public Careers preserves canonical vacancy content while Phase 17.10 authenticates the server-to-server Edge boundary and keeps credentials out of browser output.');

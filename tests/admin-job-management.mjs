@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relative) => readFile(path.join(root, relative), 'utf8');
 
-const [migration, hardening, convergence, streamlined, db, index, routes, ui, worker, publicRepository, publicRuntime, wrangler, companyAdminWrangler, legacyWrangler] = await Promise.all([
+const [migration, hardening, convergence, streamlined, db, index, routes, ui, worker, publicRepository, publicRuntime, wrangler, productionAdminWrangler, stagingAdminWrangler, legacyWrangler] = await Promise.all([
   read('supabase/migrations/20260910152000_phase_11_job_management_cms.sql'),
   read('supabase/migrations/20260910161000_phase_11_job_management_hardening.sql'),
   read('supabase/migrations/20260910165000_phase_11_cms_spec_convergence.sql'),
@@ -19,6 +19,7 @@ const [migration, hardening, convergence, streamlined, db, index, routes, ui, wo
   read('src/backend/repositories/public-jobs-repository.js'),
   read('src/backend/runtime/public-careers.js'),
   read('wrangler.jsonc'),
+  read('wrangler.admin-production.jsonc'),
   read('wrangler.admin-staging.jsonc'),
   read('cloudflare/legacy-rcitcservices/wrangler.jsonc')
 ]);
@@ -92,20 +93,44 @@ assert.ok(publicRuntime.includes('Apply for this role'));
 assert.ok(publicRuntime.includes("robots = 'index,follow'"));
 
 const publicConfig = JSON.parse(wrangler);
-const companyAdminConfig = JSON.parse(companyAdminWrangler);
+const productionAdminConfig = JSON.parse(productionAdminWrangler);
+const stagingAdminConfig = JSON.parse(stagingAdminWrangler);
 const legacyConfig = JSON.parse(legacyWrangler);
-assert.equal(publicConfig.routes?.length, 1, 'Public Worker must own only rcitcs.com.');
-assert.equal(publicConfig.routes?.[0]?.pattern, 'rcitcs.com');
-assert.equal(publicConfig.routes?.[0]?.custom_domain, true, 'Public apex must be a Worker Custom Domain so Cloudflare provisions DNS/certificate automatically.');
-assert.equal(publicConfig.routes?.some((route) => String(route.pattern || '').startsWith('admin.rcitcs.com')), false, 'Public Worker must not claim the admin hostname.');
-assert.ok(companyAdminConfig.routes?.some((route) => route.pattern === 'admin.rcitcs.com' && route.custom_domain === true), 'Company admin Worker must provision admin.rcitcs.com as a Custom Domain.');
-assert.ok(companyAdminConfig.routes?.some((route) => route.pattern === 'admin-staging.rcitcs.com' && route.custom_domain === true), 'Company admin staging hostname must remain available.');
+
+assert.deepEqual(
+  publicConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['rcitcs.com', true], ['www.rcitcs.com', true]],
+  'Public Worker must own only the apex and www public Custom Domains.'
+);
+assert.equal(
+  publicConfig.routes?.some((route) => /^admin(?:-staging)?\.rcitcs\.com/.test(String(route.pattern || ''))),
+  false,
+  'Public Worker must not claim an admin hostname.'
+);
+
+assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
+assert.equal(productionAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
+assert.deepEqual(
+  productionAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin.rcitcs.com', true]],
+  'Canonical production admin Worker must own only admin.rcitcs.com.'
+);
+
+assert.equal(stagingAdminConfig.name, 'rcitcs-admin-staging');
+assert.equal(stagingAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
+assert.equal(stagingAdminConfig.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.deepEqual(
+  stagingAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
+  [['admin-staging.rcitcs.com', true]],
+  'Staging admin Worker must own only admin-staging.rcitcs.com after Phase 17.7 convergence.'
+);
+
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker must not claim company domains.');
 
-for (const source of [streamlined,routes,ui,wrangler,companyAdminWrangler,legacyWrangler]) {
+for (const source of [streamlined,routes,ui,wrangler,productionAdminWrangler,stagingAdminWrangler,legacyWrangler]) {
   for (const secretPattern of ['SUPABASE_SERVICE_ROLE_KEY=','ADMIN_BOOTSTRAP_PASSWORD_VERIFIER=','sb_secret_']) {
     assert.ok(!source.includes(secretPattern), `Secret-like value leaked into job-authoring source: ${secretPattern}`);
   }
 }
 
-console.log('PASS: Phase 12 job authoring remains unchanged while rcitcs.com and admin.rcitcs.com are independently provisioned inside the correct Cloudflare ownership boundaries.');
+console.log('PASS: Phase 12 job authoring remains unchanged while Phase 17.7 preserves one authoritative Cloudflare Worker owner for public, production-admin and staging-admin hostnames.');

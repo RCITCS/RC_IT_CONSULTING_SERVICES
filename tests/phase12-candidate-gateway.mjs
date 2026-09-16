@@ -25,7 +25,7 @@ const env = {
     body: { action: 'start', jobSlug: 'senior-data-engineer' },
     requestId: 'req-phase12-test',
     headers: new Headers({
-      origin: 'https://rc-it-consulting-services.rcitcservices.workers.dev',
+      origin: 'https://rcitcs.com',
       'cf-connecting-ip': '203.0.113.44',
       'x-rcitcs-client-ip': '198.51.100.77'
     })
@@ -39,7 +39,7 @@ const env = {
   assert.equal(sent.get('authorization'), 'Bearer sb_secret_phase12_test_only');
   assert.equal(sent.get('apikey'), 'sb_secret_phase12_test_only');
   assert.equal(sent.get('x-rcitcs-application-proxy'), 'cloudflare');
-  assert.equal(sent.get('x-rcitcs-original-origin'), 'https://rc-it-consulting-services.rcitcservices.workers.dev');
+  assert.equal(sent.get('x-rcitcs-original-origin'), 'https://rcitcs.com');
   assert.equal(sent.get('x-rcitcs-client-ip'), '203.0.113.44', 'Cloudflare gateway must ignore browser-supplied proxy IP metadata.');
   assert.deepEqual(JSON.parse(calls[0].init.body), { action: 'start', jobSlug: 'senior-data-engineer' });
 }
@@ -62,24 +62,41 @@ const env = {
 }
 
 {
-  const calls = [];
   const gateway = createCandidateApplicationGateway({
     env,
     runtime: 'vercel',
-    fetchImpl: async (url, init) => {
-      calls.push({ url: String(url), init });
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
-    }
+    fetchImpl: async () => { throw new Error('retired alternate production ingress must not call backend'); }
   });
-  await gateway.forward({
-    body: { action: 'cancel' },
-    headers: {
-      origin: 'https://rc-it-services.vercel.app',
-      'x-vercel-forwarded-for': '192.0.2.22',
-      'x-forwarded-for': '198.51.100.200'
-    }
+  assert.equal(gateway.configured, false, 'Phase 17.10 retires Vercel as a production candidate-intake ingress.');
+  await assert.rejects(
+    gateway.forward({
+      body: { action: 'cancel' },
+      headers: { origin: 'https://rc-it-services.vercel.app', 'x-vercel-forwarded-for': '192.0.2.22' }
+    }),
+    (error) => error?.status === 503
+  );
+}
+
+{
+  let called = false;
+  const gateway = createCandidateApplicationGateway({
+    env,
+    runtime: 'cloudflare-workers',
+    fetchImpl: async () => { called = true; return new Response('{}'); }
   });
-  assert.equal(new Headers(calls[0].init.headers).get('x-rcitcs-client-ip'), '192.0.2.22');
+  for (const retiredOrigin of [
+    'https://rc-it-consulting-services.rcitcservices.workers.dev',
+    'https://rc-it-services.vercel.app'
+  ]) {
+    await assert.rejects(
+      gateway.forward({
+        body: { action: 'start' },
+        headers: new Headers({ origin: retiredOrigin, 'cf-connecting-ip': '203.0.113.44' })
+      }),
+      (error) => error?.code === 'REQUEST_REJECTED' && error?.status === 403
+    );
+  }
+  assert.equal(called, false, 'Retired alternate production origins must fail before Supabase intake.');
 }
 
 {
@@ -136,4 +153,4 @@ const env = {
   );
 }
 
-console.log('PASS: Phase 12 candidate gateway authenticates intake, trusts the actual Cloudflare production origin, uses trusted ingress metadata, rejects spoofed authority and performs retry-safe scheduled private-upload cleanup.');
+console.log('PASS: Phase 12 candidate gateway now admits only canonical Cloudflare production origins, authenticates Supabase intake, rejects retired workers.dev/Vercel ingress and preserves retry-safe cleanup.');

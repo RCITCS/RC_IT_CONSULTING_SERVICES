@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const MAX_BODY_BYTES = 2_048;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PUBLIC_PROXY_HEADER = "x-rcitcs-public-proxy";
+const PUBLIC_PROXY_VALUE = "cloudflare";
 
 function responseHeaders(contentType = "application/json; charset=utf-8"): Headers {
   return new Headers({
@@ -11,6 +13,7 @@ function responseHeaders(contentType = "application/json; charset=utf-8"): Heade
     "referrer-policy": "no-referrer",
     "x-frame-options": "DENY",
     "content-security-policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    "cross-origin-resource-policy": "same-origin",
   });
 }
 
@@ -33,6 +36,27 @@ function modernSecret(): string {
 
 function serviceCredential(): string {
   return modernSecret() || String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "").trim();
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left);
+  const rightBytes = new TextEncoder().encode(right);
+  if (leftBytes.length !== rightBytes.length) return false;
+  let difference = 0;
+  for (let index = 0; index < leftBytes.length; index += 1) difference |= leftBytes[index] ^ rightBytes[index];
+  return difference === 0;
+}
+
+function bearerCredential(request: Request): string {
+  const authorization = String(request.headers.get("authorization") ?? "").trim();
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  return match ? match[1].trim() : "";
+}
+
+function proxyBoundaryOk(request: Request, serviceKey: string): boolean {
+  const presented = bearerCredential(request);
+  if (!serviceKey || !presented || !constantTimeEqual(presented, serviceKey)) return false;
+  return String(request.headers.get(PUBLIC_PROXY_HEADER) ?? "").trim().toLowerCase() === PUBLIC_PROXY_VALUE;
 }
 
 function dataApiHeaders(key: string): HeadersInit {
@@ -130,12 +154,17 @@ Deno.serve(async (request: Request) => {
   const url = new URL(request.url);
 
   if (request.method === "GET" && url.pathname.endsWith("/health")) {
-    return json({ ok: true, service: "public-careers", contract: "phase11-public-read-v1" });
+    return json({ ok: true, service: "public-careers", contract: "phase17-cloudflare-boundary-v2" });
   }
 
   if (request.method !== "POST") {
     return json({ ok: false, code: "METHOD_NOT_ALLOWED" }, 405, { allow: "POST" });
   }
+
+  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  const key = serviceCredential();
+  if (!supabaseUrl || !key) return json({ ok: false, code: "SERVICE_UNAVAILABLE" }, 503);
+  if (!proxyBoundaryOk(request, key)) return json({ ok: false, code: "REQUEST_REJECTED" }, 403);
 
   if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) {
     return json({ ok: false, code: "UNSUPPORTED_MEDIA_TYPE" }, 415);
@@ -163,10 +192,6 @@ Deno.serve(async (request: Request) => {
   if (slug !== null && (slug.length > 160 || !SLUG.test(slug))) {
     return json({ ok: false, code: "INVALID_SLUG" }, 400);
   }
-
-  const supabaseUrl = String(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
-  const key = serviceCredential();
-  if (!supabaseUrl || !key) return json({ ok: false, code: "SERVICE_UNAVAILABLE" }, 503);
 
   try {
     const upstream = await fetch(`${supabaseUrl}/rest/v1/rpc/get_public_careers_context`, {

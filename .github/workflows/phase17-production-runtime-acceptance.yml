@@ -1,0 +1,128 @@
+name: Phase 17.14 Production Runtime Acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-production-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-runtime:
+    name: Verify production browser and runtime acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 17.14 acceptance contract
+        run: node tests/phase17-production-runtime-acceptance.mjs
+
+      - name: Verify current apex and production-admin baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          public_code=$(curl -sS -o /tmp/public.html -D /tmp/public.headers -w '%{http_code}' 'https://rcitcs.com/')
+          test "$public_code" = '200'
+          grep -q 'id="main-content"' /tmp/public.html
+          grep -q 'Technology that' /tmp/public.html
+          grep -qi '^content-type:.*text/html' /tmp/public.headers
+          grep -qi '^strict-transport-security:' /tmp/public.headers
+
+          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/')
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          ! grep -q 'Technology that' /tmp/admin.html
+          grep -qi '^content-type:.*text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+
+          alias_code=$(curl -sS -o /dev/null -D /tmp/admin-alias.headers -w '%{http_code}' 'https://rcitcs.com/admin')
+          test "$alias_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-alias.headers
+
+          mutation=$(curl -sS -o /tmp/admin-mutation.body -D /tmp/admin-mutation.headers -w '%{http_code}' -X POST 'https://rcitcs.com/admin/login')
+          test "$mutation" = '404'
+          ! grep -qi '^location:' /tmp/admin-mutation.headers
+
+      - name: Verify final-main exact browser/runtime acceptance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          ADMIN='https://admin.rcitcs.com'
+
+          for attempt in $(seq 1 72); do
+            code=$(curl -sS -o /tmp/root.html -D /tmp/root.headers -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] \
+              && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/root.html \
+              && grep -q 'Technology that' /tmp/root.html; then
+              break
+            fi
+            if [[ "$attempt" == '72' ]]; then
+              echo "Exact main SHA ${EXPECTED_SHA} did not become visible on rcitcs.com." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          for route in '/careers' '/contact' '/services/it/cyber-security' '/careers/jobs/senior-data-engineer' '/careers/jobs/senior-data-engineer/apply' '/privacy'; do
+            code=$(curl -sS -o /tmp/route.html -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'id="main-content"' /tmp/route.html
+          done
+
+          health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
+          test "$health" = '200'
+          grep -q '"ok":true' /tmp/health.json
+
+          www=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' --max-redirs 0 'https://www.rcitcs.com/careers?acceptance=17')
+          test "$www" = '308'
+          grep -qi '^location: *https://rcitcs\.com/careers?acceptance=17' /tmp/www.headers
+
+          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/")
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^content-type:.*text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^content-security-policy:' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
+
+          session=$(curl -sS -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session" = '401'
+          grep -q '"authenticated":false' /tmp/session.json
+
+          hostile=$(curl -sS -o /tmp/hostile.body -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
+          test "$hostile" = '403'
+
+          staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          test "$staging" = '503'
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+
+          workers=$(curl -sS --connect-timeout 10 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          test "$workers" != '200'
+
+      - name: Phase 17.14 acceptance
+        run: |
+          echo 'Phase 17.14 production browser/runtime acceptance gate: PASS'

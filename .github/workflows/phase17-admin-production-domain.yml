@@ -1,0 +1,120 @@
+name: Phase 17.4 Production Admin Domain
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-admin-production-domain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-admin-domain:
+    name: Verify admin.rcitcs.com production admin contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify Phase 17.4 source ownership contract
+        run: node tests/phase17-admin-production-domain.mjs
+
+      - name: Verify production admin DNS and hardened root
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+
+          getent ahosts admin.rcitcs.com >/tmp/admin-dns.txt
+          test -s /tmp/admin-dns.txt
+
+          code=$(curl -sS --max-time 20 -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
+          test "$code" = '200'
+          grep -q '<!doctype html>' /tmp/admin-root.html
+          grep -q 'Administrator sign in' /tmp/admin-root.html
+          grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
+          grep -q 'action="/login"' /tmp/admin-root.html
+          ! grep -q 'action="/admin/login"' /tmp/admin-root.html
+          ! grep -q '/functions/v1/admin-auth' /tmp/admin-root.html
+          ! grep -q 'Technology that moves business forward' /tmp/admin-root.html
+          ! grep -q 'data-prerendered-path="/"' /tmp/admin-root.html
+
+          grep -qi '^content-type: *text/html' /tmp/admin-root.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-root.headers
+          grep -qi '^x-content-type-options: *nosniff' /tmp/admin-root.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin-root.headers
+          grep -qi '^content-security-policy:' /tmp/admin-root.headers
+          grep -qi '^strict-transport-security:' /tmp/admin-root.headers
+          grep -qi '^x-rc-admin-edge-release: *phase12-job-authoring-v1' /tmp/admin-root.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-root.headers
+          grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' /tmp/admin-root.headers
+
+          echo 'Production admin root remains dedicated, private and hardened.'
+
+      - name: Verify production admin private routes and session boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+
+          for route in /applications /jobs; do
+            body="/tmp/admin$(echo "$route" | tr '/' '-').html"
+            headers="/tmp/admin$(echo "$route" | tr '/' '-').headers"
+            code=$(curl -sS --max-time 20 -D "$headers" -o "$body" -w '%{http_code}' "${ADMIN}${route}")
+            test "$code" = '200'
+            grep -q 'Administrator sign in' "$body"
+            ! grep -q 'Technology that moves business forward' "$body"
+            ! grep -q '/functions/v1/admin-auth' "$body"
+            grep -qi '^content-type: *text/html' "$headers"
+            grep -qi '^cache-control:.*no-store' "$headers"
+            grep -qi '^x-robots-tag:.*noindex' "$headers"
+            grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' "$headers"
+            grep -qi '^x-rc-admin-html-media-fix: *phase16-html-content-type-v1' "$headers"
+          done
+
+          session_code=$(curl -sS --max-time 20 -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/admin-session.json
+          grep -qi '^content-type:.*application/json' /tmp/admin-session.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-session.headers
+
+          echo 'Production admin applications/jobs/session boundaries verified.'
+
+      - name: Verify hostile-origin mutation rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+
+          rejected_code=$(curl -sS --max-time 20 -D /tmp/admin-rejected.headers -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
+            -H 'Origin: https://example.invalid' \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=x&password=x' \
+            "${ADMIN}/login")
+          test "$rejected_code" = '403'
+          grep -q 'Request rejected' /tmp/admin-rejected.txt
+          grep -qi '^cache-control:.*no-store' /tmp/admin-rejected.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-rejected.headers
+
+          echo 'Production admin hostile-origin POST rejection verified.'
+
+      - name: Phase 17.4 acceptance
+        run: |
+          echo 'Phase 17.4 production admin domain gate: PASS'
+          echo 'No Cloudflare ownership cutover was performed; that remains Module 17.7.'

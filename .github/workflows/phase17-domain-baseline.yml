@@ -1,0 +1,131 @@
+name: Phase 17 Domain Baseline
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-domain-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Verify Phase 17.1 pre-change domain baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Verify source-controlled ownership baseline
+        run: node tests/phase17-domain-baseline.mjs
+
+      - name: Inventory public DNS resolution without changing control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(
+            rcitcs.com
+            www.rcitcs.com
+            admin.rcitcs.com
+            admin-staging.rcitcs.com
+          )
+
+          for host in "${hosts[@]}"; do
+            echo "===== ${host} ====="
+            if getent ahosts "$host"; then
+              echo "RESOLUTION=${host}:present"
+            else
+              echo "RESOLUTION=${host}:absent"
+            fi
+          done
+
+      - name: Record public DNS record surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(
+            rcitcs.com
+            www.rcitcs.com
+            admin.rcitcs.com
+            admin-staging.rcitcs.com
+          )
+          record_types=(A AAAA CNAME)
+
+          echo '===== ZONE NS ====='
+          dig +noall +answer rcitcs.com NS || true
+          echo '===== ZONE SOA ====='
+          dig +noall +answer rcitcs.com SOA || true
+          echo '===== ZONE MX ====='
+          dig +noall +answer rcitcs.com MX || true
+          echo '===== ZONE TXT ====='
+          dig +noall +answer rcitcs.com TXT || true
+          echo '===== ZONE CAA ====='
+          dig +noall +answer rcitcs.com CAA || true
+
+          for host in "${hosts[@]}"; do
+            for type in "${record_types[@]}"; do
+              echo "===== ${host} ${type} ====="
+              answer=$(dig +noall +answer "$host" "$type" || true)
+              if [ -n "$answer" ]; then
+                printf '%s\n' "$answer"
+              else
+                echo 'NO_PUBLIC_ANSWER'
+              fi
+            done
+          done
+
+          echo 'Public DNS snapshot recorded. Cloudflare proxy flags, hidden origin records, Worker Routes, Custom Domains and account ownership still require authoritative control-plane evidence.'
+
+      - name: Record live pre-change host behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          public_code=$(curl -sS --max-time 20 -D /tmp/public.headers -o /tmp/public.html -w '%{http_code}' https://rcitcs.com/)
+          test "$public_code" = '200'
+          grep -q 'Technology that' /tmp/public.html
+          ! grep -q 'Administrator sign in' /tmp/public.html
+          echo "rcitcs.com=${public_code}"
+
+          admin_code=$(curl -sS --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' https://admin.rcitcs.com/)
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^content-type: *text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin.headers
+          echo "admin.rcitcs.com=${admin_code}"
+
+          staging_code=$(curl -sS --max-time 20 -D /tmp/admin-staging.headers -o /tmp/admin-staging.html -w '%{http_code}' https://admin-staging.rcitcs.com/)
+          test "$staging_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin-staging.html
+          grep -qi '^x-rc-admin-build-surface: *phase16-security-closure-v1' /tmp/admin-staging.headers
+          echo "admin-staging.rcitcs.com=${staging_code}"
+
+          alias_code=$(curl -sS --max-time 20 -D /tmp/public-admin.headers -o /dev/null -w '%{http_code}' https://rcitcs.com/admin)
+          test "$alias_code" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/public-admin.headers
+          echo "rcitcs.com/admin=${alias_code}"
+
+          post_code=$(curl -sS --max-time 20 -o /tmp/public-admin-post.txt -w '%{http_code}' -X POST \
+            -H 'content-type: application/x-www-form-urlencoded' \
+            --data 'email=phase17-baseline@example.invalid&password=not-a-real-password' \
+            https://rcitcs.com/admin/login)
+          test "$post_code" = '404'
+          echo "POST rcitcs.com/admin/login=${post_code}"
+
+          if getent ahosts www.rcitcs.com >/dev/null 2>&1; then
+            www_code=$(curl -sS --max-time 20 -D /tmp/www.headers -o /dev/null -w '%{http_code}' https://www.rcitcs.com/ || true)
+            www_location=$(awk -F': *' 'tolower($1)=="location" {gsub(/\r/,"",$2); print $2}' /tmp/www.headers | tail -n1)
+            echo "www.rcitcs.com=${www_code:-unavailable} location=${www_location:-none}"
+          else
+            echo 'www.rcitcs.com=DNS_NOT_PROVISIONED'
+          fi
+
+          echo 'Phase 17.1 live pre-change behavior recorded without control-plane mutation.'
