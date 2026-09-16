@@ -1,0 +1,180 @@
+name: Phase 17.16 Exact SHA Closure
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-final-closure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-dns-readiness:
+    name: Verify Phase 17.16 source and DNS readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify Phase 17.16 source contract
+        run: node tests/phase17-final-closure.mjs
+
+      - name: Require one complete DMARC policy before merge or final main closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw=$(dig +short TXT _dmarc.rcitcs.com | tr -d '\r' || true)
+          echo "DMARC=${raw:-<absent>}"
+          test -n "$raw"
+
+          count=$(printf '%s\n' "$raw" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
+          if [[ "$count" != '1' ]]; then
+            echo "Expected exactly one DMARC TXT record; found ${count}." >&2
+            exit 1
+          fi
+
+          dmarc=$(printf '%s' "$raw" | tr -d '"')
+          grep -Fq 'v=DMARC1;' <<< "$dmarc"
+          grep -Fq 'p=none;' <<< "$dmarc"
+          grep -Fq 'rua=mailto:dmarc@rcitcs.com;' <<< "$dmarc"
+          grep -Fq 'adkim=s;' <<< "$dmarc"
+          grep -Fq 'aspf=s;' <<< "$dmarc"
+          grep -Fq 'pct=100' <<< "$dmarc"
+
+      - name: Preserve existing mail identity while adding DMARC
+        shell: bash
+        run: |
+          set -euo pipefail
+          mx=$(dig +short MX rcitcs.com | tr '[:upper:]' '[:lower:]')
+          apex_txt=$(dig +short TXT rcitcs.com | tr -d '\r')
+          dkim=$(dig +short TXT resend._domainkey.rcitcs.com | tr -d '\r')
+          send_mx=$(dig +short MX send.rcitcs.com | tr '[:upper:]' '[:lower:]')
+          send_txt=$(dig +short TXT send.rcitcs.com | tr -d '\r')
+          links=$(dig +short CNAME links.rcitcs.com | tr '[:upper:]' '[:lower:]' | tr -d '\r')
+
+          grep -q 'route1.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route2.mx.cloudflare.net' <<< "$mx"
+          grep -q 'route3.mx.cloudflare.net' <<< "$mx"
+          grep -Fq 'v=spf1 include:_spf.mx.cloudflare.net ~all' <<< "$apex_txt"
+          grep -Eq 'p=MIG|p=MIIB|v=DKIM1' <<< "$dkim"
+          grep -q 'feedback-smtp.eu-west-1.amazonses.com' <<< "$send_mx"
+          grep -Fq 'v=spf1 include:amazonses.com ~all' <<< "$send_txt"
+          grep -q 'links1.resend-dns.com' <<< "$links"
+
+  final-main-production:
+    name: Verify exact merged main production closure
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: source-and-dns-readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact main SHA on public production
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            code=$(curl -L -sS -D /tmp/public.headers -o /tmp/public.html -w '%{http_code}' 'https://rcitcs.com/' || true)
+            if [[ "$code" == '200' ]] \
+              && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/public.html \
+              && grep -q 'Technology that' /tmp/public.html \
+              && grep -qi '^strict-transport-security:' /tmp/public.headers; then
+              echo "Exact main SHA ${EXPECTED_SHA} is live on rcitcs.com."
+              break
+            fi
+            if [[ "$attempt" == '90' ]]; then
+              echo "Exact main SHA ${EXPECTED_SHA} did not become live on rcitcs.com." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify canonical www and public admin separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          www_code=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' 'https://www.rcitcs.com/careers?phase=17')
+          test "$www_code" = '308'
+          grep -qi '^location: *https://rcitcs.com/careers?phase=17' /tmp/www.headers
+
+          get_code=$(curl -sS -o /dev/null -D /tmp/public-admin.headers -w '%{http_code}' 'https://rcitcs.com/admin')
+          test "$get_code" = '308'
+          grep -qi '^location: *https://admin.rcitcs.com/' /tmp/public-admin.headers
+
+          post_code=$(curl -sS -o /tmp/public-admin-post.txt -w '%{http_code}' -X POST -H 'content-type: application/x-www-form-urlencoded' --data 'email=x%40example.invalid&password=x' 'https://rcitcs.com/admin/login' || true)
+          test "$post_code" = '404'
+
+      - name: Verify production-admin authority and security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' 'https://admin.rcitcs.com/' || true)
+          test "$code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^content-security-policy:' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+
+          session_code=$(curl -sS -o /tmp/session.json -w '%{http_code}' 'https://admin.rcitcs.com/session' || true)
+          test "$session_code" = '401'
+          grep -q '"authenticated":false' /tmp/session.json
+
+          hostile_code=$(curl -sS -o /tmp/hostile.txt -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -H 'content-type: application/x-www-form-urlencoded' --data 'email=x%40example.invalid' 'https://admin.rcitcs.com/forgot-password' || true)
+          test "$hostile_code" = '403'
+
+      - name: Verify staging is intentionally unavailable
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -D /tmp/staging.headers -o /tmp/staging.txt -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          test "$code" = '503'
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+          grep -qi '^cache-control:.*no-store' /tmp/staging.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
+
+      - name: Verify retired public workers.dev ingress stays closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -L -sS -o /tmp/workers-dev.html -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          if [[ "$code" == '200' ]] && grep -q 'Technology that' /tmp/workers-dev.html; then
+            echo 'Retired workers.dev origin is still serving the production website.' >&2
+            exit 1
+          fi
+          echo "workers.dev status=${code}; production-site exposure is closed."
+
+      - name: Wait for exact mirror convergence
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            mirror_sha=$(git ls-remote https://github.com/RCITCS/RC_IT_CONSULTING_SERVICES.git refs/heads/main | awk '{print $1}' || true)
+            if [[ "$mirror_sha" == "$EXPECTED_SHA" ]]; then
+              echo "Mirror main matches exact primary main SHA ${EXPECTED_SHA}."
+              exit 0
+            fi
+            if [[ "$attempt" == '90' ]]; then
+              echo "Mirror main did not converge. expected=${EXPECTED_SHA} actual=${mirror_sha:-missing}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
