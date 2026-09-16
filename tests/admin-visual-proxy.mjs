@@ -164,8 +164,9 @@ for (const expected of [
   "PUBLIC='https://rcitcs.com'",
   "test \"$alias_code\" = '308'",
   "test \"$post_code\" = '404'",
-  '${ADMIN}/applications',
-  '${ADMIN}/session',
+  'for route in /applications /jobs; do',
+  '"${ADMIN}${route}"',
+  '"${ADMIN}/session"',
   'Production admin, intentional staging isolation, and public admin separation verified.'
 ]) {
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
