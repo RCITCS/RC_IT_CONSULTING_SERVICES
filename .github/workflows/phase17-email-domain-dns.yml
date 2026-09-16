@@ -69,4 +69,5 @@ jobs:
           fi
 
       - name: Phase 17.11 acceptance
-        run: echo 'Phase 17.11 email-domain DNS verification gate: PASS'
+        run: |
+          echo 'Phase 17.11 email-domain DNS verification gate: PASS'
