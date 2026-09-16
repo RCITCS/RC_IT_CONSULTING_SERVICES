@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WORKERS_BUILD_CONFIG, resolveWorkersBuildConfig } from '../scripts/configure-cloudflare-workers-build.mjs';
+import { productionAdminLegacyRedirect } from '../worker/admin-production.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,7 +64,7 @@ assert.deepEqual(
 );
 
 assert.equal(productionConfig.name, 'rcitcs-admin-production');
-assert.equal(productionConfig.main, './worker/admin-only.js');
+assert.equal(productionConfig.main, './worker/admin-production.js');
 assert.equal(productionConfig.workers_dev, false);
 assert.equal(
   Object.hasOwn(productionConfig, 'keep_vars'),
@@ -79,10 +80,38 @@ assert.deepEqual(
   'Production admin Worker must own only admin.rcitcs.com.'
 );
 
+const legacyGet = productionAdminLegacyRedirect(new Request('https://admin.rcitcs.com/admin/applications?state=new'));
+assert.ok(legacyGet);
+assert.equal(legacyGet.status, 308);
+assert.equal(legacyGet.headers.get('location'), 'https://admin.rcitcs.com/applications?state=new');
+assert.equal(legacyGet.headers.get('x-rc-admin-environment'), 'production');
+assert.match(legacyGet.headers.get('strict-transport-security') || '', /max-age=31536000/);
+
+const legacyPost = productionAdminLegacyRedirect(new Request('https://admin.rcitcs.com/admin/login', { method: 'POST' }));
+assert.ok(legacyPost);
+assert.equal(legacyPost.status, 409);
+assert.equal(legacyPost.headers.get('location'), 'https://admin.rcitcs.com/login');
+
+assert.equal(
+  productionAdminLegacyRedirect(new Request('https://admin.rcitcs.com/applications')),
+  null,
+  'Canonical production-admin routes must not be redirected.'
+);
+assert.equal(
+  productionAdminLegacyRedirect(new Request('https://admin-staging.rcitcs.com/admin')),
+  null,
+  'The production entrypoint must never claim staging legacy routes.'
+);
+assert.equal(
+  productionAdminLegacyRedirect(new Request('http://admin.rcitcs.com/admin')),
+  null,
+  'HTTP upgrade remains delegated to the hardened admin-only transport boundary.'
+);
+
 assert.equal(legacyConfig.name, 'rcitcservices');
 assert.equal(legacyConfig.workers_dev, false);
 assert.equal(legacyConfig.keep_vars, true);
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Worker in the old Cloudflare account must not claim company production domains.');
 assert.equal(Object.hasOwn(legacyConfig, 'secrets'), false, 'Legacy Worker must not require company production secrets.');
 
-console.log('PASS: Phase 17.7 source ownership is one Worker per hostname: public apex/www, production admin, isolated staging admin, and no company domains on the legacy Worker.');
+console.log('PASS: Phase 17.7 source ownership is one Worker per hostname and production legacy admin paths canonicalize inside the dedicated production Worker.');
