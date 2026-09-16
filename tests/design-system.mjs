@@ -70,7 +70,12 @@ assert(dialog.includes('role="dialog"') && dialog.includes('aria-modal="true"') 
 assert(statusMessage('Saved').includes('role="status"'), 'Status-message primitive lost live-region semantics');
 
 const shell = siteShell('/products', '<main id="main-content">Page</main>');
-assert(shell.indexOf('site-header') < shell.indexOf('main-content') && shell.indexOf('main-content') < shell.indexOf('site-footer'), 'Site shell composition order is invalid');
+const skipLinkIndex = shell.indexOf('<a class="skip-link" href="#main-content">');
+const headerIndex = shell.indexOf('site-header');
+const mainIndex = shell.indexOf('<main id="main-content">');
+const footerIndex = shell.indexOf('site-footer');
+assert(skipLinkIndex >= 0, 'Site shell lost keyboard skip-navigation control');
+assert(skipLinkIndex < headerIndex && headerIndex < mainIndex && mainIndex < footerIndex, 'Site shell composition order is invalid');
 
 const tokens = await readFile(new URL('../src/frontend/styles/tokens.css', import.meta.url), 'utf8');
 for (const token of ['--space-4', '--container-narrow', '--control-height', '--field-height', '--z-dialog', '--focus-outline']) {
@@ -89,5 +94,6 @@ for (const visualBaseline of [
 const baseCss = await readFile(new URL('../src/frontend/styles/base.css', import.meta.url), 'utf8');
 assert(baseCss.includes('.container { width: min(calc(100% - (2 * var(--gutter))), var(--container)); margin-inline: auto; }'), 'Default responsive container width contract changed unexpectedly');
 assert(baseCss.includes('.container--narrow') && baseCss.includes('.container--wide'), 'Controlled responsive container variants are missing');
+assert(baseCss.includes('.skip-link') && baseCss.includes('.skip-link:focus'), 'Keyboard skip-link styling contract is missing');
 
 console.log('PASS: shared navigation, footer, content, button, card, form, feedback, layout, accessibility and approved visual-token contracts verified.');
