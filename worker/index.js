@@ -1,5 +1,6 @@
 import runtime from '../src/backend/runtime/worker.js';
 import { createCandidateApplicationGateway } from '../src/backend/providers/candidate-application-gateway.js';
+import { handlePublicMediaRequest, isPublicMediaPath } from '../src/backend/runtime/public-media.js';
 import adminWorker from './admin-only.js';
 
 const PUBLIC_PRODUCTION_ORIGIN = 'https://rcitcs.com';
@@ -159,11 +160,15 @@ export default {
     const legacy = legacyAdminRedirect(request);
     if (legacy) return legacy;
 
-    const host = new URL(request.url).hostname.toLowerCase();
+    const url = new URL(request.url);
+    const host = url.hostname.toLowerCase();
     if (DEDICATED_ADMIN_HOSTS.has(host)) {
       return secureTransportResponse(await adminWorker.fetch(request, env, ctx));
     }
     if (!PUBLIC_ALLOWED_HOSTS.has(host)) return rejectedHostResponse();
+    if (isPublicMediaPath(url.pathname)) {
+      return secureTransportResponse(await handlePublicMediaRequest(request));
+    }
 
     return secureTransportResponse(await runtime.fetch(request, env, ctx));
   },
