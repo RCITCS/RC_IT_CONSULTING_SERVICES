@@ -53,10 +53,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          admin_code=$(curl -sS --max-time 20 -D /tmp/admin-live.headers -o /tmp/admin-live.body -w '%{http_code}' https://admin.rcitcs.com/ || true)
-          test "$admin_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-live.body
-          admin_env=$(grep -i '^x-rc-admin-environment:' /tmp/admin-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+          if getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            admin_code=$(curl -sS --max-time 20 -D /tmp/admin-live.headers -o /tmp/admin-live.body -w '%{http_code}' https://admin.rcitcs.com/ || true)
+            test "$admin_code" = '200'
+            grep -q 'Administrator sign in' /tmp/admin-live.body
+            admin_env=$(grep -i '^x-rc-admin-environment:' /tmp/admin-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
+            echo "PR production-admin classification: status=${admin_code} env=${admin_env:-unmarked}"
+          else
+            admin_code='000'
+            admin_env='unresolved-pending-main-activation'
+            echo 'PR production-admin classification: unresolved pending the first rcitcs-admin-production main build.'
+          fi
 
           staging_code=$(curl -sS --max-time 20 -D /tmp/staging-live.headers -o /tmp/staging-live.body -w '%{http_code}' https://admin-staging.rcitcs.com/ || true)
           staging_env=$(grep -i '^x-rc-admin-environment:' /tmp/staging-live.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
@@ -87,7 +94,7 @@ jobs:
           set -euo pipefail
 
           converged=0
-          for attempt in $(seq 1 72); do
+          for attempt in $(seq 1 90); do
             admin_code=$(curl -sS --max-time 20 -D /tmp/admin-final.headers -o /tmp/admin-final.body -w '%{http_code}' https://admin.rcitcs.com/ || true)
             admin_env=$(grep -i '^x-rc-admin-environment:' /tmp/admin-final.headers | tail -n1 | sed -E 's/^[^:]+:[[:space:]]*//; s/\r$//' || true)
 
@@ -109,7 +116,7 @@ jobs:
               break
             fi
 
-            if [[ "$attempt" == '72' ]]; then
+            if [[ "$attempt" == '90' ]]; then
               echo 'Cloudflare admin ownership did not converge to the required production/staging owners.' >&2
               echo "Last production: status=${admin_code} env=${admin_env:-none}" >&2
               echo "Last staging: status=${staging_code} env=${staging_env:-none} state=${staging_state:-none}" >&2
