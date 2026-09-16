@@ -1,0 +1,61 @@
+name: Phase 18 Responsive QA
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, phase18-responsive-mobile-qa]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-responsive-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Responsive architecture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Phase 18 source contracts
+        run: node tests/phase18-responsive-contract.mjs
+      - name: Existing admin responsive regression
+        run: node tests/admin-responsive.mjs
+      - name: Production build
+        run: npm run build
+
+  browser-matrix:
+    name: Browser and viewport matrix
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned browser-test runner without changing project dependencies
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
+      - name: Install representative Chromium, Firefox and WebKit engines
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Run Phase 18 public and admin responsive matrix
+        run: npx playwright test --config=playwright.config.mjs
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-playwright-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
