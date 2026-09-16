@@ -12,6 +12,7 @@ const productionAdminConfig = JSON.parse(await readFile(path.join(root, 'wrangle
 const legacyConfig = JSON.parse(await readFile(path.join(root, 'cloudflare/legacy-rcitcservices/wrangler.jsonc'), 'utf8'));
 const publicEntrypointSource = await readFile(path.join(root, 'worker/index.js'), 'utf8');
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
+const productionAdminSource = await readFile(path.join(root, 'worker/admin-production.js'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const {
   adminOriginAllowed,
@@ -126,7 +127,7 @@ assert.equal(legacyConfig.keep_vars, true);
 assert.equal(Object.hasOwn(legacyConfig, 'routes'), false, 'Old-account Worker must never claim company domains.');
 
 assert.equal(productionAdminConfig.name, 'rcitcs-admin-production');
-assert.equal(productionAdminConfig.main, './worker/admin-only.js');
+assert.equal(productionAdminConfig.main, './worker/admin-production.js');
 assert.equal(productionAdminConfig.workers_dev, false);
 assert.equal(
   Object.hasOwn(productionAdminConfig, 'keep_vars'),
@@ -139,6 +140,9 @@ assert.deepEqual(
   [['admin.rcitcs.com', true]],
   'Canonical production admin Worker must provision only admin.rcitcs.com DNS/TLS ownership.'
 );
+assert.ok(productionAdminSource.includes("import adminWorker"), 'Production wrapper must retain the hardened shared admin runtime.');
+assert.ok(productionAdminSource.includes('return adminWorker.fetch(request, env, ctx);'), 'Canonical production requests must delegate to the shared admin runtime.');
+assert.ok(productionAdminSource.includes('productionAdminLegacyRedirect(request)'), 'Production wrapper may add the approved legacy-navigation canonicalization boundary.');
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
@@ -153,6 +157,7 @@ assert.ok(adminOnlySource.includes("connect-src 'self'"));
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEYS', 'ADMIN_BOOTSTRAP_PASSWORD_VERIFIER']) {
   assert.equal(workerSource.includes(forbidden), false, `Secret material leaked into admin proxy source: ${forbidden}`);
   assert.equal(adminOnlySource.includes(forbidden), false, `Secret material leaked into hardened admin entrypoint: ${forbidden}`);
+  assert.equal(productionAdminSource.includes(forbidden), false, `Secret material leaked into production admin wrapper: ${forbidden}`);
 }
 
 for (const expected of [
