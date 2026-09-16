@@ -1,0 +1,149 @@
+name: Phase 19 SEO Accessibility Performance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, phase19-seo-performance-accessibility]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase19-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-quality:
+    name: SEO semantic accessibility contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Phase 19 source quality contract
+        run: node tests/phase19-quality-contract.mjs
+      - name: Existing SEO regression suite
+        run: npm run test:seo
+      - name: Preview indexation regression suite
+        run: npm run test:seo-preview
+      - name: Production build
+        run: npm run build
+      - name: Built SEO contract
+        run: npm run test:seo-build
+      - name: Bundle and delivery budgets
+        run: npm run test:performance
+
+  regression:
+    name: Inherited architecture and runtime regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Full verification
+        run: npm run verify
+
+  browser-quality:
+    name: Representative browser quality checks
+    needs: source-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned browser runner without changing project dependencies
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
+      - name: Install representative browser engines
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Preserve Phase 18 browser and viewport acceptance
+        run: npx playwright test --config=playwright.config.mjs
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase19-browser-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production-acceptance:
+    name: Exact-SHA production quality acceptance
+    needs: [source-quality, regression, browser-quality]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Wait for exact main SHA on canonical public production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          expected="${GITHUB_SHA}"
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS -o /tmp/phase19-root.html -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] && grep -q "name=\"rc-deployment-sha\" content=\"${expected}\"" /tmp/phase19-root.html; then
+              echo "Exact production SHA ${expected} verified on attempt ${attempt}."
+              break
+            fi
+            if [[ "$attempt" == '120' ]]; then
+              echo "Production did not converge to exact SHA ${expected}." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify production SEO discovery surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          curl -fsS "${BASE}/robots.txt" -o /tmp/robots.txt
+          curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
+          grep -Fq '<urlset' /tmp/sitemap.xml
+          grep -Fq '<loc>https://rcitcs.com/</loc>' /tmp/sitemap.xml
+          ! grep -Fq 'admin.rcitcs.com' /tmp/sitemap.xml
+          ! grep -Fq 'workers.dev' /tmp/sitemap.xml
+          ! grep -Fq '/login</loc>' /tmp/sitemap.xml
+          ! grep -Fq '/apply</loc>' /tmp/sitemap.xml
+
+      - name: Verify representative public metadata and canonical host
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          routes=('/' '/about-us' '/services/it/cloud-computing' '/industry/banking-and-finance' '/careers' '/contact')
+          for route in "${routes[@]}"; do
+            curl -fsS "${BASE}${route}" -o /tmp/page.html
+            grep -q '<main[^>]*id="main-content"' /tmp/page.html
+            grep -q '<meta name="description"' /tmp/page.html
+            grep -q '<link rel="canonical" href="https://rcitcs.com' /tmp/page.html
+            grep -q 'property="og:title"' /tmp/page.html
+            grep -q 'application/ld+json' /tmp/page.html
+            ! grep -q 'rel="canonical"[^>]*workers.dev' /tmp/page.html
+          done
+
+      - name: Verify private admin indexing and cache controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/")
+          test "$code" = '200'
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          ! grep -qi '^cache-control:.*public' /tmp/admin.headers
