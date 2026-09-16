@@ -14,7 +14,8 @@ assert.match(doc, /links\.rcitcs\.com/);
 assert.match(doc, /_dmarc\.rcitcs\.com/);
 assert.match(doc, /v=DMARC1; p=none;/);
 assert.match(doc, /adkim=s; aspf=s;/);
-assert.match(doc, /read-only on pull requests/i);
+assert.match(doc, /workflow is read-only/i);
+assert.match(doc, /Pull-request runs classify/i);
 assert.match(doc, /never removes or rewrites/i);
 
 console.log('Phase 17.11 email-domain DNS source contract: PASS');
