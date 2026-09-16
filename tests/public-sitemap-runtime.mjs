@@ -15,6 +15,7 @@ const previewXml = `<?xml version="1.0" encoding="UTF-8"?>
 function env(xml = productionXml) {
   return {
     PUBLIC_CAREERS_API_URL: 'https://example.supabase.co/functions/v1/public-careers',
+    SUPABASE_SECRET_KEY: 'sb_secret_phase17_sitemap_test_only',
     ASSETS: {
       async fetch() {
         return new Response(xml, {
@@ -28,7 +29,11 @@ function env(xml = productionXml) {
 
 function publicJobsFetch(calls) {
   return async (url, init = {}) => {
-    calls.push({ url: String(url), body: init.body ? JSON.parse(init.body) : null });
+    const headers = new Headers(init.headers);
+    calls.push({ url: String(url), body: init.body ? JSON.parse(init.body) : null, headers });
+    assert.equal(headers.get('authorization'), 'Bearer sb_secret_phase17_sitemap_test_only');
+    assert.equal(headers.get('apikey'), 'sb_secret_phase17_sitemap_test_only');
+    assert.equal(headers.get('x-rcitcs-public-proxy'), 'cloudflare');
     return new Response(JSON.stringify({
       jobs: [
         { id: '1', code: 'RC-A', slug: 'senior-data-engineer', title: 'Senior Data Engineer' },
@@ -84,4 +89,4 @@ function publicJobsFetch(calls) {
   assert.equal(response.headers.get('allow'), 'GET, HEAD');
 }
 
-console.log('PASS: runtime sitemap adds DB-backed published vacancy URLs only to indexable production sitemaps, preserves preview isolation, excludes application routes and fails soft to the static sitemap.');
+console.log('PASS: runtime sitemap adds DB-backed published vacancy URLs only through the authenticated server Careers boundary, preserves preview isolation, excludes application routes and fails soft to the static sitemap.');
