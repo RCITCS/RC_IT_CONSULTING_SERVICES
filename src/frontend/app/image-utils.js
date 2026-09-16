@@ -7,16 +7,20 @@ function esc(value = '') {
     .replaceAll("'", '&#039;');
 }
 
+function pexelsPhotoId(url) {
+  if (url.hostname.toLowerCase() !== 'images.pexels.com') return null;
+  const match = url.pathname.match(/^\/photos\/(\d{1,12})\/pexels-photo-\1\.(?:jpe?g)$/i);
+  return match?.[1] || null;
+}
+
 function withWidth(src, width) {
   try {
     const base = globalThis.location?.origin || 'https://rc-it-services.invalid';
     const url = new URL(src, base);
     const host = url.hostname.toLowerCase();
-    if (host === 'images.pexels.com') {
-      url.searchParams.set('auto', 'compress');
-      url.searchParams.set('cs', 'tinysrgb');
-      url.searchParams.set('w', String(width));
-      return url.toString();
+    const pexelsId = pexelsPhotoId(url);
+    if (pexelsId) {
+      return `/media/pexels/${pexelsId}?w=${encodeURIComponent(String(width))}`;
     }
     if (host === 'images.unsplash.com') {
       url.searchParams.set('auto', 'format');
