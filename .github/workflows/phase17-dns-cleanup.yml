@@ -49,15 +49,25 @@ jobs:
               exit 1
             fi
 
-            if [[ "$host" != 'www.rcitcs.com' || "${{ github.event_name }}" != 'pull_request' ]]; then
-              if [[ -z "$a" && -z "$aaaa" && -z "$cname" ]]; then
+            allow_unresolved_pr=0
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              # PR source cannot activate a Cloudflare Custom Domain. Historical
+              # 17.1 evidence allowed www to remain unresolved before 17.3, and
+              # the final 17.16 production-admin bootstrap similarly requires a
+              # fresh main push before admin.rcitcs.com can be attached to the
+              # newly created rcitcs-admin-production Worker.
+              if [[ "$host" == 'www.rcitcs.com' || "$host" == 'admin.rcitcs.com' ]]; then
+                allow_unresolved_pr=1
+              fi
+            fi
+
+            if [[ -z "$a" && -z "$aaaa" && -z "$cname" ]]; then
+              if [[ "$allow_unresolved_pr" == '1' ]]; then
+                echo "PR classification permits temporary ${host} non-resolution; final-main does not."
+              else
                 echo "${host} has no public DNS answer." >&2
                 exit 1
               fi
-            else
-              # Historical 17.1 evidence recorded www as configured at the Worker
-              # layer but publicly unresolved. PR source cannot mutate that state.
-              echo 'PR classification permits historical www non-resolution; final-main does not.'
             fi
           done
 
