@@ -16,7 +16,7 @@ Resend reports `rcitcs.com` as verified in `eu-west-1`, sending enabled, receivi
 
 The exact-head public-DNS gate independently proved:
 
-- apex Cloudflare Email Routing MX records `route1`, `route2`, and `route3`;
+- apex Cloudflare Email Routing MX records `route1.mx.cloudflare.net`, `route2.mx.cloudflare.net`, and `route3.mx.cloudflare.net`;
 - apex SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`;
 - Resend DKIM at `resend._domainkey.rcitcs.com`;
 - Resend/Amazon SES return-path MX and SPF at `send.rcitcs.com`;
