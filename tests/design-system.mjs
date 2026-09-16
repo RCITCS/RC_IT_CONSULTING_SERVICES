@@ -70,12 +70,17 @@ assert(dialog.includes('role="dialog"') && dialog.includes('aria-modal="true"') 
 assert(statusMessage('Saved').includes('role="status"'), 'Status-message primitive lost live-region semantics');
 
 const shell = siteShell('/products', '<main id="main-content">Page</main>');
-const skipLinkIndex = shell.indexOf('<a class="skip-link" href="#main-content">');
 const headerIndex = shell.indexOf('site-header');
 const mainIndex = shell.indexOf('<main id="main-content">');
 const footerIndex = shell.indexOf('site-footer');
-assert(skipLinkIndex >= 0, 'Site shell lost keyboard skip-navigation control');
-assert(skipLinkIndex < headerIndex && headerIndex < mainIndex && mainIndex < footerIndex, 'Site shell composition order is invalid');
+assert(!shell.includes('class="skip-link"'), 'Site shell must not duplicate the document-level skip-navigation control');
+assert(headerIndex >= 0 && headerIndex < mainIndex && mainIndex < footerIndex, 'Site shell composition order is invalid');
+
+const publicIndex = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+const skipLinkMarkup = '<a class="skip-link" href="#main-content">Skip to main content</a>';
+const skipLinkCount = publicIndex.split(skipLinkMarkup).length - 1;
+assert(skipLinkCount === 1, 'Document template must expose exactly one keyboard skip-navigation control');
+assert(publicIndex.indexOf(skipLinkMarkup) < publicIndex.indexOf('<div id="site-root">'), 'Skip-navigation control must precede the application root');
 
 const tokens = await readFile(new URL('../src/frontend/styles/tokens.css', import.meta.url), 'utf8');
 for (const token of ['--space-4', '--container-narrow', '--control-height', '--field-height', '--z-dialog', '--focus-outline']) {
