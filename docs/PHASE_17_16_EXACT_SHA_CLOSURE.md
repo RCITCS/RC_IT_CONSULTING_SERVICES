@@ -16,7 +16,7 @@ Before PR #85 may merge:
 - the final branch head must pass the complete inherited CI suite plus this 17.16 gate;
 - `docs/DOMAIN_CUTOVER.md` must describe the Phase-17 architecture rather than the superseded workers.dev fallback;
 - PR #85 must describe the final module status and outstanding production activation gates;
-- the required DMARC TXT record must be publicly resolvable before a merge is allowed, because final-main security workflows intentionally fail without it;
+- the required DMARC TXT record at `_dmarc.rcitcs.com` must be publicly resolvable before a merge is allowed, because final-main security workflows intentionally fail without it;
 - the merge must use an exact verified head SHA, never an unreviewed moving branch tip.
 
 The required initial DMARC value is:
