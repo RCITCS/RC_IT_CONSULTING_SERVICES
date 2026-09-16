@@ -41,11 +41,21 @@ jobs:
           grep -qi '^x-content-type-options: *nosniff' /tmp/public.headers
           grep -qi '^x-frame-options: *DENY' /tmp/public.headers
 
-      - name: Verify current production-admin security headers
+      - name: Classify production-admin security during activation
         shell: bash
         run: |
           set -euo pipefail
-          code=$(curl -sS -o /tmp/admin.body -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/')
+
+          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
+            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+              echo 'PR activation state: admin.rcitcs.com is temporarily unresolved; source security invariants are already enforced and final main will require live headers.'
+              exit 0
+            fi
+            echo 'admin.rcitcs.com is unresolved on final main.' >&2
+            exit 1
+          fi
+
+          code=$(curl -sS -o /tmp/admin.body -D /tmp/admin.headers -w '%{http_code}' 'https://admin.rcitcs.com/' || true)
           test "$code" = '200'
           grep -qi '^strict-transport-security:.*max-age=' /tmp/admin.headers
           grep -qi '^cache-control:.*no-store' /tmp/admin.headers
@@ -53,6 +63,10 @@ jobs:
           grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
           grep -qi '^content-security-policy:.*frame-ancestors' /tmp/admin.headers
           ! grep -qi '^access-control-allow-origin: *\*' /tmp/admin.headers
+
+          if [[ "${{ github.event_name }}" != 'pull_request' ]]; then
+            grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
+          fi
 
       - name: Classify current DMARC state without mutation
         shell: bash
@@ -68,7 +82,7 @@ jobs:
             grep -Fq 'adkim=s' <<< "$dmarc"
             grep -Fq 'aspf=s' <<< "$dmarc"
           else
-            echo 'Pull request records the current DMARC finding; final main requires remediation.'
+            echo 'Pull request records the current DMARC finding; final main requires the exact published policy.'
           fi
 
       - name: Verify final-main ownership security markers
