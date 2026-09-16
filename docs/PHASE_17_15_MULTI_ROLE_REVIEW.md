@@ -1,14 +1,16 @@
 # Phase 17.15 — Multi-role final review
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **CLOSED — branch-level role review complete; final-production gates remain 17.16**
 
 Depends on Phase 17.14 closure SHA `e13c1347e398cd6f66760a6b509e78bd97f31d66`.
+
+Verification head: `ff32f3e86726ea1fa90d3f5adeed1e1b24d039c4`.
 
 ## Review method and provenance
 
 This document records a role-based engineering review of the Phase-17 branch. It is not represented as independent human approval. At review time PR #85 had no submitted GitHub pull-request reviews. The evidence comes from source inspection, exact-head CI, live read-only runtime checks, the Phase-17.1 Cloudflare control-plane audit and the branch-vs-main diff.
 
-The Phase-17 branch is 127 commits ahead of the Phase-16 main baseline and zero commits behind at the review point. The changes are concentrated in domain/runtime configuration, Worker ingress behavior, backend boundary hardening, CI acceptance gates, tests and Phase-17 documentation rather than a public-site redesign.
+The Phase-17 branch was 127 commits ahead of the Phase-16 main baseline and zero commits behind at the review point. The changes are concentrated in domain/runtime configuration, Worker ingress behavior, backend boundary hardening, CI acceptance gates, tests and Phase-17 documentation rather than a public-site redesign.
 
 ## Product Owner review
 
@@ -62,7 +64,8 @@ Outstanding final-production requirements: DMARC publication, authoritative Clou
 
 - Each Phase-17 module has a dedicated executable regression/workflow gate.
 - 17.14 verification head `d5049b42750c18d501c3410e39f267db05872579` completed 22 checks with no failures.
-- 17.14 closure SHA `e13c1347e398cd6f66760a6b509e78bd97f31d66` also completed its exact-head suite without failure.
+- 17.14 closure SHA `e13c1347e398cd6f66760a6b509e78bd97f31d66` completed its exact-head suite without failure.
+- 17.15 verification head `ff32f3e86726ea1fa90d3f5adeed1e1b24d039c4` completed 23 checks with no queued/in-progress jobs and no failures.
 - Main-only assertions are deliberately separated from PR assertions so unmerged production state cannot be reported as activated.
 - The inherited production smoke was corrected from deprecated `workers.dev`/Vercel assumptions to canonical company domains.
 
