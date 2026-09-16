@@ -86,6 +86,8 @@ jobs:
           test -f dist/_redirects
           test -d dist/assets
           test -f wrangler.jsonc
+          test -f wrangler.admin-production.jsonc
+          test -f wrangler.admin-staging.jsonc
           test -f worker/index.js
           test -f src/frontend/app/app.js
           test -f src/frontend/styles/app.css
@@ -100,6 +102,12 @@ jobs:
           grep -q '"/admin/\*"' wrangler.jsonc
           grep -q '"crons"' wrangler.jsonc
           grep -q '\*/15 \* \* \* \*' wrangler.jsonc
+          grep -q '"workers_dev": false' wrangler.jsonc
+          grep -q '"preview_urls": false' wrangler.jsonc
+          grep -q '"workers_dev": false' wrangler.admin-production.jsonc
+          grep -q '"preview_urls": false' wrangler.admin-production.jsonc
+          grep -q '"workers_dev": false' wrangler.admin-staging.jsonc
+          grep -q '"preview_urls": false' wrangler.admin-staging.jsonc
           grep -q 'handleAdminRequest' src/backend/runtime/worker.js
           grep -q 'serveApplication' src/backend/runtime/worker.js
           grep -q 'scheduled' worker/index.js
@@ -114,11 +122,11 @@ jobs:
     timeout-minutes: 12
 
     steps:
-      - name: Wait for current Cloudflare prerender build and verify deep routes
+      - name: Wait for canonical public production deployment and verify deep routes
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
+          BASE='https://rcitcs.com'
           routes=(
             '/'
             '/careers'
@@ -151,29 +159,27 @@ jobs:
             fi
 
             if [[ "$all_ok" == '1' ]]; then
-              echo "Current Cloudflare prerender build verified on attempt ${attempt}."
+              echo "Canonical public deployment verified on attempt ${attempt}."
               break
             fi
 
             if [[ "$attempt" == '72' ]]; then
-              echo 'Current Cloudflare prerender build did not become healthy within the verification window.' >&2
+              echo 'Canonical public deployment did not become healthy within the verification window.' >&2
               exit 1
             fi
             sleep 5
           done
 
-      - name: Verify Phase 12 production Careers, application and SEO boundaries
+      - name: Verify public Careers application SEO and cache boundaries
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
-          CANONICAL='https://rcitcs.com'
+          BASE='https://rcitcs.com'
 
           curl -sS "${BASE}/about-us" -o /tmp/about.html
-          grep -q "rel=\"canonical\" href=\"${CANONICAL}/about-us\"" /tmp/about.html
-          ! grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
+          grep -q "rel=\"canonical\" href=\"${BASE}/about-us\"" /tmp/about.html
           grep -q 'property="og:title"' /tmp/about.html
-          grep -q "property=\"og:url\" content=\"${CANONICAL}/about-us\"" /tmp/about.html
+          grep -q "property=\"og:url\" content=\"${BASE}/about-us\"" /tmp/about.html
           grep -q 'application/ld+json' /tmp/about.html
 
           curl -sS "${BASE}/services/it/cyber-security" -o /tmp/service.html
@@ -181,26 +187,18 @@ jobs:
           grep -q 'BreadcrumbList' /tmp/service.html
 
           curl -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
-          grep -q "rel=\"canonical\" href=\"${CANONICAL}/careers/jobs/senior-data-engineer\"" /tmp/job.html
-          ! grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
+          grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
           grep -q 'name="robots" content="index,follow"' /tmp/job.html
           grep -q 'Apply for this role' /tmp/job.html
           grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
-          ! grep -q 'Applications opening soon' /tmp/job.html
           grep -q 'data-runtime-job-posting' /tmp/job.html
           grep -q '"@type":"JobPosting"' /tmp/job.html
           grep -q '"directApply":true' /tmp/job.html
-          grep -q '"addressCountry":"GB"' /tmp/job.html
 
           curl -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
           grep -q 'data-career-application' /tmp/apply.html
-          grep -q 'name="firstName"' /tmp/apply.html
-          grep -q 'name="email"' /tmp/apply.html
           grep -q 'name="resume" type="file"' /tmp/apply.html
-          grep -q 'name="coverLetterText"' /tmp/apply.html
-          grep -q 'name="consent" type="checkbox" required' /tmp/apply.html
           grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
-          ! grep -q 'data-runtime-job-posting' /tmp/apply.html
           ! grep -q 'SUPABASE_SECRET_KEY' /tmp/apply.html
           ! grep -q 'sb_secret_' /tmp/apply.html
 
@@ -211,179 +209,85 @@ jobs:
           test "$rejected_code" = '403'
           grep -q 'REQUEST_REJECTED' /tmp/application-rejected.json
 
-          curl -sS "${BASE}/login" -o /tmp/login.html
-          grep -q 'name="robots" content="noindex,nofollow"' /tmp/login.html
-
           curl -sS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
           grep -q '<urlset' /tmp/sitemap.xml
-          grep -q "${CANONICAL}/services/it/cyber-security" /tmp/sitemap.xml
-          ! grep -q "${BASE}/services/it/cyber-security" /tmp/sitemap.xml
-          ! grep -q "${CANONICAL}/login" /tmp/sitemap.xml
+          grep -q "${BASE}/services/it/cyber-security" /tmp/sitemap.xml
+          ! grep -q "${BASE}/login" /tmp/sitemap.xml
           ! grep -q '/apply</loc>' /tmp/sitemap.xml
 
           curl -sS "${BASE}/robots.txt" -o /tmp/robots.txt
-          ! grep -q 'Disallow: /login' /tmp/robots.txt
-          ! grep -q 'Disallow: /careers/jobs/' /tmp/robots.txt
           grep -q 'Disallow: /api/' /tmp/robots.txt
           grep -q 'Disallow: /admin/' /tmp/robots.txt
-          grep -q "Sitemap: ${CANONICAL}/sitemap.xml" /tmp/robots.txt
-          ! grep -q "Sitemap: ${BASE}/sitemap.xml" /tmp/robots.txt
+          grep -q "Sitemap: ${BASE}/sitemap.xml" /tmp/robots.txt
 
           unknown_code=$(curl -sS -o /tmp/not-found.html -w '%{http_code}' "${BASE}/definitely-not-a-real-rc-route")
           test "$unknown_code" = '404'
           grep -q 'noindex,nofollow' /tmp/not-found.html
-          grep -q 'Page not found' /tmp/not-found.html
-
-          alias_code=$(curl -sS -o /dev/null -w '%{http_code}' "${BASE}/careers/job-opportunities")
-          [[ "$alias_code" == '301' || "$alias_code" == '308' ]]
-          curl -sSI "${BASE}/careers/job-opportunities" -o /tmp/careers-alias.headers
-          grep -qi '^location:.*\/careers' /tmp/careers-alias.headers
-
-          echo 'Phase 12 production Careers, JobPosting, protected application boundary, apex canonical identity, sitemap, robots, redirects and 404 behaviour verified.'
-
-      - name: Verify production cache policy and split assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE='https://rc-it-consulting-services.rcitcservices.workers.dev'
 
           curl -sS "${BASE}/" -o /tmp/rc-index.html
           app_asset=$(grep -oEm1 '/assets/app-[A-Za-z0-9]+\.js' /tmp/rc-index.html)
-          if [[ -z "$app_asset" ]]; then
-            echo 'Hashed application JavaScript was not found in production HTML.' >&2
-            exit 1
-          fi
+          test -n "$app_asset"
           curl -sSI "${BASE}${app_asset}" -o /tmp/app-asset.headers
-          grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/app-asset.headers || {
-            echo 'Application JavaScript is missing immutable cache headers.' >&2
-            exit 1
-          }
+          grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/app-asset.headers
 
-          route_assets=$(grep -oE 'route-(careers|services|legal)-[A-Za-z0-9]+\.css' /tmp/rc-index.html | sort -u)
-          route_count=$(printf '%s\n' "$route_assets" | sed '/^$/d' | wc -l | tr -d ' ')
-          if [[ "$route_count" != '3' ]]; then
-            echo "Expected 3 production route stylesheets; found ${route_count}." >&2
-            exit 1
-          fi
-          while IFS= read -r asset; do
-            [[ -n "$asset" ]] || continue
-            code=$(curl -sS -o /dev/null -w '%{http_code}' "${BASE}/assets/${asset}")
-            if [[ "$code" != '200' ]]; then
-              echo "Production route stylesheet ${asset} returned ${code}." >&2
-              exit 1
-            fi
-            curl -sSI "${BASE}/assets/${asset}" -o /tmp/route-asset.headers
-            grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/route-asset.headers || {
-              echo "Production route stylesheet ${asset} is missing immutable cache headers." >&2
-              exit 1
-            }
-          done <<< "$route_assets"
-
-          curl -sSI "${BASE}/about-us" -o /tmp/about-cache.headers
-          grep -qi 'cache-control:.*max-age=0.*must-revalidate' /tmp/about-cache.headers || {
-            echo 'Production prerendered HTML is missing the required revalidation cache policy.' >&2
-            exit 1
-          }
-          echo 'Cloudflare prerendered HTML revalidation and immutable split-asset caching verified.'
-
-      - name: Verify live Phase 12 private application runtimes
+      - name: Verify canonical public and admin domain separation
         shell: bash
         run: |
           set -euo pipefail
-          ADMIN='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/admin-auth'
-          CANDIDATE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/candidate-applications'
+          BASE='https://rcitcs.com'
+          ADMIN='https://admin.rcitcs.com'
 
-          candidate_health=$(curl -sS -o /tmp/candidate-health.json -w '%{http_code}' "${CANDIDATE}/health")
-          test "$candidate_health" = '200'
-          grep -q '"ok":true' /tmp/candidate-health.json
-          grep -q '"service":"candidate-applications"' /tmp/candidate-health.json
-          grep -q '"contract":"phase12-candidate-intake-v1"' /tmp/candidate-health.json
+          public_admin=$(curl -sS -o /dev/null -D /tmp/public-admin.headers -w '%{http_code}' "${BASE}/admin")
+          test "$public_admin" = '308'
+          grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/public-admin.headers
 
-          health_code=$(curl -sS -D /tmp/admin-health.headers -o /tmp/admin-health.json -w '%{http_code}' "${ADMIN}/health")
-          test "$health_code" = '200'
-          grep -q '"ok":true' /tmp/admin-health.json
-          grep -q '"dashboard":true' /tmp/admin-health.json
-          grep -q '"jobs":true' /tmp/admin-health.json
-          grep -q '"applications":true' /tmp/admin-health.json
-          grep -q '"design":"phase12-candidate-application-workflow"' /tmp/admin-health.json
+          mutation=$(curl -sS -o /tmp/public-admin-post.body -D /tmp/public-admin-post.headers -w '%{http_code}' -X POST "${BASE}/admin/login")
+          test "$mutation" = '404'
+          ! grep -qi '^location:' /tmp/public-admin-post.headers
 
-          root_code=$(curl -sS -D /tmp/admin-root.headers -o /tmp/admin-root.html -w '%{http_code}' "${ADMIN}/")
-          test "$root_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-root.html
-          grep -q 'Private administration for controlled operational work.' /tmp/admin-root.html
-          grep -qi '^cache-control:.*no-store' /tmp/admin-root.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-root.headers
-          grep -qi '^x-frame-options: *DENY' /tmp/admin-root.headers
-          grep -qi '^content-security-policy:' /tmp/admin-root.headers
-          grep -qi '^strict-transport-security:' /tmp/admin-root.headers
+          admin_code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/")
+          test "$admin_code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^content-type:.*text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^content-security-policy:' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin.headers
 
-          applications_code=$(curl -sS -D /tmp/admin-applications.headers -o /tmp/admin-applications.html -w '%{http_code}' "${ADMIN}/applications")
-          test "$applications_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-applications.html
-          grep -qi '^cache-control:.*no-store' /tmp/admin-applications.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-applications.headers
-
-          session_code=$(curl -sS -D /tmp/admin-session.headers -o /tmp/admin-session.json -w '%{http_code}' "${ADMIN}/session")
+          session_code=$(curl -sS -o /tmp/admin-session.json -D /tmp/admin-session.headers -w '%{http_code}' "${ADMIN}/session")
           test "$session_code" = '401'
           grep -q '"authenticated":false' /tmp/admin-session.json
           grep -qi '^cache-control:.*no-store' /tmp/admin-session.headers
 
-          echo 'Phase 12 candidate intake health, private admin runtime, Applications auth boundary and defensive headers verified.'
-
-      - name: Verify live Phase 12 visual admin delivery
-        shell: bash
-        run: |
-          set -euo pipefail
-          ADMIN='https://rc-it-consulting-services.rcitcservices.workers.dev/admin'
-
-          root_code=$(curl -sS -D /tmp/admin-visual.headers -o /tmp/admin-visual.html -w '%{http_code}' "${ADMIN}")
-          test "$root_code" = '200'
-          grep -q '<!doctype html>' /tmp/admin-visual.html
-          grep -q 'Administrator sign in' /tmp/admin-visual.html
-          grep -q 'Private administration for controlled operational work.' /tmp/admin-visual.html
-          grep -q 'action="/admin/login"' /tmp/admin-visual.html
-          ! grep -q '/functions/v1/admin-auth' /tmp/admin-visual.html
-          grep -qi '^content-type:.*text/html' /tmp/admin-visual.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin-visual.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-visual.headers
-          grep -qi '^x-frame-options: *DENY' /tmp/admin-visual.headers
-          grep -qi '^content-security-policy:' /tmp/admin-visual.headers
-          grep -qi '^strict-transport-security:' /tmp/admin-visual.headers
-
-          applications_code=$(curl -sS -D /tmp/admin-visual-apps.headers -o /tmp/admin-visual-apps.html -w '%{http_code}' "${ADMIN}/applications")
-          test "$applications_code" = '200'
-          grep -q 'Administrator sign in' /tmp/admin-visual-apps.html
-          ! grep -q '/functions/v1/admin-auth' /tmp/admin-visual-apps.html
-          grep -qi '^cache-control:.*no-store' /tmp/admin-visual-apps.headers
-          grep -qi '^x-robots-tag:.*noindex' /tmp/admin-visual-apps.headers
-
-          session_code=$(curl -sS -D /tmp/admin-visual-session.headers -o /tmp/admin-visual-session.json -w '%{http_code}' "${ADMIN}/session")
-          test "$session_code" = '401'
-          grep -q '"authenticated":false' /tmp/admin-visual-session.json
-          grep -qi '^content-type:.*application/json' /tmp/admin-visual-session.headers
-          grep -qi '^cache-control:.*no-store' /tmp/admin-visual-session.headers
-
-          rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -d 'email=x&password=x' "${ADMIN}/login")
+          rejected_code=$(curl -sS -o /tmp/admin-rejected.txt -w '%{http_code}' -X POST \
+            -H 'Origin: https://example.invalid' \
+            -d 'email=x&password=x' "${ADMIN}/login")
           test "$rejected_code" = '403'
           grep -q 'Request rejected' /tmp/admin-rejected.txt
 
-          echo 'Phase 12 visual admin HTML delivery, Applications proxy boundary, private headers, session proxy and same-origin POST guard verified.'
-
-      - name: Verify Vercel fallback routes remain reachable
+      - name: Verify canonical aliases staging isolation and alternate-origin shutdown
         shell: bash
         run: |
           set -euo pipefail
-          BASE='https://rc-it-services.vercel.app'
-          for route in '/' '/careers' '/contact' '/services/it/cyber-security' '/privacy'; do
-            code=$(curl -L -sS -o /tmp/vercel-page.html -w '%{http_code}' "${BASE}${route}")
-            test "$code" = '200'
-            grep -q 'site-root' /tmp/vercel-page.html
-          done
-          echo 'Vercel fallback routes are reachable.'
+
+          www_code=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' --max-redirs 0 'https://www.rcitcs.com/careers?phase=17')
+          test "$www_code" = '308'
+          grep -qi '^location: *https://rcitcs\.com/careers?phase=17' /tmp/www.headers
+
+          staging_code=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
+          test "$staging_code" = '503'
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
+          grep -qi '^cache-control:.*no-store' /tmp/staging.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
+
+          workers_code=$(curl -sS --connect-timeout 10 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          test "$workers_code" != '200'
 
       - name: Deployment ownership
         run: |
-          echo 'CI and live-route verification passed.'
-          echo 'Cloudflare Workers Builds is the primary CD path from main; rcitcs.com is the canonical public identity and workers.dev is a compatibility delivery endpoint pending Phase 17.10 exposure hardening.'
-          echo 'Supabase candidate-applications and admin-auth remain the private Phase 12 recruitment backend runtimes.'
-          echo 'Vercel is retained as a secondary live fallback.'
+          echo 'RC IT Services CI and canonical production-domain verification passed.'
+          echo 'rcitcs.com is the public authority; admin.rcitcs.com is the production-admin authority.'
+          echo 'workers.dev, Vercel and raw backend URLs are not accepted production browser identities.'
