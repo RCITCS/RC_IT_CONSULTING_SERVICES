@@ -44,14 +44,13 @@ jobs:
           test "$mutation" = '404'
           ! grep -qi '^location:' /tmp/public-admin-post.headers
 
-          if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
-            if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
-              echo 'PR activation state: admin.rcitcs.com is temporarily unresolved; source/runtime tests already prove the legacy /admin redirect contract.'
-            else
+          if [[ "${{ github.event_name }}" == 'pull_request' ]]; then
+            echo 'PR activation state: production-admin legacy /admin canonicalization is source-verified and will be required live after the production Worker receives main.'
+          else
+            if ! getent ahosts admin.rcitcs.com >/dev/null 2>&1; then
               echo 'admin.rcitcs.com is unresolved on final main.' >&2
               exit 1
             fi
-          else
             legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
             test "$legacy" = '308'
             grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy.headers
@@ -78,6 +77,7 @@ jobs:
           admin_legacy=$(curl -sS -o /dev/null -D /tmp/admin-legacy-final.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin')
           test "$admin_legacy" = '308'
           grep -qi '^location: *https://admin\.rcitcs\.com/' /tmp/admin-legacy-final.headers
+          grep -qi '^x-rc-admin-environment: *production' /tmp/admin-legacy-final.headers
 
           staging=$(curl -sS -o /tmp/staging.body -D /tmp/staging.headers -w '%{http_code}' 'https://admin-staging.rcitcs.com/' || true)
           test "$staging" = '503'
