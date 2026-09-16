@@ -63,7 +63,13 @@ jobs:
           set -euo pipefail
 
           http_apex=$(curl -sS -o /dev/null -D /tmp/http-apex.headers -w '%{http_code}' --max-redirs 0 'http://rcitcs.com/careers?from=matrix' || true)
-          test "$http_apex" = '308'
+          case "$http_apex" in
+            301|308) ;;
+            *)
+              echo "Expected a permanent HTTP-to-HTTPS redirect (301 or 308), got ${http_apex}." >&2
+              exit 1
+              ;;
+          esac
           grep -qi '^location: *https://rcitcs\.com/careers?from=matrix' /tmp/http-apex.headers
 
           www=$(curl -sS -o /dev/null -D /tmp/www.headers -w '%{http_code}' --max-redirs 0 'https://www.rcitcs.com/services?from=matrix')
