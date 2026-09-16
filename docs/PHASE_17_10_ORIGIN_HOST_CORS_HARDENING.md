@@ -1,8 +1,10 @@
 # Phase 17.10 — Origin, Host, CORS and Direct-Backend Exposure Hardening
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **17.10 COMPLETE — branch-level exposure hardening closed; final-main live exposure verification remains mandatory for overall Phase-17 closure**
 
 Depends on: Phase 17.9 closure SHA `1fe7be84803fccca8cde7e526d88e49ed2444c7b`.
+
+Verified implementation SHA: `7f867dd9e04c1f5982f44b8d208f44ac3317c9c0`.
 
 ## Objective
 
@@ -71,8 +73,20 @@ The final-main gate must prove:
 5. the public website does not expose a permissive CORS policy;
 6. public `/admin` mutations remain rejected and dedicated admin Host isolation remains intact.
 
+## Closure evidence
+
+Exact-head verification on `7f867dd9e04c1f5982f44b8d208f44ac3317c9c0` passed:
+
+- Phase 17.10 Origin Host CORS Hardening;
+- RC IT Services CI;
+- Wrangler Deployment Validation;
+- Phase 17.2–17.9 inherited domain gates;
+- Phase-12/13/14 inherited runtime/security gates.
+
+The final stale regression fixture was the sitemap runtime mock, which was updated to model the authenticated Cloudflare-to-Careers backend boundary without changing sitemap behavior.
+
 ## Closure criteria
 
-17.10 may close at branch level when source/config hardening, backend-boundary regression tests, Wrangler dry-runs, dedicated 17.10 CI and full inherited CI are green.
+All branch-level 17.10 criteria are satisfied: source/config hardening, backend-boundary regression tests, Wrangler dry-runs, dedicated 17.10 CI and full inherited CI are green.
 
 Final Phase-17 closure still requires the post-main exposure checks against the deployed Cloudflare/Supabase surfaces.
