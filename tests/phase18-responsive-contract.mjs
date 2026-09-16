@@ -23,7 +23,6 @@ for (const contract of [
   '@media (min-width: 375px) and (max-width: 767px)',
   '@media (min-width: 768px) and (max-width: 1023px)',
   '@media (min-width: 1024px) and (max-width: 1279px)',
-  'overflow-x: clip',
   '100dvh',
   'safe-area-inset-right',
   "input[type='file']::file-selector-button",
@@ -34,6 +33,7 @@ for (const contract of [
 ]) {
   assert.ok(phase18Css.includes(contract), `Public responsive contract missing: ${contract}`);
 }
+assert.ok(!phase18Css.includes('html { overflow-x:'), 'Phase 18 must not hide document-level overflow that the browser regression gate is expected to detect.');
 
 assert.ok(responsiveCss.includes('@media (max-width: 1100px)'), 'Desktop/mobile navigation transition must remain defined.');
 assert.ok(careersCss.includes('@media (max-width: 900px)'), 'Careers split view must retain its tablet collapse behavior.');
