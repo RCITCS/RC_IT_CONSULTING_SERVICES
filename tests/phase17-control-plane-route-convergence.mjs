@@ -26,22 +26,23 @@ assert.deepEqual(LEGACY_ADMIN_WORKER_ROUTES, [
   { pattern: 'admin.rcitcs.com/*', expectedScript: 'rc-it-consulting-services' },
   { pattern: 'admin-staging.rcitcs.com/*', expectedScript: 'rcitcs-admin-staging' }
 ]);
-assert.equal(shouldConvergeLegacyAdminRoutes(targetEnv), true);
-assert.equal(shouldConvergeLegacyAdminRoutes({ ...targetEnv, WORKERS_CI_BRANCH: 'feature/test' }), false);
-assert.equal(shouldConvergeLegacyAdminRoutes({ ...targetEnv, WRANGLER_CI_OVERRIDE_NAME: 'rc-it-consulting-services' }), false);
-assert.equal(shouldConvergeLegacyAdminRoutes({ ...targetEnv, WRANGLER_CI: '0' }), false);
+assert.equal(shouldConvergeLegacyAdminRoutes(targetEnv), true, 'Only the production-admin main Workers Build is the convergence target.');
 
-{
+for (const env of [
+  { ...targetEnv, WORKERS_CI_BRANCH: 'feature/test' },
+  { ...targetEnv, WRANGLER_CI_OVERRIDE_NAME: 'rc-it-consulting-services' },
+  {}
+]) {
   let called = false;
   const result = await convergeLegacyAdminWorkerRoutes({
-    env: { ...targetEnv, WORKERS_CI_BRANCH: 'feature/test' },
+    env,
     fetchImpl: async () => {
       called = true;
-      throw new Error('Preview builds must not call Cloudflare route APIs.');
+      throw new Error('Non-target builds must not call Cloudflare route APIs.');
     }
   });
   assert.deepEqual(result, { skipped: true, deleted: [] });
-  assert.equal(called, false);
+  assert.equal(called, false, 'Non-target builds must remain read-only.');
 }
 
 {
