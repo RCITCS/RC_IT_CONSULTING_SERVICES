@@ -16,7 +16,7 @@ export default defineConfig({
     video: 'off'
   },
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run build && node scripts/serve-phase18-preview.mjs',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000
