@@ -1,8 +1,7 @@
 /* Phase 18 — final responsive/mobile QA guardrails.
    This layer fixes responsive defects without changing the approved desktop visual language. */
 
-/* 18.2/18.3 shared public-shell resilience */
-html { overflow-x: clip; }
+/* 18.2/18.3 shared public-shell resilience. Do not hide document overflow here: the browser gate must detect it. */
 body { overflow-wrap: break-word; }
 main,
 section,
