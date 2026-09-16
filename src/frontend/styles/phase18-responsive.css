@@ -1,0 +1,202 @@
+/* Phase 18 — final responsive/mobile QA guardrails.
+   This layer fixes responsive defects without changing the approved desktop visual language. */
+
+/* 18.2/18.3 shared public-shell resilience. Do not hide document overflow here: the browser gate must detect it. */
+body { overflow-wrap: break-word; }
+main,
+section,
+article,
+header,
+footer,
+nav,
+.container,
+.container--narrow,
+.container--wide,
+.hero-grid,
+.page-hero-grid,
+.split,
+.contact-grid,
+.form-grid,
+.action-grid,
+.capability-grid,
+.help-grid,
+.industry-grid,
+.topic-grid,
+.product-grid,
+.footer-top { min-width: 0; }
+img,
+video,
+canvas,
+iframe,
+svg { max-width: 100%; }
+iframe { width: 100%; border: 0; }
+pre { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+:is(p, li, dd, td, th, strong, span, a, label) { overflow-wrap: anywhere; }
+
+/* Never let shared controls create document-level overflow. */
+.form-field,
+.form-field input,
+.form-field select,
+.form-field textarea,
+.form-actions,
+.btn { min-width: 0; max-width: 100%; }
+.form-field input[type='file'] { width: 100%; }
+.form-field input[type='file']::file-selector-button { min-height: 44px; max-width: 100%; }
+
+/* Dialogs stay inside short and narrow mobile viewports. */
+.dialog,
+[role='dialog'] {
+  max-width: min(calc(100vw - 2rem), 760px);
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 18.2 mobile navigation: safe areas, short screens and real finger targets. */
+.mobile-panel__sheet {
+  max-width: 100%;
+  max-height: 100dvh;
+  padding-right: env(safe-area-inset-right);
+  padding-left: env(safe-area-inset-left);
+}
+.mobile-panel__head { padding-top: max(1rem, env(safe-area-inset-top)); }
+.mobile-menu-button,
+.mobile-close,
+.mobile-nav > a,
+.mobile-accordion__trigger,
+.mobile-subgroup a { min-width: 44px; min-height: 44px; }
+
+/* 18.4/18.5 data-driven Careers content can contain unusually long real-world values. */
+.career-role-card,
+.career-role-detail,
+.career-role-detail__head,
+.career-role-facts,
+.career-application-summary,
+.career-application-form-shell { min-width: 0; }
+.career-role-card h3,
+.career-role-detail h2,
+.career-role-facts strong,
+.career-role-tags span,
+.career-application-summary dd,
+.career-application-confirmation strong { overflow-wrap: anywhere; }
+.career-file-field input[type='file'] { max-width: 100%; }
+.career-file-field input[type='file']::file-selector-button { min-height: 44px; }
+
+/* 18.6 contact/public forms. Prevent iOS focus zoom and preserve a single-column escape hatch. */
+@media (max-width: 767px) {
+  .form-field input,
+  .form-field select,
+  .form-field textarea,
+  .career-application-form input:not([type='checkbox']),
+  .career-application-form textarea { font-size: 16px; }
+
+  .form-grid,
+  .career-application-grid { grid-template-columns: 1fr; }
+  .form-field--full,
+  .career-application-grid__wide { grid-column: auto; }
+  .form-actions { display: grid; grid-template-columns: 1fr; }
+  .form-actions .btn { width: 100%; }
+}
+
+/* 18.11 legal and dense public tables scroll locally instead of expanding the document. */
+.legal-table-wrap {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Official Phase 18 viewport class: small desktop / laptop (1024–1279). */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .container,
+  .container--wide { width: min(calc(100% - 3rem), var(--container-wide)); }
+  .hero-grid,
+  .page-hero-grid { gap: clamp(1.75rem, 3vw, 3rem); }
+}
+
+/* Official Phase 18 viewport class: tablet (768–1023). */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root { --gutter: 1.5rem; }
+  .career-browser,
+  .career-application-layout { grid-template-columns: 1fr; }
+  .career-role-list,
+  .career-application-summary { position: static; }
+  .career-role-list__items { max-height: none; overflow: visible; }
+  .career-role-detail__head { grid-template-columns: 1fr; }
+  .career-apply-cta { justify-self: start; }
+  .footer-top { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .footer-brand { grid-column: 1 / -1; }
+}
+
+/* Official Phase 18 viewport class: mobile / large mobile (375–767). */
+@media (min-width: 375px) and (max-width: 767px) {
+  :root { --gutter: 1rem; }
+  .hero-actions,
+  .career-role-detail__footer { align-items: stretch; }
+  .hero-actions .btn,
+  .career-role-detail__footer .btn { flex: 1 1 100%; width: 100%; }
+  .breadcrumbs { line-height: 1.45; }
+}
+
+/* Official Phase 18 viewport class: small mobile (320–374). */
+@media (min-width: 320px) and (max-width: 374px) {
+  :root { --gutter: .875rem; --section-y: 3.5rem; }
+  .header-inner { gap: .75rem; }
+  .brand { gap: .55rem; }
+  .brand-mark { flex-basis: 36px; width: 36px; height: 36px; }
+  .brand-copy strong { font-size: .88rem; }
+  .mobile-menu-button { width: 44px; height: 44px; }
+  .hero { padding-top: 2rem; }
+  .hero h1,
+  .page-hero h1 { overflow-wrap: anywhere; }
+  .hero-actions,
+  .career-role-detail__footer { display: grid; grid-template-columns: 1fr; }
+  .hero-actions .btn,
+  .career-role-detail__footer .btn,
+  .career-apply-cta { width: 100%; }
+  .career-role-facts { grid-template-columns: 1fr; }
+  .career-role-facts > div { padding-right: 0; }
+  .career-role-detail,
+  .career-application-form-shell { padding: 1rem; }
+  .career-role-tags span { max-width: 100%; }
+  .contact-form-panel { padding: 1rem; }
+  .legal-toc__inner,
+  .legal-note,
+  .legal-review-note,
+  .legal-related { padding-inline: 1rem; }
+  .footer-top { column-gap: .8rem; }
+}
+
+/* 18.12 touch/coarse-pointer behavior. Essential actions must not depend on hover. */
+@media (hover: none), (pointer: coarse) {
+  .btn,
+  button,
+  select,
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'] { min-height: 44px; }
+  .nav-link:hover,
+  .nav-trigger:hover,
+  .btn:hover,
+  .action-card:hover,
+  .industry-card:hover img { transform: none; }
+}
+
+/* 18.13 landscape/short-viewport resilience. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .mobile-panel__sheet { height: 100dvh; }
+  .mobile-nav { padding-top: .5rem; }
+  .mobile-panel__head { padding-block: .55rem; }
+  .career-role-list,
+  .career-application-summary { position: static; }
+}
+
+/* Keep reduced-motion behavior authoritative after this final responsive layer. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

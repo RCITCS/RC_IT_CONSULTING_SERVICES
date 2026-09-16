@@ -1,0 +1,124 @@
+name: Phase 18 Responsive QA
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, phase18-responsive-mobile-qa]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-responsive-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: Responsive architecture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Phase 18 source contracts
+        run: node tests/phase18-responsive-contract.mjs
+      - name: Existing admin responsive regression
+        run: node tests/admin-responsive.mjs
+      - name: Production build
+        run: npm run build
+
+  browser-matrix:
+    name: Browser and viewport matrix
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned browser-test runner without changing project dependencies
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0
+      - name: Install representative Chromium, Firefox and WebKit engines
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Run Phase 18 public and admin responsive matrix
+        run: npx playwright test --config=playwright.config.mjs
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-playwright-evidence
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production-acceptance:
+    name: Exact-SHA production responsive acceptance
+    needs: browser-matrix
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for exact main SHA on canonical public production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          expected="${GITHUB_SHA}"
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS -o /tmp/phase18-root.html -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] && grep -q "name=\"rc-deployment-sha\" content=\"${expected}\"" /tmp/phase18-root.html; then
+              echo "Exact production SHA ${expected} verified on attempt ${attempt}."
+              break
+            fi
+            if [[ "$attempt" == '120' ]]; then
+              echo "Production did not converge to exact SHA ${expected} within the verification window." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify canonical Phase 18 public surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          routes=(
+            '/'
+            '/about-us'
+            '/products'
+            '/white-papers'
+            '/services/it/cyber-security'
+            '/services/management/strategy-and-implementation'
+            '/industry/banking-and-finance'
+            '/careers'
+            '/contact'
+            '/faqs'
+            '/privacy'
+            '/terms'
+          )
+          for route in "${routes[@]}"; do
+            code=$(curl -sS -o /tmp/phase18-page.html -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'id="main-content"' /tmp/phase18-page.html
+          done
+
+      - name: Verify production admin mobile surface remains private and available
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          code=$(curl -sS -o /tmp/phase18-admin.html -D /tmp/phase18-admin.headers -w '%{http_code}' "${ADMIN}/")
+          test "$code" = '200'
+          grep -q 'Administrator sign in' /tmp/phase18-admin.html
+          grep -qi '^cache-control:.*no-store' /tmp/phase18-admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/phase18-admin.headers
+          grep -qi '^strict-transport-security:' /tmp/phase18-admin.headers
