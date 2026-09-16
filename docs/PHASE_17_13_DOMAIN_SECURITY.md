@@ -1,8 +1,10 @@
 # Phase 17.13 — Domain security verification
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **CLOSED — branch verification complete; DMARC/live activation remain final-main blockers**
 
 Depends on Phase 17.12 closure SHA `0c1297dc8696cf39d1e3a0063039d2a499480777`.
+
+Verification head: `e274574ecb125d17b22fee001dbf283aa5599ae5`.
 
 ## Security invariants
 
@@ -35,7 +37,7 @@ Phase 17 domain security is evaluated as a single ingress boundary rather than a
 
 ### Email-domain authentication
 
-SPF, DKIM, return-path and tracking DNS are already verified by 17.11. `_dmarc.rcitcs.com` is currently absent and is therefore an explicit final-production blocker.
+SPF, DKIM, return-path and tracking DNS are verified by 17.11. `_dmarc.rcitcs.com` remains absent in the pre-merge production state and is therefore an explicit final-production blocker.
 
 Required initial DMARC record:
 
@@ -46,6 +48,19 @@ The initial `p=none` policy is intentional monitoring. Any later move to quarant
 ## Control-plane boundary
 
 The authoritative RC IT Cloudflare account remains account `3fdd024f6fbc25c03ed4481352576540` and zone `cf815244b9dbd51a490747f597867c68`, as established in the immutable 17.1 audit. The stale GitHub App build into account `20d349f3f75ab611adb3f987188636e7` is not accepted as RC IT production authority and cannot satisfy a Phase-17 production gate.
+
+## Exact-head closure evidence
+
+Verification head `e274574ecb125d17b22fee001dbf283aa5599ae5` completed 21 check runs with no failures. The dedicated Phase-17.13 gate proved:
+
+- source security invariants for all canonical Workers;
+- current public HTTPS/HSTS, nosniff and framing headers;
+- current production-admin HSTS, no-store, noindex, framing and CSP headers;
+- no permissive wildcard CORS at the admin surface;
+- DMARC state classified explicitly rather than silently accepted;
+- final-main ownership/staging/workers.dev checks remain reserved for post-merge activation.
+
+Full RC IT Services CI, Wrangler validation and inherited Phase-17 gates completed without failure.
 
 ## Final-main security gate
 
