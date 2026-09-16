@@ -1,0 +1,69 @@
+name: Phase 17.15 Multi-role Review
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase17-multi-role-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multi-role-review:
+    name: Verify Phase 17 multi-role review evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Verify multi-role review evidence contract
+        run: node tests/phase17-multi-role-review.mjs
+
+      - name: Verify Phase 17 module evidence is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in \
+            docs/PHASE_17_DOMAIN_BASELINE.md \
+            docs/PHASE_17_2_PUBLIC_PRODUCTION_DOMAIN.md \
+            docs/PHASE_17_3_WWW_CANONICAL_REDIRECT.md \
+            docs/PHASE_17_4_PRODUCTION_ADMIN_DOMAIN.md \
+            docs/PHASE_17_5_ADMIN_STAGING_ISOLATION.md \
+            docs/PHASE_17_6_PUBLIC_ADMIN_SEPARATION.md \
+            docs/PHASE_17_7_DOMAIN_OWNERSHIP_CONVERGENCE.md \
+            docs/PHASE_17_8_DNS_CLEANUP.md \
+            docs/PHASE_17_9_TLS_HTTPS_HSTS.md \
+            docs/PHASE_17_10_ORIGIN_HOST_CORS_HARDENING.md \
+            docs/PHASE_17_11_EMAIL_DOMAIN_DNS.md \
+            docs/PHASE_17_12_REDIRECT_CANONICAL_MATRIX.md \
+            docs/PHASE_17_13_DOMAIN_SECURITY.md \
+            docs/PHASE_17_14_PRODUCTION_RUNTIME_ACCEPTANCE.md \
+            docs/PHASE_17_15_MULTI_ROLE_REVIEW.md; do
+            test -s "$module"
+          done
+
+      - name: Verify final-production blockers are not waived
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '_dmarc.rcitcs.com' docs/PHASE_17_15_MULTI_ROLE_REVIEW.md
+          grep -q 'exact merged SHA' docs/PHASE_17_15_MULTI_ROLE_REVIEW.md
+          grep -q 'mirror convergence' docs/PHASE_17_15_MULTI_ROLE_REVIEW.md
+          grep -q 'Supabase Security Advisor' docs/PHASE_17_15_MULTI_ROLE_REVIEW.md
+          grep -q 'stale cross-account Cloudflare GitHub integration' docs/PHASE_17_15_MULTI_ROLE_REVIEW.md
+
+      - name: Phase 17.15 acceptance
+        run: |
+          echo 'Phase 17.15 role-based engineering review evidence: PASS'
