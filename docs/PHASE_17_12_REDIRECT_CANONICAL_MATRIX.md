@@ -1,8 +1,10 @@
 # Phase 17.12 — Redirect and canonical-host matrix
 
-Status: **IMPLEMENTED — exact-head verification pending**
+Status: **CLOSED — branch verification complete; final-main live activation remains a Phase-17.16 gate**
 
 Depends on Phase 17.11 closure SHA `7a2c9f40ee3fd067f0188ed323ea0e4b6d0ebda4`.
+
+Verification head: `c0422252f915d7af1da320fee3134308301819b2`.
 
 ## Canonical authorities
 
@@ -28,6 +30,16 @@ Depends on Phase 17.11 closure SHA `7a2c9f40ee3fd067f0188ed323ea0e4b6d0ebda4`.
 - Public `/admin` mutation requests are never redirected with credentials or replayed against the admin domain.
 - Admin legacy-route migration never changes the hostname.
 - Redirect responses carry transport/security headers and do not become a cacheable authentication surface.
+
+## Closure evidence
+
+The Phase-17.12 exact-head suite proved:
+
+- the source/runtime redirect matrix with executable Request/Response assertions;
+- public `/admin` GET redirect and mutation rejection against the current live domain;
+- legacy admin path canonicalization on the dedicated admin host;
+- open-redirect resistance for protocol-relative-looking paths;
+- full RC IT Services CI, Wrangler validation and all inherited Phase-17 gates without failure.
 
 ## Final-main acceptance
 
