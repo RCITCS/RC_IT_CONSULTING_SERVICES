@@ -47,6 +47,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -75,8 +77,18 @@ jobs:
             sleep 5
           done
 
-          node --input-type=module -e "import { getPrerenderRoutes } from './src/frontend/seo/seo-model.js'; for (const route of getPrerenderRoutes()) console.log(route);" > /tmp/phase20-routes.txt
+          route_source='.'
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            git cat-file -e "${EXPECTED_PRODUCTION_SHA}^{commit}"
+            git worktree add --detach /tmp/phase20-deployed-base "${EXPECTED_PRODUCTION_SHA}"
+            route_source='/tmp/phase20-deployed-base'
+          fi
+          (
+            cd "$route_source"
+            node --input-type=module -e "import { getPrerenderRoutes } from './src/frontend/seo/seo-model.js'; for (const route of getPrerenderRoutes()) console.log(route);"
+          ) > /tmp/phase20-routes.txt
           test -s /tmp/phase20-routes.txt
+
           route_count=0
           while IFS= read -r route; do
             [[ -n "$route" ]] || continue
@@ -90,7 +102,7 @@ jobs:
             ! grep -q 'Administrator sign in' /tmp/route.html
           done < /tmp/phase20-routes.txt
           test "$route_count" -ge 60
-          echo "Verified ${route_count} canonical production routes."
+          echo "Verified ${route_count} canonical production routes from ${EXPECTED_PRODUCTION_SHA}."
       - name: Verify health sitemap robots and 404 boundaries
         shell: bash
         run: |

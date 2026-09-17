@@ -8,7 +8,7 @@ Certified Phase 20.5 baseline: `e1cd60fcdcef8743d7faa932960995fe3ac94047`.
 
 The public production gate derives the canonical prerender route set from `getPrerenderRoutes()` rather than maintaining a second route inventory. Every canonical route must return HTTP 200 from `https://rcitcs.com`, contain the real main landmark, carry the expected `rc-deployment-sha`, expose the correct prerender marker and remain free of admin UI ownership.
 
-The gate also verifies `/api/health`, `sitemap.xml`, `robots.txt`, and an unknown-route 404/noindex boundary. On a pull request, the expected production release is the PR base SHA because the candidate SHA is not yet deployed. After merge to `main`, the expected production release is the exact merged `GITHUB_SHA`, and the gate waits for Cloudflare convergence before testing the route matrix.
+The gate also verifies `/api/health`, `sitemap.xml`, `robots.txt`, and an unknown-route 404/noindex boundary. On a pull request, production is expected to serve the PR base SHA because the candidate SHA is not yet deployed. The route matrix is therefore derived from a detached worktree at that exact deployed base SHA, preventing candidate-only route changes from being compared against an older production release. After merge to `main`, the expected production release is the exact merged `GITHUB_SHA`; the route matrix comes from that merged source and the gate waits for Cloudflare convergence before testing it.
 
 ## 20.7 — Admin Production Domain Acceptance
 
@@ -47,10 +47,11 @@ The branch or pull-request run is pre-merge evidence only. Phase 20.6–20.10 is
 
 1. the Phase 20.5 certified baseline remains in ancestry;
 2. inherited `npm run verify` is green;
-3. 20.6–20.10 are green on the final pull-request head;
-4. review findings are resolved without weakening valid controls;
-5. the pull request is merged to `main` with an expected-head SHA guard;
-6. the post-merge `main` run passes 20.6–20.10 against the exact SHA serving in production;
-7. the final `main` SHA and production state are rechecked before closure is reported.
+3. PR production checks use the exact deployed base SHA and its own route inventory;
+4. 20.6–20.10 are green on the final pull-request head;
+5. review findings are resolved without weakening valid controls;
+6. the pull request is merged to `main` with an expected-head SHA guard;
+7. the post-merge `main` run passes 20.6–20.10 against the exact SHA serving in production;
+8. the final `main` SHA and production state are rechecked before closure is reported.
 
 No module is closed based only on source assertions, compilation, a previous release, or a pull-request run.

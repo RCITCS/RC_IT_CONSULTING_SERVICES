@@ -37,19 +37,26 @@ requireAll(workflow, [
 ], 'Phase 20 production workflow');
 
 requireAll(workflow, [
-  "getPrerenderRoutes",
+  'getPrerenderRoutes',
   'rc-deployment-sha',
   'data-prerendered-path',
   '/api/health',
   '/sitemap.xml',
   '/robots.txt',
   'missing_code',
-  "test \"$route_count\" -ge 60"
+  'test "$route_count" -ge 60',
+  'git worktree add --detach /tmp/phase20-deployed-base "${EXPECTED_PRODUCTION_SHA}"',
+  "route_source='/tmp/phase20-deployed-base'"
 ], '20.6 public production gate');
 assert.match(
   workflow,
   /github\.event\.pull_request\.base\.sha/,
   'PR acceptance must bind public production to the PR base SHA rather than pretending the candidate SHA is deployed.'
+);
+assert.match(
+  workflow,
+  /fetch-depth: 0/,
+  'The production verification workflow must fetch commit history for exact-SHA ancestry and deployed-base route verification.'
 );
 
 requireAll(workflow, [
@@ -66,7 +73,7 @@ requireAll(workflow, [
   'Staging administration is intentionally unavailable.',
   'intentionally-unavailable',
   'x-rc-admin-environment: *staging',
-  "test \"$code\" = '503'",
+  'test "$code" = \'503\'',
   "! grep -qi '^location:'"
 ], '20.8 admin staging gate');
 
@@ -113,6 +120,7 @@ requireAll(docs, [
   '20.9 — Domain, Redirect & Origin Ownership Certification',
   '20.10 — TLS, Headers & Browser Security Verification',
   'e1cd60fcdcef8743d7faa932960995fe3ac94047',
+  'deployed base SHA',
   'post-merge',
   'exact SHA'
 ], 'Phase 20.6-20.10 documentation');
