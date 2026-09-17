@@ -67,31 +67,6 @@ const jsBuild = await build({
   charset: 'utf8'
 });
 
-async function pruneUnreferencedEmptyJsChunks(buildResult) {
-  const outputs = Object.entries(buildResult.metafile.outputs);
-  const importedOutputNames = new Set(
-    outputs.flatMap(([, metadata]) => (metadata.imports || []).map((entry) => path.basename(entry.path)))
-  );
-  const pruned = [];
-
-  for (const [outputPath, metadata] of outputs) {
-    const outputName = path.basename(outputPath);
-    if (metadata.bytes !== 0 || !/^chunk-[A-Za-z0-9]+\.js$/.test(outputName)) continue;
-
-    if (importedOutputNames.has(outputName)) {
-      throw new Error(`Refusing to ship referenced zero-byte split chunk: ${outputName}`);
-    }
-
-    await rm(path.resolve(root, outputPath), { force: true });
-    delete buildResult.metafile.outputs[outputPath];
-    pruned.push(outputName);
-  }
-
-  return pruned;
-}
-
-const prunedEmptyJsChunks = await pruneUnreferencedEmptyJsChunks(jsBuild);
-
 function outputByPrefix(meta, prefix, extension) {
   const output = Object.keys(meta.outputs).find((file) => {
     const name = path.basename(file);
@@ -170,7 +145,4 @@ await writeFile(path.join(out, '_redirects'), renderRedirectsFile(), 'utf8');
 await configureWorkersBuild();
 await convergeLegacyAdminWorkerRoutes();
 
-const prunedNote = prunedEmptyJsChunks.length > 0
-  ? `; pruned unreferenced empty JS chunks ${prunedEmptyJsChunks.join(', ')}`
-  : '';
-console.log(`Built prerendered SEO site: ${prerenderRoutes.length} route HTML files, sitemap.xml, robots.txt and 404.html; ${cssFile}, ${overridesFile}, ${jsFile}; route CSS ${Object.values(routeStyles).join(', ')}; deployment SHA ${deploymentSha}${prunedNote}`);
+console.log(`Built prerendered SEO site: ${prerenderRoutes.length} route HTML files, sitemap.xml, robots.txt and 404.html; ${cssFile}, ${overridesFile}, ${jsFile}; route CSS ${Object.values(routeStyles).join(', ')}; deployment SHA ${deploymentSha}`);
