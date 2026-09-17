@@ -3,6 +3,7 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handlePublicMediaRequest } from '../src/backend/runtime/public-media.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distRoot = path.join(root, 'dist');
@@ -74,6 +75,21 @@ async function sendFile(req, res, filePath, status = 200) {
   createReadStream(filePath).pipe(res);
 }
 
+async function sendPublicMedia(req, res, url) {
+  const headers = new Headers();
+  if (req.headers.accept) headers.set('accept', req.headers.accept);
+
+  const response = await handlePublicMediaRequest(new Request(url, {
+    method: req.method,
+    headers
+  }));
+  const responseHeaders = Object.fromEntries(response.headers.entries());
+  res.writeHead(response.status, responseHeaders);
+
+  if (req.method === 'HEAD' || !response.body) return res.end();
+  return res.end(Buffer.from(await response.arrayBuffer()));
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -82,6 +98,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
+    if (url.pathname.startsWith('/media/pexels/')) return await sendPublicMedia(req, res, url);
+
     const filePath = await resolveRequestPath(url.pathname);
     if (filePath) return await sendFile(req, res, filePath);
 
