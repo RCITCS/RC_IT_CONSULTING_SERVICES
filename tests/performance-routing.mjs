@@ -58,4 +58,22 @@ assert(responsiveMarkup.includes('src="/media/pexels/5439138?w=1280"'), 'Respons
 assert(responsiveMarkup.includes('loading="lazy"'), 'Images no longer default to lazy loading.');
 assert(responsiveMarkup.includes('decoding="async"'), 'Async image decoding contract is missing.');
 
-console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints and responsive-image performance contracts verified.');
+const { pageHero } = await import('../src/frontend/components/content.js');
+const heroMarkup = pageHero({
+  category: 'Performance',
+  title: 'Priority hero',
+  lead: 'Representative LCP image contract.',
+  image: pexelsFixture,
+  imageAlt: 'Representative priority hero image',
+  crumbs: []
+});
+assert(heroMarkup.includes('loading="eager"'), 'Page hero must remain eagerly requested.');
+assert(heroMarkup.includes('fetchpriority="high"'), 'Page hero must retain high fetch priority.');
+assert(heroMarkup.includes('decoding="async"'), 'Page hero must not synchronously block rendering on image decode.');
+
+const phase19QualityCss = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
+assert(phase19QualityCss.includes('.careers-page > .section'), 'Careers below-fold rendering deferral contract is missing.');
+assert(phase19QualityCss.includes('content-visibility: auto'), 'Careers below-fold rendering must use content-visibility.');
+assert(phase19QualityCss.includes('contain-intrinsic-size'), 'Careers deferred sections must reserve intrinsic layout space.');
+
+console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints, responsive-image delivery, async priority hero decode and Careers below-fold rendering contracts verified.');
