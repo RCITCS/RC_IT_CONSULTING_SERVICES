@@ -47,19 +47,18 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '20'
-      - name: Verify stale diagnostic and obsolete draft PRs are closed
+      - name: Verify stale diagnostic and obsolete draft PRs are closed without merge
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           for pr in 61 87; do
-            state=$(curl -fsS \
+            curl -fsS \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H 'Accept: application/vnd.github+json' \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${pr}" \
-              | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(JSON.parse(s).state))")
-            test "$state" = 'closed'
+              | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const p=JSON.parse(s);if(p.state!=='closed'||p.merged!==false){console.error('PR must be closed without merge:',p.number,p.state,p.merged);process.exit(1)}})"
           done
       - name: Run Phase 20 repository hygiene contract
         run: npm run check:phase20-release
@@ -193,8 +192,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workers_code=$(curl -sS --connect-timeout 10 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
-          test "$workers_code" != '200'
+          workers_code=$(curl -sS --connect-timeout 10 --max-time 15 --max-redirs 0 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          case "$workers_code" in
+            000|404)
+              echo "Retired workers.dev browser identity is non-serving (${workers_code})."
+              ;;
+            *)
+              echo "Retired workers.dev browser identity is still reachable with HTTP ${workers_code}." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Phase 20.1-20.5 certification boundary
         run: |
