@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  isCloudflareWorkersBuild,
   normalizeWorkersCommitSha,
   withAdminDeploymentIdentity
 } from '../scripts/configure-cloudflare-workers-build.mjs';
@@ -19,6 +20,7 @@ const root = path.resolve(here, '..');
 const productionConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.admin-production.jsonc'), 'utf8'));
 const stagingConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
 const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8'));
+const configureSource = fs.readFileSync(path.join(root, 'scripts/configure-cloudflare-workers-build.mjs'), 'utf8');
 const SHA = '0123456789abcdef0123456789abcdef01234567';
 const FORGED_UPSTREAM_SHA = 'f'.repeat(40);
 
@@ -26,6 +28,14 @@ assert.equal(normalizeWorkersCommitSha(SHA.toUpperCase()), SHA);
 assert.equal(normalizeWorkersCommitSha('not-a-sha'), null);
 assert.equal(normalizeAdminDeploymentSha(SHA.toUpperCase()), SHA);
 assert.equal(normalizeAdminDeploymentSha('short'), null);
+assert.equal(isCloudflareWorkersBuild('1'), true);
+assert.equal(isCloudflareWorkersBuild('0'), false);
+assert.equal(isCloudflareWorkersBuild(''), false);
+assert.match(
+  configureSource,
+  /if \(mirrorSourceConfig\) \{\s*await writeFile\(sourceConfigFile,/s,
+  'Cloudflare Workers Builds must mirror the generated admin identity into the ephemeral source config so explicit --config deploy commands cannot bypass the exact-SHA runtime variable.'
+);
 
 const productionDeployment = withAdminDeploymentIdentity('rcitcs-admin-production', productionConfig, SHA.toUpperCase());
 assert.equal(productionDeployment.vars.RC_ADMIN_DEPLOYMENT_SHA, SHA);

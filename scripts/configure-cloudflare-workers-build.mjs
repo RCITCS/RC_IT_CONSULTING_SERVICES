@@ -30,6 +30,10 @@ export function normalizeWorkersCommitSha(value = '') {
   return /^[0-9a-f]{40}$/.test(normalized) ? normalized : null;
 }
 
+export function isCloudflareWorkersBuild(value = process.env.WORKERS_CI) {
+  return String(value || '').trim() === '1';
+}
+
 export function withAdminDeploymentIdentity(workerName, config, commitSha) {
   const normalizedName = String(workerName || '').trim();
   const clone = structuredClone(config || {});
@@ -53,26 +57,41 @@ function relativeFromGeneratedConfig(value = '') {
   return relative.startsWith('.') ? relative : `./${relative}`;
 }
 
-async function buildDeploymentConfig(workerName, sourceConfigPath, commitSha) {
+async function buildDeploymentConfig(workerName, sourceConfigPath, commitSha, { mirrorSourceConfig = false } = {}) {
   if (!ADMIN_WORKERS.has(workerName)) {
     await rm(generatedWorkerConfigFile, { force: true });
     return path.join(root, sourceConfigPath);
   }
 
-  const raw = await readFile(path.join(root, sourceConfigPath), 'utf8');
+  const sourceConfigFile = path.join(root, sourceConfigPath);
+  const raw = await readFile(sourceConfigFile, 'utf8');
   const sourceConfig = JSON.parse(raw);
-  const config = withAdminDeploymentIdentity(workerName, sourceConfig, commitSha);
+  const deploymentConfig = withAdminDeploymentIdentity(workerName, sourceConfig, commitSha);
+  const generatedConfig = structuredClone(deploymentConfig);
 
-  if (config.$schema) config.$schema = relativeFromGeneratedConfig(config.$schema);
-  if (config.main) config.main = relativeFromGeneratedConfig(config.main);
+  if (generatedConfig.$schema) generatedConfig.$schema = relativeFromGeneratedConfig(generatedConfig.$schema);
+  if (generatedConfig.main) generatedConfig.main = relativeFromGeneratedConfig(generatedConfig.main);
 
-  await writeFile(generatedWorkerConfigFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  await writeFile(generatedWorkerConfigFile, `${JSON.stringify(generatedConfig, null, 2)}\n`, 'utf8');
+
+  // Cloudflare Workers Builds normally lets Wrangler discover
+  // .wrangler/deploy/config.json. Some existing Worker projects may instead
+  // use an explicit `wrangler deploy --config wrangler.admin-*.jsonc` deploy
+  // command, which bypasses that redirect. During the ephemeral Cloudflare
+  // checkout only, mirror the exact validated commit identity into the source
+  // admin config as well so both deploy-command forms publish the same trusted
+  // runtime variable. The tracked repository config remains SHA-free.
+  if (mirrorSourceConfig) {
+    await writeFile(sourceConfigFile, `${JSON.stringify(deploymentConfig, null, 2)}\n`, 'utf8');
+  }
+
   return generatedWorkerConfigFile;
 }
 
 export async function configureWorkersBuild({
   workerName = process.env.WRANGLER_CI_OVERRIDE_NAME,
-  commitSha = process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA
+  commitSha = process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA,
+  workersCi = process.env.WORKERS_CI
 } = {}) {
   const configPath = resolveWorkersBuildConfig(workerName);
 
@@ -83,7 +102,9 @@ export async function configureWorkersBuild({
   }
 
   await mkdir(generatedConfigDir, { recursive: true });
-  const deploymentConfigFile = await buildDeploymentConfig(workerName, configPath, commitSha);
+  const deploymentConfigFile = await buildDeploymentConfig(workerName, configPath, commitSha, {
+    mirrorSourceConfig: isCloudflareWorkersBuild(workersCi)
+  });
   const relativeTarget = path.relative(generatedConfigDir, deploymentConfigFile).replaceAll(path.sep, '/');
   await writeFile(generatedConfigFile, `${JSON.stringify({ configPath: relativeTarget }, null, 2)}\n`, 'utf8');
   console.log(`Cloudflare Workers Builds target ${workerName} -> ${configPath}${ADMIN_WORKERS.has(workerName) ? ` at commit ${normalizeWorkersCommitSha(commitSha)}` : ''}`);
