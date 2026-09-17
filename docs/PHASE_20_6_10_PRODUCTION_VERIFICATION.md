@@ -14,13 +14,15 @@ The gate also verifies `/api/health`, `sitemap.xml`, `robots.txt`, and an unknow
 
 `https://admin.rcitcs.com` must remain the sole production administration browser surface. The root must render the Administrator sign-in experience and advertise the production environment marker. HTML and session responses remain private through `Cache-Control: no-store` and `X-Robots-Tag: noindex`.
 
+Cloudflare Workers Builds supplies the source commit SHA to the build process. The admin build converts that value into the non-secret runtime variable `RC_ADMIN_DEPLOYMENT_SHA`; the Worker emits the validated 40-character value as `x-rc-admin-deployment-sha`. A production-admin release is therefore accepted only when its runtime header equals the expected deployed commit. The one bootstrap exception is this migration PR while the certified Phase 20.5 base predates that header; post-merge and all later bases require the marker exactly.
+
 Unauthenticated `/applications` and `/jobs` routes must remain protected by the sign-in boundary, `/session` must report unauthenticated state with HTTP 401, and an explicitly hostile cross-origin login mutation must be rejected with HTTP 403 without issuing an authentication cookie.
 
 ## 20.8 — Admin Staging Isolation Verification
 
 `https://admin-staging.rcitcs.com` remains intentionally unavailable until a staging administration environment is explicitly activated. GET `/` and POST `/login` must return HTTP 503 with `x-rc-admin-environment: staging` and `x-rc-admin-staging-state: intentionally-unavailable`.
 
-The staging surface must not render the production sign-in experience, issue cookies, or redirect a login attempt. It retains no-store/noindex and browser-security headers while unavailable.
+The staging Worker uses the same exact-commit runtime identity contract as production admin and must emit `x-rc-admin-deployment-sha` for the deployed source commit. The staging surface must not render the production sign-in experience, issue cookies, or redirect a login attempt. It retains no-store/noindex and browser-security headers while unavailable.
 
 ## 20.9 — Domain, Redirect & Origin Ownership Certification
 
@@ -47,11 +49,12 @@ The branch or pull-request run is pre-merge evidence only. Phase 20.6–20.10 is
 
 1. the Phase 20.5 certified baseline remains in ancestry;
 2. inherited `npm run verify` is green;
-3. PR production checks use the exact deployed base SHA and its own route inventory;
-4. 20.6–20.10 are green on the final pull-request head;
-5. review findings are resolved without weakening valid controls;
-6. the pull request is merged to `main` with an expected-head SHA guard;
-7. the post-merge `main` run passes 20.6–20.10 against the exact SHA serving in production;
-8. the final `main` SHA and production state are rechecked before closure is reported.
+3. PR public checks use the exact deployed base SHA and its own route inventory;
+4. the admin runtime source contract proves both admin Workers receive build-time commit identity and emit only validated commit metadata;
+5. 20.6–20.10 are green on the final pull-request head, with the narrowly scoped bootstrap allowance only for the pre-marker Phase 20.5 admin deployment;
+6. review findings are resolved without weakening valid controls;
+7. the pull request is merged to `main` with an expected-head SHA guard;
+8. the post-merge `main` run passes 20.6–20.10 against the exact SHA serving on public, production-admin and staging-admin surfaces;
+9. the final `main` SHA and production state are rechecked before closure is reported.
 
 No module is closed based only on source assertions, compilation, a previous release, or a pull-request run.

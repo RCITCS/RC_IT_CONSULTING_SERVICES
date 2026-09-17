@@ -16,8 +16,8 @@ function requireAll(source, values, label) {
 
 assert.equal(
   packageJson.scripts['check:phase20-production'],
-  'node tests/phase20-production-verification.mjs',
-  'Phase 20.6-20.10 must have a dedicated static certification command.'
+  'node tests/phase20-admin-deployment-identity.mjs && node tests/phase20-production-verification.mjs',
+  'Phase 20.6-20.10 must test admin exact-deployment identity before the static certification contract.'
 );
 assert.match(
   packageJson.scripts.verify,
@@ -48,18 +48,13 @@ requireAll(workflow, [
   'git worktree add --detach /tmp/phase20-deployed-base "${EXPECTED_PRODUCTION_SHA}"',
   "route_source='/tmp/phase20-deployed-base'"
 ], '20.6 public production gate');
-assert.match(
-  workflow,
-  /github\.event\.pull_request\.base\.sha/,
-  'PR acceptance must bind public production to the PR base SHA rather than pretending the candidate SHA is deployed.'
-);
-assert.match(
-  workflow,
-  /fetch-depth: 0/,
-  'The production verification workflow must fetch commit history for exact-SHA ancestry and deployed-base route verification.'
-);
+assert.match(workflow, /github\.event\.pull_request\.base\.sha/, 'PR acceptance must bind public production to the PR base SHA.');
+assert.match(workflow, /fetch-depth: 0/, 'The production verification workflow must fetch history for exact-SHA verification.');
 
 requireAll(workflow, [
+  'EXPECTED_ADMIN_SHA',
+  'ADMIN_SHA_BOOTSTRAP_ALLOWED',
+  'x-rc-admin-deployment-sha',
   'Administrator sign in',
   'x-rc-admin-environment: *production',
   '/applications /jobs',
@@ -71,6 +66,7 @@ requireAll(workflow, [
 
 requireAll(workflow, [
   'Staging administration is intentionally unavailable.',
+  'x-rc-admin-deployment-sha',
   'intentionally-unavailable',
   'x-rc-admin-environment: *staging',
   'test "$code" = \'503\'',
@@ -120,6 +116,7 @@ requireAll(docs, [
   '20.9 — Domain, Redirect & Origin Ownership Certification',
   '20.10 — TLS, Headers & Browser Security Verification',
   'e1cd60fcdcef8743d7faa932960995fe3ac94047',
+  'x-rc-admin-deployment-sha',
   'deployed base SHA',
   'post-merge',
   'exact SHA'

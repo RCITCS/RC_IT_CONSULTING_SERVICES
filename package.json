@@ -23,7 +23,7 @@
     "check:phase16-audit-viewer": "node tests/phase16-audit-viewer.mjs",
     "check:phase16": "node tests/phase16-all.mjs",
     "check:phase20-release": "node tests/phase20-release-certification.mjs",
-    "check:phase20-production": "node tests/phase20-production-verification.mjs",
+    "check:phase20-production": "node tests/phase20-admin-deployment-identity.mjs && node tests/phase20-production-verification.mjs",
     "check:architecture": "node scripts/check-architecture.mjs && npm run check:backend-architecture && npm run check:persistence-architecture && npm run check:admin-auth-security && npm run check:phase10-dashboard && npm run check:cloudflare-builds && npm run check:phase11-jobs && npm run check:phase12-applications && npm run check:phase13-notifications && npm run check:phase14-contact-data && npm run check:phase15-candidate-communication && npm run check:phase16",
     "test:smoke": "node tests/smoke.mjs",
     "test:backend": "node tests/backend-foundation.mjs",

@@ -121,20 +121,48 @@ jobs:
     name: 20.7 Admin production domain acceptance
     needs: public-production
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
-      - name: Verify production admin identity and private boundaries
+      - name: Resolve expected admin deployment SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap=0
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            expected='${{ github.event.pull_request.base.sha }}'
+            if [[ "$expected" == "${PHASE20_5_CERTIFIED_BASELINE}" ]]; then bootstrap=1; fi
+          else
+            expected="${GITHUB_SHA}"
+          fi
+          test -n "$expected"
+          echo "EXPECTED_ADMIN_SHA=${expected}" >> "$GITHUB_ENV"
+          echo "ADMIN_SHA_BOOTSTRAP_ALLOWED=${bootstrap}" >> "$GITHUB_ENV"
+      - name: Verify production admin exact deployment identity and private boundaries
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
-          for attempt in $(seq 1 90); do
+          for attempt in $(seq 1 120); do
             code=$(curl -sS --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/" || true)
             environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers 2>/dev/null | tail -n1)
-            [[ "$code" == '200' && "$environment" == 'production' ]] && grep -q 'Administrator sign in' /tmp/admin.html && break
-            [[ "$attempt" != '90' ]] || { echo 'Production admin did not converge.' >&2; exit 1; }
+            deployed_sha=$(awk -F': *' 'tolower($1)=="x-rc-admin-deployment-sha" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers 2>/dev/null | tail -n1)
+            sha_ok=0
+            if [[ "$deployed_sha" == "$EXPECTED_ADMIN_SHA" ]]; then
+              sha_ok=1
+            elif [[ "$ADMIN_SHA_BOOTSTRAP_ALLOWED" == '1' && -z "$deployed_sha" ]]; then
+              sha_ok=1
+            fi
+            if [[ "$code" == '200' && "$environment" == 'production' && "$sha_ok" == '1' ]] && grep -q 'Administrator sign in' /tmp/admin.html; then
+              break
+            fi
+            [[ "$attempt" != '120' ]] || { echo "Production admin did not converge to exact SHA ${EXPECTED_ADMIN_SHA}; observed ${deployed_sha:-missing}." >&2; exit 1; }
             sleep 5
           done
+          if [[ -z "$deployed_sha" ]]; then
+            echo "Bootstrap PR: Phase 20.5 admin release predates x-rc-admin-deployment-sha; post-merge exact SHA remains mandatory."
+          else
+            test "$deployed_sha" = "$EXPECTED_ADMIN_SHA"
+          fi
           grep -qi '^content-type: *text/html' /tmp/admin.headers
           grep -qi '^cache-control:.*no-store' /tmp/admin.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
@@ -169,19 +197,51 @@ jobs:
     name: 20.8 Admin staging isolation verification
     needs: admin-production
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
-      - name: Verify staging remains intentionally unavailable and non-mutating
+      - name: Resolve expected staging deployment SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap=0
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            expected='${{ github.event.pull_request.base.sha }}'
+            if [[ "$expected" == "${PHASE20_5_CERTIFIED_BASELINE}" ]]; then bootstrap=1; fi
+          else
+            expected="${GITHUB_SHA}"
+          fi
+          test -n "$expected"
+          echo "EXPECTED_ADMIN_SHA=${expected}" >> "$GITHUB_ENV"
+          echo "ADMIN_SHA_BOOTSTRAP_ALLOWED=${bootstrap}" >> "$GITHUB_ENV"
+      - name: Verify staging exact deployment remains intentionally unavailable and non-mutating
         shell: bash
         run: |
           set -euo pipefail
           STAGING='https://admin-staging.rcitcs.com'
-          code=$(curl -sS --max-time 20 -D /tmp/staging.headers -o /tmp/staging.html -w '%{http_code}' "${STAGING}/")
-          test "$code" = '503'
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS --max-time 20 -D /tmp/staging.headers -o /tmp/staging.html -w '%{http_code}' "${STAGING}/" || true)
+            deployed_sha=$(awk -F': *' 'tolower($1)=="x-rc-admin-deployment-sha" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/staging.headers 2>/dev/null | tail -n1)
+            sha_ok=0
+            if [[ "$deployed_sha" == "$EXPECTED_ADMIN_SHA" ]]; then
+              sha_ok=1
+            elif [[ "$ADMIN_SHA_BOOTSTRAP_ALLOWED" == '1' && -z "$deployed_sha" ]]; then
+              sha_ok=1
+            fi
+            if [[ "$code" == '503' && "$sha_ok" == '1' ]] \
+              && grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers \
+              && grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers; then
+              break
+            fi
+            [[ "$attempt" != '120' ]] || { echo "Admin staging did not converge to exact SHA ${EXPECTED_ADMIN_SHA}; observed ${deployed_sha:-missing}." >&2; exit 1; }
+            sleep 5
+          done
+          if [[ -z "$deployed_sha" ]]; then
+            echo "Bootstrap PR: Phase 20.5 staging release predates x-rc-admin-deployment-sha; post-merge exact SHA remains mandatory."
+          else
+            test "$deployed_sha" = "$EXPECTED_ADMIN_SHA"
+          fi
           grep -q 'Staging administration is intentionally unavailable.' /tmp/staging.html
           ! grep -q 'Administrator sign in' /tmp/staging.html
-          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers
-          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers
           grep -qi '^cache-control:.*no-store' /tmp/staging.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
           grep -qi '^x-content-type-options: *nosniff' /tmp/staging.headers

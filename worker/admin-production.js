@@ -1,14 +1,15 @@
 import adminWorker, {
   ADMIN_BUILD_SURFACE,
   ADMIN_HTML_MEDIA_FIX,
-  ADMIN_TRANSPORT_SECURITY_POLICY
+  ADMIN_TRANSPORT_SECURITY_POLICY,
+  applyAdminBuildMarkers
 } from './admin-only.js';
 
 const ADMIN_PRODUCTION_HOST = 'admin.rcitcs.com';
 const LEGACY_ADMIN_BASE = '/admin';
 
-function legacyRedirectHeaders(location) {
-  return new Headers({
+function legacyRedirectHeaders(location, env = {}) {
+  const headers = new Headers({
     location,
     'cache-control': 'no-store, no-transform, max-age=0, must-revalidate',
     pragma: 'no-cache',
@@ -23,9 +24,11 @@ function legacyRedirectHeaders(location) {
     'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE,
     'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX
   });
+  applyAdminBuildMarkers(headers, { ...env, RC_ADMIN_ENVIRONMENT: 'production' });
+  return headers;
 }
 
-export function productionAdminLegacyRedirect(request) {
+export function productionAdminLegacyRedirect(request, env = {}) {
   const url = new URL(request.url);
   if (url.protocol !== 'https:') return null;
   if (url.hostname.toLowerCase() !== ADMIN_PRODUCTION_HOST) return null;
@@ -36,7 +39,7 @@ export function productionAdminLegacyRedirect(request) {
     : url.pathname.slice(LEGACY_ADMIN_BASE.length) || '/';
   url.pathname = suffix;
 
-  const headers = legacyRedirectHeaders(url.toString());
+  const headers = legacyRedirectHeaders(url.toString(), env);
   if (request.method === 'GET' || request.method === 'HEAD') {
     return new Response(null, { status: 308, headers });
   }
@@ -51,7 +54,7 @@ export default {
   async fetch(request, env, ctx) {
     // Staging never uses this entrypoint. HTTP requests are deliberately passed
     // through so admin-only.js remains the single authority for HTTPS upgrade.
-    const legacyRedirect = productionAdminLegacyRedirect(request);
+    const legacyRedirect = productionAdminLegacyRedirect(request, env);
     if (legacyRedirect) return legacyRedirect;
     return adminWorker.fetch(request, env, ctx);
   }
