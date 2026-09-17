@@ -1,0 +1,208 @@
+name: Phase 20 Release Certification 20.1-20.5
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, phase20-release-certification]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-release-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE19_CERTIFIED_BASELINE: 76f99be9938b0eedce92041be1b265279fe955b2
+
+jobs:
+  release-baseline:
+    name: 20.1 Release baseline and exact-SHA ancestry
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify Phase 19 certified baseline remains in ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${PHASE19_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE19_CERTIFIED_BASELINE}" HEAD
+          test -z "$(git status --porcelain)"
+          echo "Phase 20 candidate ${GITHUB_SHA} descends from certified Phase 19 baseline ${PHASE19_CERTIFIED_BASELINE}."
+
+  repository-hygiene:
+    name: 20.2 Repository and release hygiene
+    needs: release-baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - name: Verify stale diagnostic and obsolete draft PRs are closed without merge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for pr in 61 87; do
+            curl -fsS \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${pr}" \
+              | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{const p=JSON.parse(s);if(p.state!=='closed'||p.merged!==false){console.error('PR must be closed without merge:',p.number,p.state,p.merged);process.exit(1)}})"
+          done
+      - name: Run Phase 20 repository hygiene contract
+        run: npm run check:phase20-release
+
+  ci-cd-certification:
+    name: 20.3 Complete CI/CD certification
+    needs: repository-hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run inherited full production verification
+        run: npm run verify
+      - name: Validate primary production Worker bundle
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.jsonc --outdir /tmp/wrangler-primary
+      - name: Validate isolated admin staging Worker bundle
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.admin-staging.jsonc --outdir /tmp/wrangler-admin-staging
+      - name: Validate isolated admin production Worker bundle
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --config wrangler.admin-production.jsonc --outdir /tmp/wrangler-admin-production
+      - name: Validate Cloudflare Builds admin root bundle
+        working-directory: cloudflare/admin-production
+        run: npx --yes wrangler@4.131.0 deploy --dry-run --outdir /tmp/wrangler-admin-build-root
+      - name: Verify dry-run bundles were emitted
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$(find /tmp/wrangler-primary -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-staging -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-production -maxdepth 2 -type f -print -quit)"
+          test -n "$(find /tmp/wrangler-admin-build-root -maxdepth 2 -type f -print -quit)"
+
+  artifact-integrity:
+    name: 20.4 Production build and artifact integrity
+    needs: ci-cd-certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Build exact-SHA production artifacts
+        run: npm run build
+      - name: Certify generated production artifact set
+        run: npm run test:release-artifacts
+      - name: Upload exact-SHA artifact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase20-release-artifact-${{ github.sha }}
+          path: |
+            dist/index.html
+            dist/404.html
+            dist/sitemap.xml
+            dist/robots.txt
+            dist/_redirects
+          if-no-files-found: error
+          retention-days: 14
+
+  exact-production:
+    name: 20.5 Cloudflare exact-SHA production verification
+    needs: [release-baseline, repository-hygiene, ci-cd-certification, artifact-integrity]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Wait for exact merged main SHA on canonical public production
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          expected="${GITHUB_SHA}"
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS -o /tmp/root.html -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] \
+              && grep -Fq "name=\"rc-deployment-sha\" content=\"${expected}\"" /tmp/root.html \
+              && grep -q 'data-prerendered-path="/"' /tmp/root.html \
+              && grep -q 'application/ld+json' /tmp/root.html; then
+              echo "Exact Phase 20 main SHA ${expected} is live on rcitcs.com at attempt ${attempt}."
+              break
+            fi
+            if [[ "$attempt" == '120' ]]; then
+              echo "Canonical production did not converge to exact Phase 20 SHA ${expected}." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify production runtime and immutable release delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          routes=('/' '/about-us' '/services/it/cloud-computing' '/industry/banking-and-finance' '/careers' '/contact')
+          for route in "${routes[@]}"; do
+            code=$(curl -sS -o /tmp/page.html -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'id="main-content"' /tmp/page.html
+            grep -Fq "name=\"rc-deployment-sha\" content=\"${GITHUB_SHA}\"" /tmp/page.html
+          done
+
+          health_code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
+          test "$health_code" = '200'
+          grep -q '"ok":true' /tmp/health.json
+
+          curl -sS "${BASE}/" -o /tmp/index.html
+          app_asset=$(grep -oEm1 '/assets/app-[A-Za-z0-9]+\.js' /tmp/index.html)
+          test -n "$app_asset"
+          curl -sSI "${BASE}${app_asset}" -o /tmp/asset.headers
+          grep -qi 'cache-control:.*max-age=31536000.*immutable' /tmp/asset.headers
+
+      - name: Verify production admin remains private and hardened
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}/")
+          test "$code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          ! grep -qi '^cache-control:.*public' /tmp/admin.headers
+
+      - name: Verify alternate Worker browser identity remains disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          workers_code=$(curl -sS --connect-timeout 10 --max-time 15 --max-redirs 0 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          case "$workers_code" in
+            000|404)
+              echo "Retired workers.dev browser identity is non-serving (${workers_code})."
+              ;;
+            *)
+              echo "Retired workers.dev browser identity is still reachable with HTTP ${workers_code}." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Phase 20.1-20.5 certification boundary
+        run: |
+          echo "Phase 20.1-20.5 exact-SHA production certification passed for ${GITHUB_SHA}."
