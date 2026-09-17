@@ -30,8 +30,12 @@ assert(header.includes('aria-label="Mobile navigation"'), 'Shared header lost mo
 assert(header.includes('aria-current="page"'), 'Active shared navigation does not expose aria-current');
 assert(header.includes('aria-controls="mobile-panel"'), 'Mobile menu control relationship is missing');
 
-const escapedBrand = brandTemplate({ label: 'RC <Home> & services' });
-assert(escapedBrand.includes('aria-label="RC &lt;Home&gt; &amp; services"'), 'Brand accessibility label is not escaped at the component boundary');
+const brand = brandTemplate();
+assert(brand.includes('href="/"'), 'Brand must link to the canonical public home route');
+assert(brand.includes('class="brand-mark" aria-hidden="true"'), 'Decorative brand mark must remain hidden from the accessibility tree');
+assert(!/<a\b[^>]*class="brand"[^>]*aria-label=/i.test(brand), 'Brand link must derive its accessible name from visible copy rather than an overriding aria-label');
+assert(brand.includes('<strong>RC IT Services</strong>'), 'Brand visible company name is missing');
+assert(brand.includes('<span>Technology & Consulting</span>'), 'Brand visible descriptor is missing');
 
 const footer = footerTemplate();
 for (const className of ['site-footer', 'footer-main', 'footer-top', 'footer-brand', 'footer-column', 'footer-bottom', 'footer-legal']) {
@@ -70,7 +74,17 @@ assert(dialog.includes('role="dialog"') && dialog.includes('aria-modal="true"') 
 assert(statusMessage('Saved').includes('role="status"'), 'Status-message primitive lost live-region semantics');
 
 const shell = siteShell('/products', '<main id="main-content">Page</main>');
-assert(shell.indexOf('site-header') < shell.indexOf('main-content') && shell.indexOf('main-content') < shell.indexOf('site-footer'), 'Site shell composition order is invalid');
+const headerIndex = shell.indexOf('site-header');
+const mainIndex = shell.indexOf('<main id="main-content">');
+const footerIndex = shell.indexOf('site-footer');
+assert(!shell.includes('class="skip-link"'), 'Site shell must not duplicate the document-level skip-navigation control');
+assert(headerIndex >= 0 && headerIndex < mainIndex && mainIndex < footerIndex, 'Site shell composition order is invalid');
+
+const publicIndex = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+const skipLinkMarkup = '<a class="skip-link" href="#main-content">Skip to main content</a>';
+const skipLinkCount = publicIndex.split(skipLinkMarkup).length - 1;
+assert(skipLinkCount === 1, 'Document template must expose exactly one keyboard skip-navigation control');
+assert(publicIndex.indexOf(skipLinkMarkup) < publicIndex.indexOf('<div id="site-root">'), 'Skip-navigation control must precede the application root');
 
 const tokens = await readFile(new URL('../src/frontend/styles/tokens.css', import.meta.url), 'utf8');
 for (const token of ['--space-4', '--container-narrow', '--control-height', '--field-height', '--z-dialog', '--focus-outline']) {
@@ -89,5 +103,13 @@ for (const visualBaseline of [
 const baseCss = await readFile(new URL('../src/frontend/styles/base.css', import.meta.url), 'utf8');
 assert(baseCss.includes('.container { width: min(calc(100% - (2 * var(--gutter))), var(--container)); margin-inline: auto; }'), 'Default responsive container width contract changed unexpectedly');
 assert(baseCss.includes('.container--narrow') && baseCss.includes('.container--wide'), 'Controlled responsive container variants are missing');
+assert(baseCss.includes('.skip-link') && baseCss.includes('.skip-link:focus'), 'Keyboard skip-link styling contract is missing');
+
+const globalOverrides = await readFile(new URL('../src/frontend/styles/global-overrides.css', import.meta.url), 'utf8');
+assert(globalOverrides.includes('@import "./phase19-quality.css";'), 'Phase 19 quality stylesheet must remain in the approved override composition');
+const phase19Css = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
+assert(phase19Css.includes('.site-footer .brand-copy span'), 'Phase 19 footer brand contrast correction is missing');
+assert(phase19Css.includes('.footer-column a'), 'Phase 19 footer target-size correction is missing');
+assert(phase19Css.includes('.contact-office-card > .eyebrow'), 'Phase 19 office eyebrow contrast correction is missing');
 
 console.log('PASS: shared navigation, footer, content, button, card, form, feedback, layout, accessibility and approved visual-token contracts verified.');

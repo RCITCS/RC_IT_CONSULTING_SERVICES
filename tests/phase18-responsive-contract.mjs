@@ -5,14 +5,15 @@ import { getPrerenderRoutes } from '../src/frontend/seo/seo-model.js';
 import { getPublishedJobs } from '../src/frontend/app/career-job-catalog.js';
 import { ADMIN_RESPONSIVE_STYLE } from '../worker/admin-responsive.js';
 
-const [phase18Css, responsiveCss, careersCss, careerApplicationCss, legalCss, globalOverrides, navSource] = await Promise.all([
+const [phase18Css, responsiveCss, careersCss, careerApplicationCss, legalCss, globalOverrides, navSource, previewServerSource] = await Promise.all([
   readFile(new URL('../src/frontend/styles/phase18-responsive.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/frontend/styles/responsive.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/frontend/styles/careers.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/frontend/styles/career-application.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/frontend/styles/legal.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/frontend/styles/global-overrides.css', import.meta.url), 'utf8'),
-  readFile(new URL('../src/frontend/app/interactions-nav.js', import.meta.url), 'utf8')
+  readFile(new URL('../src/frontend/app/interactions-nav.js', import.meta.url), 'utf8'),
+  readFile(new URL('../scripts/serve-phase18-preview.mjs', import.meta.url), 'utf8')
 ]);
 
 assert.match(globalOverrides, /@import\s+["']\.\/phase18-responsive\.css["'];/, 'Phase 18 responsive guardrails must be loaded last in the global override layer.');
@@ -60,6 +61,9 @@ assert.match(navSource, /Escape/, 'Mobile navigation must remain keyboard-dismis
 assert.match(navSource, /focusable/, 'Mobile navigation must retain its focus trap.');
 assert.match(navSource, /innerWidth > 1100/, 'Open mobile navigation must close when the layout returns to desktop navigation.');
 
+assert.match(previewServerSource, /handlePublicMediaRequest/, 'Phase 18 preview must reuse the production public-media handler.');
+assert.match(previewServerSource, /url\.pathname\.startsWith\('\/media\/pexels\/'\)/, 'Phase 18 preview must route first-party responsive media before static-file resolution.');
+
 const prerenderRoutes = getPrerenderRoutes();
 assert.ok(prerenderRoutes.length >= ALL_ROUTES.length, 'Responsive route inventory must include every configured public route.');
 for (const route of ['/', '/about-us', '/contact', '/careers', '/privacy', '/terms']) {
@@ -68,4 +72,4 @@ for (const route of ['/', '/about-us', '/contact', '/careers', '/privacy', '/ter
 assert.deepEqual(getPublishedJobs(), [], 'Static builds must keep the server-authoritative no-openings baseline; Phase 18 must not reintroduce a source-code vacancy catalog.');
 assert.ok(careersCss.includes('.career-role-detail') && careersCss.includes('.career-application-layout'), 'Runtime job-detail and candidate-application responsive selectors must remain available for database-backed vacancies.');
 
-console.log(`PASS: Phase 18 responsive contracts cover ${prerenderRoutes.length} static public routes plus runtime Careers/application selectors, forms, legal tables and admin breakpoint/touch behavior.`);
+console.log(`PASS: Phase 18 responsive contracts cover ${prerenderRoutes.length} static public routes plus runtime Careers/application selectors, forms, legal tables, production-media preview parity and admin breakpoint/touch behavior.`);

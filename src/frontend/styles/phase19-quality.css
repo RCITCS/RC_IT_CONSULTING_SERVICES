@@ -1,0 +1,17 @@
+/* Phase 19 — proven WCAG 2.2 corrections.
+   This quality layer is imported before the Phase 18 final responsive guardrail so
+   responsive/mobile ownership remains authoritative. */
+
+.site-footer .brand-copy span {
+  color: #b9c6ca;
+}
+
+.footer-column a {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.contact-office-card > .eyebrow {
+  color: var(--color-primary-300);
+}

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { routeStyleKeys } from '../src/frontend/app/route-styles.js';
+import { responsiveImageMarkup } from '../src/frontend/app/image-utils.js';
 import { isServiceDetailRoute } from '../src/frontend/router/router.js';
 
 function assert(condition, message) {
@@ -45,9 +46,16 @@ for (const breakpoint of ['max-width: 1100px', 'max-width: 900px', 'max-width: 6
   assert(responsiveCss.includes(breakpoint), `Responsive contract lost breakpoint: ${breakpoint}`);
 }
 
-const imageUtils = await readFile(new URL('../src/frontend/app/image-utils.js', import.meta.url), 'utf8');
-assert(imageUtils.includes('[320, 480, 720, 960, 1280, 1600]'), 'Responsive image candidate set does not include the mobile 320px source.');
-assert(imageUtils.includes("loading = 'lazy'"), 'Images no longer default to lazy loading.');
-assert(imageUtils.includes('decoding="async"'), 'Async image decoding contract is missing.');
+const pexelsFixture = 'https://images.pexels.com/photos/5439138/pexels-photo-5439138.jpeg';
+const responsiveMarkup = responsiveImageMarkup(pexelsFixture, 'Responsive performance contract');
+for (const width of [320, 480, 640, 720, 960, 1280, 1600]) {
+  assert(
+    responsiveMarkup.includes(`/media/pexels/5439138?w=${width} ${width}w`),
+    `Responsive image output is missing the required ${width}w first-party candidate.`
+  );
+}
+assert(responsiveMarkup.includes('src="/media/pexels/5439138?w=1280"'), 'Responsive image default source must use the first-party media route.');
+assert(responsiveMarkup.includes('loading="lazy"'), 'Images no longer default to lazy loading.');
+assert(responsiveMarkup.includes('decoding="async"'), 'Async image decoding contract is missing.');
 
 console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints and responsive-image performance contracts verified.');
