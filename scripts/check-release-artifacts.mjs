@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 const expectedSha = String(process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA || '').trim();
+const jsBanner = '/* rcitcs-esm */';
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -77,7 +79,20 @@ assert.match(indexHtml, /\/assets\/global-overrides-[A-Za-z0-9]+\.css/, 'Root do
 const jsAssetNames = assetNames.filter((name) => name.endsWith('.js'));
 const referencedChunkNames = new Set();
 for (const jsAssetName of jsAssetNames) {
-  const source = await readFile(path.join(assetsDirectory, jsAssetName), 'utf8');
+  const fullPath = path.join(assetsDirectory, jsAssetName);
+  const info = await stat(fullPath);
+  assert.ok(info.size > 0, `Production JavaScript asset ${jsAssetName} must not be empty.`);
+
+  const source = await readFile(fullPath, 'utf8');
+  assert.ok(source.includes(jsBanner), `Production JavaScript asset ${jsAssetName} is missing the deterministic ESM build marker.`);
+
+  const syntaxCheck = spawnSync(process.execPath, ['--check', fullPath], { encoding: 'utf8' });
+  assert.equal(
+    syntaxCheck.status,
+    0,
+    `Production JavaScript asset ${jsAssetName} failed syntax validation: ${syntaxCheck.stderr || syntaxCheck.stdout}`
+  );
+
   for (const match of source.matchAll(/(?:\.\/)?(chunk-[A-Za-z0-9]+\.js)/g)) {
     referencedChunkNames.add(match[1]);
   }
@@ -87,18 +102,9 @@ for (const referencedChunkName of referencedChunkNames) {
   assert.ok(assetNames.includes(referencedChunkName), `Referenced split chunk ${referencedChunkName} is missing from dist/assets.`);
 }
 
-const referencedNoOpChunks = [];
 for (const assetName of assetNames) {
   const info = await stat(path.join(assetsDirectory, assetName));
-  if (info.size > 0) continue;
-
-  const isHashedSplitJsChunk = /^chunk-[A-Za-z0-9]+\.js$/.test(assetName);
-  const isReferenced = referencedChunkNames.has(assetName);
-  assert.ok(
-    isHashedSplitJsChunk && isReferenced,
-    `Zero-byte production asset ${assetName} is not an intentional referenced split-module no-op.`
-  );
-  referencedNoOpChunks.push(assetName);
+  assert.ok(info.size > 0, `Production asset ${assetName} must not be empty.`);
 }
 
 assert.ok(sitemap.includes('<urlset'), 'Sitemap must contain a urlset.');
@@ -109,9 +115,6 @@ assert.ok(!sitemap.includes('/apply</loc>'), 'Application submission routes must
 assert.ok(robots.includes('Sitemap: https://rcitcs.com/sitemap.xml'), 'robots.txt must advertise the canonical sitemap.');
 assert.ok(redirects.trim().length > 0, '_redirects must not be empty.');
 
-const noOpNote = referencedNoOpChunks.length > 0
-  ? `; referenced no-op split chunks: ${referencedNoOpChunks.join(', ')}`
-  : '';
 console.log(
-  `Phase 20 artifact integrity passed: ${htmlFiles.length} HTML artifacts, ${assetNames.length} hashed/static assets${expectedSha ? `, exact SHA ${expectedSha}` : ''}${noOpNote}.`
+  `Phase 20 artifact integrity passed: ${htmlFiles.length} HTML artifacts, ${assetNames.length} non-empty hashed/static assets${expectedSha ? `, exact SHA ${expectedSha}` : ''}.`
 );
