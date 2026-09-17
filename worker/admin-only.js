@@ -50,6 +50,7 @@ function copyResponseHeaders(source) {
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
+  headers.delete(ADMIN_DEPLOYMENT_SHA_HEADER);
   return headers;
 }
 
