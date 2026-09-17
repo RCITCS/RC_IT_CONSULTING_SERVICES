@@ -63,6 +63,7 @@ const jsBuild = await build({
   entryNames: 'app-[hash]',
   chunkNames: 'chunk-[hash]',
   metafile: true,
+  banner: { js: '/* rcitcs-esm */' },
   legalComments: 'none',
   charset: 'utf8'
 });
