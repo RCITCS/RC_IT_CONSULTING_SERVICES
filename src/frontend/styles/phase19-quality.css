@@ -15,3 +15,12 @@
 .contact-office-card > .eyebrow {
   color: var(--color-primary-300);
 }
+
+/* Performance: preserve the approved Careers composition while deferring layout
+   and paint work for sections that start below the initial viewport. */
+@supports (content-visibility: auto) {
+  .careers-page > .section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 760px;
+  }
+}
