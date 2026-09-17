@@ -20,6 +20,7 @@ const productionConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.ad
 const stagingConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.admin-staging.jsonc'), 'utf8'));
 const publicConfig = JSON.parse(fs.readFileSync(path.join(root, 'wrangler.jsonc'), 'utf8'));
 const SHA = '0123456789abcdef0123456789abcdef01234567';
+const FORGED_UPSTREAM_SHA = 'f'.repeat(40);
 
 assert.equal(normalizeWorkersCommitSha(SHA.toUpperCase()), SHA);
 assert.equal(normalizeWorkersCommitSha('not-a-sha'), null);
@@ -53,12 +54,39 @@ const enhanced = await enhanceAdminResponse(
 assert.equal(enhanced.headers.get(ADMIN_DEPLOYMENT_SHA_HEADER), SHA);
 assert.equal(enhanced.headers.get('x-rc-admin-environment'), 'production');
 
+const forgedEnhanced = await enhanceAdminResponse(
+  new Response('ok', {
+    status: 200,
+    headers: {
+      'content-type': 'text/plain',
+      [ADMIN_DEPLOYMENT_SHA_HEADER]: FORGED_UPSTREAM_SHA
+    }
+  }),
+  'GET',
+  { RC_ADMIN_ENVIRONMENT: 'production', RC_ADMIN_DEPLOYMENT_SHA: SHA }
+);
+assert.equal(
+  forgedEnhanced.headers.get(ADMIN_DEPLOYMENT_SHA_HEADER),
+  SHA,
+  'A valid local build identity must replace any upstream deployment marker.'
+);
+
 const invalidEnhanced = await enhanceAdminResponse(
-  new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } }),
+  new Response('ok', {
+    status: 200,
+    headers: {
+      'content-type': 'text/plain',
+      [ADMIN_DEPLOYMENT_SHA_HEADER]: FORGED_UPSTREAM_SHA
+    }
+  }),
   'GET',
   { RC_ADMIN_ENVIRONMENT: 'production', RC_ADMIN_DEPLOYMENT_SHA: 'invalid' }
 );
-assert.equal(invalidEnhanced.headers.has(ADMIN_DEPLOYMENT_SHA_HEADER), false, 'Invalid deployment identity must never be emitted as trusted metadata.');
+assert.equal(
+  invalidEnhanced.headers.has(ADMIN_DEPLOYMENT_SHA_HEADER),
+  false,
+  'Invalid local identity must fail closed and must not preserve an upstream deployment marker.'
+);
 
 for (const method of ['GET', 'HEAD', 'POST']) {
   const response = adminStagingUnavailableResponse(method, {
