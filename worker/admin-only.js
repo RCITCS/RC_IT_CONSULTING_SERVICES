@@ -18,6 +18,12 @@ export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';
 export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';
 export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';
 export const ADMIN_TRANSPORT_SECURITY_POLICY = 'max-age=31536000; includeSubDomains; preload';
+export const ADMIN_DEPLOYMENT_SHA_HEADER = 'x-rc-admin-deployment-sha';
+
+export function normalizeAdminDeploymentSha(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{40}$/.test(normalized) ? normalized : null;
+}
 
 export function rewriteAdminEdgeReference(value = '') {
   let rewritten = String(value).replaceAll(`${ADMIN_UPSTREAM_ORIGIN}${ADMIN_UPSTREAM_BASE}`, '');
@@ -44,20 +50,24 @@ function copyResponseHeaders(source) {
   headers.delete('content-length');
   headers.delete('content-encoding');
   headers.delete('transfer-encoding');
+  headers.delete(ADMIN_DEPLOYMENT_SHA_HEADER);
   return headers;
 }
 
-function setBuildMarkers(headers, env = {}) {
+export function applyAdminBuildMarkers(headers, env = {}) {
   headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);
   headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);
   headers.set('strict-transport-security', ADMIN_TRANSPORT_SECURITY_POLICY);
   const environment = String(env?.RC_ADMIN_ENVIRONMENT || '').trim().toLowerCase();
   if (environment) headers.set('x-rc-admin-environment', environment);
+  const deploymentSha = normalizeAdminDeploymentSha(env?.RC_ADMIN_DEPLOYMENT_SHA);
+  if (deploymentSha) headers.set(ADMIN_DEPLOYMENT_SHA_HEADER, deploymentSha);
+  return headers;
 }
 
 function markAdminBuildSurface(response, env = {}) {
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers, env);
+  applyAdminBuildMarkers(headers, env);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -173,20 +183,16 @@ export async function normalizeAdminBrowserPost(request) {
   return request;
 }
 
-function adminInteractionResponse() {
-  return new Response(ADMIN_INTERACTION_SCRIPT, {
-    status: 200,
-    headers: {
-      'content-type': 'text/javascript; charset=utf-8',
-      'cache-control': 'no-store, max-age=0, must-revalidate',
-      'x-content-type-options': 'nosniff',
-      'x-robots-tag': 'noindex, nofollow, noarchive',
-      'cross-origin-resource-policy': 'same-origin',
-      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
-      'x-rc-admin-build-surface': ADMIN_BUILD_SURFACE,
-      'x-rc-admin-html-media-fix': ADMIN_HTML_MEDIA_FIX
-    }
+function adminInteractionResponse(env = {}) {
+  const headers = new Headers({
+    'content-type': 'text/javascript; charset=utf-8',
+    'cache-control': 'no-store, max-age=0, must-revalidate',
+    'x-content-type-options': 'nosniff',
+    'x-robots-tag': 'noindex, nofollow, noarchive',
+    'cross-origin-resource-policy': 'same-origin'
   });
+  applyAdminBuildMarkers(headers, env);
+  return new Response(ADMIN_INTERACTION_SCRIPT, { status: 200, headers });
 }
 
 function allowAdminInteractions(csp = '') {
@@ -212,7 +218,7 @@ function enhancedHtmlResponse(response, body, env = {}) {
   headers.set('content-type', 'text/html; charset=utf-8');
   headers.set('content-security-policy', allowAdminInteractions(headers.get('content-security-policy') || ''));
   headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);
-  setBuildMarkers(headers, env);
+  applyAdminBuildMarkers(headers, env);
   return new Response(enhanced, {
     status: response.status,
     statusText: response.statusText,
@@ -240,7 +246,7 @@ export async function enhanceAdminResponse(response, requestMethod, env = {}) {
   if (looksLikeHtml(body)) return enhancedHtmlResponse(response, body, env);
 
   const headers = copyResponseHeaders(response.headers);
-  setBuildMarkers(headers, env);
+  applyAdminBuildMarkers(headers, env);
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
@@ -253,7 +259,7 @@ export function isAdminStagingUnavailable(hostname = '', env = {}) {
     && String(env?.RC_ADMIN_STAGING_MODE || '').trim().toLowerCase() === ADMIN_STAGING_MODE_UNAVAILABLE;
 }
 
-export function adminStagingUnavailableResponse(requestMethod = 'GET') {
+export function adminStagingUnavailableResponse(requestMethod = 'GET', env = {}) {
   const headers = new Headers({
     'content-type': 'text/plain; charset=utf-8',
     'cache-control': 'no-store, no-transform, max-age=0, must-revalidate',
@@ -265,7 +271,6 @@ export function adminStagingUnavailableResponse(requestMethod = 'GET') {
     'referrer-policy': 'no-referrer',
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
     'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
-    'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY,
     'cross-origin-opener-policy': 'same-origin',
     'cross-origin-resource-policy': 'same-origin',
     'x-permitted-cross-domain-policies': 'none',
@@ -273,24 +278,22 @@ export function adminStagingUnavailableResponse(requestMethod = 'GET') {
     'x-rc-admin-staging-state': 'intentionally-unavailable',
     'retry-after': '3600'
   });
-  setBuildMarkers(headers);
+  applyAdminBuildMarkers(headers, { ...env, RC_ADMIN_ENVIRONMENT: 'staging' });
   const body = requestMethod === 'HEAD' ? null : 'Staging administration is intentionally unavailable.';
   return new Response(body, { status: 503, headers });
 }
 
-function forceAdminHttps(request) {
+function forceAdminHttps(request, env = {}) {
   const url = new URL(request.url);
   if (url.protocol !== 'http:' || !ADMIN_HOSTS.has(url.hostname.toLowerCase())) return null;
   url.protocol = 'https:';
-  return new Response(null, {
-    status: 308,
-    headers: {
-      location: url.toString(),
-      'cache-control': 'no-store, max-age=0, must-revalidate',
-      'x-content-type-options': 'nosniff',
-      'strict-transport-security': ADMIN_TRANSPORT_SECURITY_POLICY
-    }
+  const headers = new Headers({
+    location: url.toString(),
+    'cache-control': 'no-store, max-age=0, must-revalidate',
+    'x-content-type-options': 'nosniff'
   });
+  applyAdminBuildMarkers(headers, env);
+  return new Response(null, { status: 308, headers });
 }
 
 export default {
@@ -307,17 +310,17 @@ export default {
         }
       });
     }
-    const httpsRedirect = forceAdminHttps(request);
+    const httpsRedirect = forceAdminHttps(request, env);
     if (httpsRedirect) return httpsRedirect;
     if (isAdminStagingUnavailable(host, env)) {
-      return adminStagingUnavailableResponse(request.method);
+      return adminStagingUnavailableResponse(request.method, env);
     }
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === ADMIN_INTERACTION_PATH) {
+      const response = adminInteractionResponse(env);
       if (request.method === 'HEAD') {
-        const response = adminInteractionResponse();
         return new Response(null, { status: response.status, headers: response.headers });
       }
-      return adminInteractionResponse();
+      return response;
     }
     request = await normalizeAdminBrowserPost(request);
     const response = await runtime.fetch(request, env, ctx);

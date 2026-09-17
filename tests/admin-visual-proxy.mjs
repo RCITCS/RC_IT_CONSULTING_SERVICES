@@ -13,6 +13,7 @@ const legacyConfig = JSON.parse(await readFile(path.join(root, 'cloudflare/legac
 const publicEntrypointSource = await readFile(path.join(root, 'worker/index.js'), 'utf8');
 const adminOnlySource = await readFile(path.join(root, 'worker/admin-only.js'), 'utf8');
 const productionAdminSource = await readFile(path.join(root, 'worker/admin-production.js'), 'utf8');
+const buildSelectorSource = await readFile(path.join(root, 'scripts/configure-cloudflare-workers-build.mjs'), 'utf8');
 const domainWorkflow = await readFile(path.join(root, '.github/workflows/admin-portal-domain-smoke.yml'), 'utf8');
 const {
   adminOriginAllowed,
@@ -115,6 +116,7 @@ assert.equal(stagingConfig.workers_dev, false);
 assert.equal(stagingConfig.keep_vars, true);
 assert.equal(stagingConfig.vars?.RC_ADMIN_ENVIRONMENT, 'staging');
 assert.equal(stagingConfig.vars?.RC_ADMIN_STAGING_MODE, 'unavailable');
+assert.equal(Object.hasOwn(stagingConfig.vars || {}, 'RC_ADMIN_DEPLOYMENT_SHA'), false, 'Static staging config must not hard-code a release SHA.');
 assert.deepEqual(
   stagingConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [['admin-staging.rcitcs.com', true]],
@@ -135,20 +137,25 @@ assert.equal(
   'Production admin Wrangler config must be authoritative for non-secret runtime variables.'
 );
 assert.equal(productionAdminConfig.vars?.RC_ADMIN_ENVIRONMENT, 'production');
+assert.equal(Object.hasOwn(productionAdminConfig.vars || {}, 'RC_ADMIN_DEPLOYMENT_SHA'), false, 'Static production config must not hard-code a release SHA.');
 assert.deepEqual(
   productionAdminConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [['admin.rcitcs.com', true]],
   'Canonical production admin Worker must provision only admin.rcitcs.com DNS/TLS ownership.'
 );
+assert.ok(buildSelectorSource.includes('WORKERS_CI_COMMIT_SHA'), 'Workers Builds must source exact admin deployment identity from the Cloudflare build commit.');
+assert.ok(buildSelectorSource.includes('RC_ADMIN_DEPLOYMENT_SHA'), 'Workers Builds must inject exact admin deployment identity into the generated admin config.');
 assert.ok(productionAdminSource.includes("import adminWorker"), 'Production wrapper must retain the hardened shared admin runtime.');
 assert.ok(productionAdminSource.includes('return adminWorker.fetch(request, env, ctx);'), 'Canonical production requests must delegate to the shared admin runtime.');
-assert.ok(productionAdminSource.includes('productionAdminLegacyRedirect(request)'), 'Production wrapper may add the approved legacy-navigation canonicalization boundary.');
+assert.ok(productionAdminSource.includes('productionAdminLegacyRedirect(request, env)'), 'Production wrapper may add legacy-navigation canonicalization only while preserving deployment identity from the runtime environment.');
 
 assert.ok(adminOnlySource.includes("new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com'])"));
 assert.ok(adminOnlySource.includes("return new Response('Not Found'"));
 assert.ok(adminOnlySource.includes('const response = await runtime.fetch(request, env, ctx);'));
 assert.ok(adminOnlySource.includes('return enhanceAdminResponse(response, request.method, env);'));
 assert.ok(adminOnlySource.includes("headers.set('x-rc-admin-environment', environment);"));
+assert.ok(adminOnlySource.includes("ADMIN_DEPLOYMENT_SHA_HEADER = 'x-rc-admin-deployment-sha'"));
+assert.ok(adminOnlySource.includes('headers.set(ADMIN_DEPLOYMENT_SHA_HEADER, deploymentSha);'));
 assert.ok(adminOnlySource.includes("import { injectAdminResponsiveHtml } from './admin-responsive.js';"));
 assert.ok(adminOnlySource.includes("ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1'"));
 assert.ok(adminOnlySource.includes('ADMIN_INTERACTION_PATH'));
@@ -177,4 +184,4 @@ for (const expected of [
   assert.ok(domainWorkflow.includes(expected), `Admin domain release gate missing: ${expected}`);
 }
 
-console.log('PASS: public apex/www and dedicated admin delivery remain isolated; Phase 17.10 closes workers.dev/preview exposure and rejects unowned public Hosts.');
+console.log('PASS: public apex/www and dedicated admin delivery remain isolated; Phase 17.10 boundaries and Phase 20 exact admin deployment identity are preserved.');

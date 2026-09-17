@@ -31,6 +31,10 @@ assert.ok(
   buildSelector.includes("'rcitcs-admin-production': 'wrangler.admin-production.jsonc'"),
   "Cloudflare Workers Builds must keep a distinct canonical production-admin config mapping"
 );
+assert.ok(
+  buildSelector.includes('RC_ADMIN_DEPLOYMENT_SHA'),
+  "Cloudflare Workers Builds must bind admin deployments to the exact source commit"
+);
 
 assert.equal(publicConfig.name, "rc-it-consulting-services");
 assert.deepEqual(
@@ -56,6 +60,11 @@ assert.equal(
   "production admin Wrangler config must remain authoritative for non-secret runtime variables"
 );
 assert.equal(productionConfig.vars?.RC_ADMIN_ENVIRONMENT, "production");
+assert.equal(
+  Object.hasOwn(productionConfig.vars || {}, "RC_ADMIN_DEPLOYMENT_SHA"),
+  false,
+  "exact release identity must be injected by Workers Builds rather than hard-coded into static Wrangler policy"
+);
 assert.deepEqual(
   productionConfig.routes?.map((route) => [route.pattern, route.custom_domain]),
   [["admin.rcitcs.com", true]],
@@ -66,19 +75,21 @@ assert.ok(
   "production wrapper must preserve the Phase 16 hardened admin runtime as the canonical implementation"
 );
 assert.ok(
-  productionAdminWorker.includes("productionAdminLegacyRedirect(request)"),
-  "production wrapper may add only the Phase 17 canonical legacy-navigation boundary before the Phase 16 runtime"
+  productionAdminWorker.includes("productionAdminLegacyRedirect(request, env)"),
+  "production wrapper may add the canonical legacy-navigation boundary only while preserving the runtime environment needed for exact deployment identity"
 );
 
 for (const fragment of [
   "export const ADMIN_EDGE_RELEASE = 'phase12-job-authoring-v1';",
   "export const ADMIN_BUILD_SURFACE = 'phase16-security-closure-v1';",
   "export const ADMIN_HTML_MEDIA_FIX = 'phase16-html-content-type-v1';",
+  "export const ADMIN_DEPLOYMENT_SHA_HEADER = 'x-rc-admin-deployment-sha';",
   "headers.set('x-rc-admin-edge-release', ADMIN_EDGE_RELEASE);",
   "headers.set('x-rc-admin-build-surface', ADMIN_BUILD_SURFACE);",
   "headers.set('x-rc-admin-html-media-fix', ADMIN_HTML_MEDIA_FIX);",
   "headers.set('x-rc-admin-environment', environment);",
+  "headers.set(ADMIN_DEPLOYMENT_SHA_HEADER, deploymentSha);",
   "return markAdminBuildSurface(response, env);"
-]) assert.ok(adminWorker.includes(fragment), `admin runtime lost Phase 16/17 edge ownership contract: ${fragment}`);
+]) assert.ok(adminWorker.includes(fragment), `admin runtime lost Phase 16/17/20 edge ownership contract: ${fragment}`);
 
-console.log("Phase 16 admin security/media-type contract preserved through Phase 17.7 ownership convergence and production legacy canonicalization: PASS");
+console.log("Phase 16 admin security/media-type contract is preserved while Phase 20 adds exact deployment identity to the dedicated production/staging edges: PASS");

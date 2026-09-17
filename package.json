@@ -23,6 +23,7 @@
     "check:phase16-audit-viewer": "node tests/phase16-audit-viewer.mjs",
     "check:phase16": "node tests/phase16-all.mjs",
     "check:phase20-release": "node tests/phase20-release-certification.mjs",
+    "check:phase20-production": "node tests/phase20-admin-deployment-identity.mjs && node tests/phase20-production-verification.mjs",
     "check:architecture": "node scripts/check-architecture.mjs && npm run check:backend-architecture && npm run check:persistence-architecture && npm run check:admin-auth-security && npm run check:phase10-dashboard && npm run check:cloudflare-builds && npm run check:phase11-jobs && npm run check:phase12-applications && npm run check:phase13-notifications && npm run check:phase14-contact-data && npm run check:phase15-candidate-communication && npm run check:phase16",
     "test:smoke": "node tests/smoke.mjs",
     "test:backend": "node tests/backend-foundation.mjs",
@@ -52,7 +53,7 @@
     "test": "npm run test:smoke && npm run test:backend && npm run test:persistence && npm run test:admin-auth && npm run test:admin-dashboard && npm run test:admin-jobs && npm run test:phase11-content && npm run test:phase11-seed && npm run test:phase11-spec && npm run test:public-careers-provider && npm run test:public-careers && npm run test:phase12 && npm run test:phase13 && npm run test:phase14 && npm run test:phase15 && npm run test:phase16 && npm run test:admin-visual-proxy && npm run test:render && npm run test:design-system && npm run test:performance-routing && npm run test:seo && npm run test:seo-preview",
     "build": "node scripts/build.mjs",
     "provision:storage": "node scripts/provision-supabase-storage.mjs",
-    "verify": "npm run check:architecture && npm test && npm run check:phase20-release && npm run build && npm run test:performance && npm run test:seo-build"
+    "verify": "npm run check:architecture && npm test && npm run check:phase20-release && npm run check:phase20-production && npm run build && npm run test:performance && npm run test:seo-build"
   },
   "dependencies": {
     "bootstrap": "5.3.8"

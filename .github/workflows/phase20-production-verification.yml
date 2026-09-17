@@ -1,0 +1,333 @@
+name: Phase 20 Production Verification 20.6-20.10
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-production-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE20_5_CERTIFIED_BASELINE: e1cd60fcdcef8743d7faa932960995fe3ac94047
+
+jobs:
+  production-contract:
+    name: Phase 20.6-20.10 source and regression contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify Phase 20.5 certified baseline remains in clean ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          git cat-file -e "${PHASE20_5_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE20_5_CERTIFIED_BASELINE}" HEAD
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: Run complete inherited verification
+        run: npm run verify
+
+  public-production:
+    name: 20.6 Public website production smoke and deep-route verification
+    needs: production-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Resolve production SHA under test
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            expected='${{ github.event.pull_request.base.sha }}'
+          else
+            expected="${GITHUB_SHA}"
+          fi
+          test -n "$expected"
+          echo "EXPECTED_PRODUCTION_SHA=${expected}" >> "$GITHUB_ENV"
+      - name: Verify exact SHA and all canonical public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS --max-time 20 -o /tmp/root.html -w '%{http_code}' "${BASE}/" || true)
+            if [[ "$code" == '200' ]] && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/root.html && grep -Fq 'data-prerendered-path="/"' /tmp/root.html; then
+              break
+            fi
+            [[ "$attempt" != '120' ]] || { echo "rcitcs.com did not converge to ${EXPECTED_PRODUCTION_SHA}." >&2; exit 1; }
+            sleep 5
+          done
+
+          route_source='.'
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            git cat-file -e "${EXPECTED_PRODUCTION_SHA}^{commit}"
+            git worktree add --detach /tmp/phase20-deployed-base "${EXPECTED_PRODUCTION_SHA}"
+            route_source='/tmp/phase20-deployed-base'
+          fi
+          (
+            cd "$route_source"
+            node --input-type=module -e "import { getPrerenderRoutes } from './src/frontend/seo/seo-model.js'; for (const route of getPrerenderRoutes()) console.log(route);"
+          ) > /tmp/phase20-routes.txt
+          test -s /tmp/phase20-routes.txt
+
+          route_count=0
+          while IFS= read -r route; do
+            [[ -n "$route" ]] || continue
+            route_count=$((route_count + 1))
+            code=$(curl -sS --max-time 20 -o /tmp/route.html -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'id="main-content"' /tmp/route.html
+            grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/route.html
+            grep -Fq "data-prerendered-path=\"${route}\"" /tmp/route.html
+            grep -Fq 'https://rcitcs.com' /tmp/route.html
+            ! grep -q 'Administrator sign in' /tmp/route.html
+          done < /tmp/phase20-routes.txt
+          test "$route_count" -ge 60
+          echo "Verified ${route_count} canonical production routes from ${EXPECTED_PRODUCTION_SHA}."
+      - name: Verify health sitemap robots and 404 boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          code=$(curl -sS --max-time 20 -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health"); test "$code" = '200'; grep -q '"ok":true' /tmp/health.json
+          code=$(curl -sS --max-time 20 -o /tmp/sitemap.xml -w '%{http_code}' "${BASE}/sitemap.xml"); test "$code" = '200'; grep -q '<urlset' /tmp/sitemap.xml; grep -q '<loc>https://rcitcs.com/' /tmp/sitemap.xml; ! grep -q 'admin.rcitcs.com' /tmp/sitemap.xml
+          code=$(curl -sS --max-time 20 -o /tmp/robots.txt -w '%{http_code}' "${BASE}/robots.txt"); test "$code" = '200'; grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
+          missing="/__phase20_missing_${GITHUB_RUN_ID}__"
+          missing_code=$(curl -sS --max-time 20 -D /tmp/missing.headers -o /tmp/missing.html -w '%{http_code}' "${BASE}${missing}")
+          test "$missing_code" = '404'
+          grep -qi 'noindex' /tmp/missing.html
+          ! grep -q 'Administrator sign in' /tmp/missing.html
+
+  admin-production:
+    name: 20.7 Admin production domain acceptance
+    needs: public-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Resolve expected admin deployment SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap=0
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            expected='${{ github.event.pull_request.base.sha }}'
+            if [[ "$expected" == "${PHASE20_5_CERTIFIED_BASELINE}" ]]; then bootstrap=1; fi
+          else
+            expected="${GITHUB_SHA}"
+          fi
+          test -n "$expected"
+          echo "EXPECTED_ADMIN_SHA=${expected}" >> "$GITHUB_ENV"
+          echo "ADMIN_SHA_BOOTSTRAP_ALLOWED=${bootstrap}" >> "$GITHUB_ENV"
+      - name: Verify production admin exact deployment identity and private boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN='https://admin.rcitcs.com'
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/" || true)
+            environment=$(awk -F': *' 'tolower($1)=="x-rc-admin-environment" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers 2>/dev/null | tail -n1)
+            deployed_sha=$(awk -F': *' 'tolower($1)=="x-rc-admin-deployment-sha" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers 2>/dev/null | tail -n1)
+            sha_ok=0
+            if [[ "$deployed_sha" == "$EXPECTED_ADMIN_SHA" ]]; then
+              sha_ok=1
+            elif [[ "$ADMIN_SHA_BOOTSTRAP_ALLOWED" == '1' && -z "$deployed_sha" ]]; then
+              sha_ok=1
+            fi
+            if [[ "$code" == '200' && "$environment" == 'production' && "$sha_ok" == '1' ]] && grep -q 'Administrator sign in' /tmp/admin.html; then
+              break
+            fi
+            [[ "$attempt" != '120' ]] || { echo "Production admin did not converge to exact SHA ${EXPECTED_ADMIN_SHA}; observed ${deployed_sha:-missing}." >&2; exit 1; }
+            sleep 5
+          done
+          if [[ -z "$deployed_sha" ]]; then
+            echo "Bootstrap PR: Phase 20.5 admin release predates x-rc-admin-deployment-sha; post-merge exact SHA remains mandatory."
+          else
+            test "$deployed_sha" = "$EXPECTED_ADMIN_SHA"
+          fi
+          grep -qi '^content-type: *text/html' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^x-content-type-options: *nosniff' /tmp/admin.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/admin.headers
+          grep -qi '^content-security-policy:.*frame-ancestors' /tmp/admin.headers
+          grep -qi '^strict-transport-security:' /tmp/admin.headers
+          ! grep -q 'Technology that moves business forward' /tmp/admin.html
+          ! grep -q '/functions/v1/admin-auth' /tmp/admin.html
+
+          for route in /applications /jobs; do
+            code=$(curl -sS --max-time 20 -D /tmp/private.headers -o /tmp/private.html -w '%{http_code}' "${ADMIN}${route}")
+            test "$code" = '200'; grep -q 'Administrator sign in' /tmp/private.html
+            grep -qi '^cache-control:.*no-store' /tmp/private.headers; grep -qi '^x-robots-tag:.*noindex' /tmp/private.headers; grep -qi '^x-rc-admin-environment: *production' /tmp/private.headers
+          done
+
+          code=$(curl -sS --max-time 20 -D /tmp/session.headers -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
+          test "$code" = '401'; grep -q '"authenticated":false' /tmp/session.json; grep -qi '^cache-control:.*no-store' /tmp/session.headers; grep -qi '^x-robots-tag:.*noindex' /tmp/session.headers
+      - name: Verify hostile-origin admin mutation rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 20 -D /tmp/rejected.headers -o /tmp/rejected.txt -w '%{http_code}' -X POST -H 'Origin: https://example.invalid' -H 'content-type: application/x-www-form-urlencoded' --data 'email=x&password=x' 'https://admin.rcitcs.com/login')
+          test "$code" = '403'
+          grep -q 'Request rejected' /tmp/rejected.txt
+          grep -qi '^cache-control:.*no-store' /tmp/rejected.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/rejected.headers
+          ! grep -qi '^access-control-allow-origin: *\*' /tmp/rejected.headers
+          ! grep -qi '^set-cookie:' /tmp/rejected.headers
+
+  admin-staging:
+    name: 20.8 Admin staging isolation verification
+    needs: admin-production
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Resolve expected staging deployment SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap=0
+          if [[ "${GITHUB_EVENT_NAME}" == 'pull_request' ]]; then
+            expected='${{ github.event.pull_request.base.sha }}'
+            if [[ "$expected" == "${PHASE20_5_CERTIFIED_BASELINE}" ]]; then bootstrap=1; fi
+          else
+            expected="${GITHUB_SHA}"
+          fi
+          test -n "$expected"
+          echo "EXPECTED_ADMIN_SHA=${expected}" >> "$GITHUB_ENV"
+          echo "ADMIN_SHA_BOOTSTRAP_ALLOWED=${bootstrap}" >> "$GITHUB_ENV"
+      - name: Verify staging exact deployment remains intentionally unavailable and non-mutating
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGING='https://admin-staging.rcitcs.com'
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS --max-time 20 -D /tmp/staging.headers -o /tmp/staging.html -w '%{http_code}' "${STAGING}/" || true)
+            deployed_sha=$(awk -F': *' 'tolower($1)=="x-rc-admin-deployment-sha" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/staging.headers 2>/dev/null | tail -n1)
+            sha_ok=0
+            if [[ "$deployed_sha" == "$EXPECTED_ADMIN_SHA" ]]; then
+              sha_ok=1
+            elif [[ "$ADMIN_SHA_BOOTSTRAP_ALLOWED" == '1' && -z "$deployed_sha" ]]; then
+              sha_ok=1
+            fi
+            if [[ "$code" == '503' && "$sha_ok" == '1' ]] \
+              && grep -qi '^x-rc-admin-environment: *staging' /tmp/staging.headers \
+              && grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging.headers; then
+              break
+            fi
+            [[ "$attempt" != '120' ]] || { echo "Admin staging did not converge to exact SHA ${EXPECTED_ADMIN_SHA}; observed ${deployed_sha:-missing}." >&2; exit 1; }
+            sleep 5
+          done
+          if [[ -z "$deployed_sha" ]]; then
+            echo "Bootstrap PR: Phase 20.5 staging release predates x-rc-admin-deployment-sha; post-merge exact SHA remains mandatory."
+          else
+            test "$deployed_sha" = "$EXPECTED_ADMIN_SHA"
+          fi
+          grep -q 'Staging administration is intentionally unavailable.' /tmp/staging.html
+          ! grep -q 'Administrator sign in' /tmp/staging.html
+          grep -qi '^cache-control:.*no-store' /tmp/staging.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/staging.headers
+          grep -qi '^x-content-type-options: *nosniff' /tmp/staging.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/staging.headers
+          grep -qi '^content-security-policy:' /tmp/staging.headers
+          grep -qi '^strict-transport-security:' /tmp/staging.headers
+          ! grep -qi '^set-cookie:' /tmp/staging.headers
+          ! grep -qi '^location:' /tmp/staging.headers
+
+          code=$(curl -sS --max-time 20 -D /tmp/staging-post.headers -o /tmp/staging-post.txt -w '%{http_code}' -X POST -H 'content-type: application/x-www-form-urlencoded' --data 'email=x&password=x' "${STAGING}/login")
+          test "$code" = '503'
+          grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging-post.headers
+          grep -qi '^x-rc-admin-environment: *staging' /tmp/staging-post.headers
+          grep -qi '^cache-control:.*no-store' /tmp/staging-post.headers
+          ! grep -qi '^set-cookie:' /tmp/staging-post.headers
+          ! grep -qi '^location:' /tmp/staging-post.headers
+
+  domain-ownership:
+    name: 20.9 Domain redirect and origin ownership certification
+    needs: admin-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify canonical redirects and public-admin separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 20 -o /dev/null -D /tmp/http.headers -w '%{http_code}' 'http://rcitcs.com/careers?from=phase20'); [[ "$code" == '301' || "$code" == '308' ]]; grep -qi '^location: *https://rcitcs.com/careers?from=phase20' /tmp/http.headers
+          code=$(curl -sS --max-time 20 -o /dev/null -D /tmp/www.headers -w '%{http_code}' 'https://www.rcitcs.com/services/it/cloud-computing?from=phase20'); test "$code" = '308'; grep -qi '^location: *https://rcitcs.com/services/it/cloud-computing?from=phase20' /tmp/www.headers
+          final=$(curl -sS -L --max-time 30 -o /tmp/final.html -w '%{http_code} %{url_effective}' 'http://www.rcitcs.com/careers?from=phase20'); [[ "$final" == '200 https://rcitcs.com/careers?from=phase20' ]]
+          code=$(curl -sS --max-time 20 -o /dev/null -D /tmp/public-admin.headers -w '%{http_code}' 'https://rcitcs.com/admin?from=phase20'); test "$code" = '308'; grep -qi '^location: *https://admin.rcitcs.com/?from=phase20' /tmp/public-admin.headers
+          code=$(curl -sS --max-time 20 -o /tmp/public-post.txt -D /tmp/public-post.headers -w '%{http_code}' -X POST 'https://rcitcs.com/admin/login'); test "$code" = '404'; ! grep -qi '^location:' /tmp/public-post.headers
+          code=$(curl -sS --max-time 20 -o /dev/null -D /tmp/admin-legacy.headers -w '%{http_code}' 'https://admin.rcitcs.com/admin?from=phase20'); test "$code" = '308'; grep -qi '^location: *https://admin.rcitcs.com/?from=phase20' /tmp/admin-legacy.headers; grep -qi '^x-rc-admin-environment: *production' /tmp/admin-legacy.headers
+      - name: Verify one effective owner per host
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 20 -D /tmp/public.headers -o /tmp/public.html -w '%{http_code}' 'https://rcitcs.com/'); test "$code" = '200'; grep -q 'data-prerendered-path="/"' /tmp/public.html; ! grep -qi '^x-rc-admin-environment:' /tmp/public.headers
+          code=$(curl -sS --max-time 20 -D /tmp/admin-owner.headers -o /tmp/admin-owner.html -w '%{http_code}' 'https://admin.rcitcs.com/'); test "$code" = '200'; grep -q 'Administrator sign in' /tmp/admin-owner.html; grep -qi '^x-rc-admin-environment: *production' /tmp/admin-owner.headers
+          code=$(curl -sS --max-time 20 -D /tmp/staging-owner.headers -o /tmp/staging-owner.html -w '%{http_code}' 'https://admin-staging.rcitcs.com/'); test "$code" = '503'; grep -qi '^x-rc-admin-environment: *staging' /tmp/staging-owner.headers; grep -qi '^x-rc-admin-staging-state: *intentionally-unavailable' /tmp/staging-owner.headers
+          workers_code=$(curl -sS --connect-timeout 10 --max-time 15 --max-redirs 0 -o /tmp/workers.body -w '%{http_code}' 'https://rc-it-consulting-services.rcitcservices.workers.dev/' || true)
+          case "$workers_code" in 000|404) ;; *) echo "Retired workers.dev origin reachable with ${workers_code}." >&2; exit 1 ;; esac
+
+  browser-security:
+    name: 20.10 TLS headers and browser security verification
+    needs: domain-ownership
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Verify TLS HTTPS and HSTS on all approved browser hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+          hosts=(rcitcs.com www.rcitcs.com admin.rcitcs.com admin-staging.rcitcs.com)
+          for host in "${hosts[@]}"; do
+            curl -sS --tlsv1.2 --max-time 20 -D /tmp/tls.headers -o /dev/null "https://${host}/"
+            hsts=$(awk -F': *' 'tolower($1)=="strict-transport-security" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/tls.headers | tail -n1)
+            [[ "$hsts" == *'includesubdomains'* ]]
+            max_age=$(printf '%s' "$hsts" | sed -nE 's/.*max-age=([0-9]+).*/\1/p'); test -n "$max_age"; test "$max_age" -ge 31536000
+            code=$(curl -sS --max-time 20 -D /tmp/http-security.headers -o /dev/null -w '%{http_code}' "http://${host}/")
+            case "$code" in 301|302|307|308) ;; *) echo "${host} failed HTTPS redirect (${code})." >&2; exit 1 ;; esac
+            grep -qi '^location: *https://' /tmp/http-security.headers
+          done
+      - name: Verify public and admin browser security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sS --max-time 20 -D /tmp/public-security.headers -o /dev/null 'https://rcitcs.com/'
+          grep -qi '^strict-transport-security:' /tmp/public-security.headers
+          grep -qi '^x-content-type-options: *nosniff' /tmp/public-security.headers
+          grep -qi '^x-frame-options: *DENY' /tmp/public-security.headers
+          grep -qi '^referrer-policy: *strict-origin-when-cross-origin' /tmp/public-security.headers
+          grep -qi '^permissions-policy:.*camera=()' /tmp/public-security.headers
+          grep -qi '^permissions-policy:.*microphone=()' /tmp/public-security.headers
+          grep -qi '^permissions-policy:.*geolocation=()' /tmp/public-security.headers
+          for spec in 'admin.rcitcs.com production' 'admin-staging.rcitcs.com staging'; do
+            read -r host environment <<< "$spec"
+            curl -sS --max-time 20 -D /tmp/admin-security.headers -o /dev/null "https://${host}/"
+            grep -qi '^strict-transport-security:' /tmp/admin-security.headers
+            grep -qi '^x-content-type-options: *nosniff' /tmp/admin-security.headers
+            grep -qi '^x-frame-options: *DENY' /tmp/admin-security.headers
+            grep -qi '^content-security-policy:.*frame-ancestors' /tmp/admin-security.headers
+            grep -qi '^cache-control:.*no-store' /tmp/admin-security.headers
+            grep -qi '^x-robots-tag:.*noindex' /tmp/admin-security.headers
+            grep -qi "^x-rc-admin-environment: *${environment}" /tmp/admin-security.headers
+            ! grep -qi '^access-control-allow-origin: *\*' /tmp/admin-security.headers
+          done
+      - name: Phase 20.6-20.10 certification boundary
+        run: echo "Phase 20.6-20.10 production certification passed for ${GITHUB_SHA}."

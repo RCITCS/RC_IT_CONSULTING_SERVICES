@@ -1,10 +1,12 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const generatedConfigDir = path.join(root, '.wrangler', 'deploy');
 const generatedConfigFile = path.join(generatedConfigDir, 'config.json');
+const generatedWorkerConfigFile = path.join(generatedConfigDir, 'worker-config.json');
+const ADMIN_WORKERS = new Set(['rcitcs-admin-staging', 'rcitcs-admin-production']);
 
 export const WORKERS_BUILD_CONFIG = Object.freeze({
   'rc-it-consulting-services': 'wrangler.jsonc',
@@ -23,20 +25,69 @@ export function resolveWorkersBuildConfig(workerName = '') {
   return configPath;
 }
 
-export async function configureWorkersBuild({ workerName = process.env.WRANGLER_CI_OVERRIDE_NAME } = {}) {
+export function normalizeWorkersCommitSha(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return /^[0-9a-f]{40}$/.test(normalized) ? normalized : null;
+}
+
+export function withAdminDeploymentIdentity(workerName, config, commitSha) {
+  const normalizedName = String(workerName || '').trim();
+  const clone = structuredClone(config || {});
+  if (!ADMIN_WORKERS.has(normalizedName)) return clone;
+
+  const normalizedSha = normalizeWorkersCommitSha(commitSha);
+  if (!normalizedSha) {
+    throw new Error(`Cloudflare Workers Build for ${normalizedName} is missing a valid 40-character WORKERS_CI_COMMIT_SHA. Refusing an unidentifiable admin deployment.`);
+  }
+
+  clone.vars = {
+    ...(clone.vars || {}),
+    RC_ADMIN_DEPLOYMENT_SHA: normalizedSha
+  };
+  return clone;
+}
+
+function relativeFromGeneratedConfig(value = '') {
+  const absolute = path.resolve(root, String(value));
+  const relative = path.relative(generatedConfigDir, absolute).replaceAll(path.sep, '/');
+  return relative.startsWith('.') ? relative : `./${relative}`;
+}
+
+async function buildDeploymentConfig(workerName, sourceConfigPath, commitSha) {
+  if (!ADMIN_WORKERS.has(workerName)) {
+    await rm(generatedWorkerConfigFile, { force: true });
+    return path.join(root, sourceConfigPath);
+  }
+
+  const raw = await readFile(path.join(root, sourceConfigPath), 'utf8');
+  const sourceConfig = JSON.parse(raw);
+  const config = withAdminDeploymentIdentity(workerName, sourceConfig, commitSha);
+
+  if (config.$schema) config.$schema = relativeFromGeneratedConfig(config.$schema);
+  if (config.main) config.main = relativeFromGeneratedConfig(config.main);
+
+  await writeFile(generatedWorkerConfigFile, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  return generatedWorkerConfigFile;
+}
+
+export async function configureWorkersBuild({
+  workerName = process.env.WRANGLER_CI_OVERRIDE_NAME,
+  commitSha = process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA
+} = {}) {
   const configPath = resolveWorkersBuildConfig(workerName);
 
   if (!configPath) {
     await rm(generatedConfigFile, { force: true });
+    await rm(generatedWorkerConfigFile, { force: true });
     return null;
   }
 
   await mkdir(generatedConfigDir, { recursive: true });
-  const absoluteTarget = path.join(root, configPath);
-  const relativeTarget = path.relative(generatedConfigDir, absoluteTarget).replaceAll(path.sep, '/');
+  const deploymentConfigFile = await buildDeploymentConfig(workerName, configPath, commitSha);
+  const relativeTarget = path.relative(generatedConfigDir, deploymentConfigFile).replaceAll(path.sep, '/');
   await writeFile(generatedConfigFile, `${JSON.stringify({ configPath: relativeTarget }, null, 2)}\n`, 'utf8');
-  console.log(`Cloudflare Workers Builds target ${workerName} -> ${configPath}`);
-  return { workerName, configPath, generatedConfigFile };
+  console.log(`Cloudflare Workers Builds target ${workerName} -> ${configPath}${ADMIN_WORKERS.has(workerName) ? ` at commit ${normalizeWorkersCommitSha(commitSha)}` : ''}`);
+  return { workerName, configPath, generatedConfigFile, deploymentConfigFile };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
