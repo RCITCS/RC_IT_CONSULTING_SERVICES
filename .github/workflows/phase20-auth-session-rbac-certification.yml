@@ -66,6 +66,15 @@ jobs:
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
 
+          assert_no_application_auth_cookie() {
+            local headers="$1"
+            if grep -Eqi '^set-cookie: *(rcitcs_admin_session|rcitcs_admin_csrf|rcitcs_admin_recovery|rcitcs_admin_recovery_csrf)=' "$headers"; then
+              echo "Application authentication cookie was unexpectedly issued to an unauthenticated request." >&2
+              grep -Ei '^set-cookie:' "$headers" | sed -E 's/^set-cookie: *([^=]+)=.*/unexpected cookie name: \\1/I' >&2 || true
+              exit 1
+            fi
+          }
+
           for attempt in $(seq 1 120); do
             code=$(curl -sS --max-time 20 -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' "${ADMIN}/" || true)
             deployed_sha=$(awk -F': *' 'tolower($1)=="x-rc-admin-deployment-sha" {gsub(/\r/,"",$2); print tolower($2)}' /tmp/admin.headers 2>/dev/null | tail -n1)
@@ -79,29 +88,40 @@ jobs:
 
           grep -qi '^cache-control:.*no-store' /tmp/admin.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
-          ! grep -qi '^set-cookie:' /tmp/admin.headers
+          assert_no_application_auth_cookie /tmp/admin.headers
 
           for route in /jobs /applications /contacts /security /change-password; do
             code=$(curl -sS --max-time 20 -D /tmp/protected.headers -o /tmp/protected.html -w '%{http_code}' "${ADMIN}${route}")
+            echo "Unauthenticated ${route}: HTTP ${code}"
             test "$code" = '200'
             grep -q 'Administrator sign in' /tmp/protected.html
             grep -qi '^cache-control:.*no-store' /tmp/protected.headers
             grep -qi '^x-robots-tag:.*noindex' /tmp/protected.headers
-            ! grep -qi '^set-cookie:' /tmp/protected.headers
+            assert_no_application_auth_cookie /tmp/protected.headers
           done
 
           code=$(curl -sS --max-time 20 -D /tmp/session.headers -o /tmp/session.json -w '%{http_code}' "${ADMIN}/session")
+          echo "Unauthenticated /session: HTTP ${code}"
           test "$code" = '401'
           grep -q '"authenticated":false' /tmp/session.json
           grep -qi '^cache-control:.*no-store' /tmp/session.headers
           grep -qi '^x-robots-tag:.*noindex' /tmp/session.headers
-          ! grep -qi '^set-cookie:' /tmp/session.headers
+          assert_no_application_auth_cookie /tmp/session.headers
 
       - name: Verify fail-closed mutation, origin and CSRF-adjacent boundaries
         shell: bash
         run: |
           set -euo pipefail
           ADMIN='https://admin.rcitcs.com'
+
+          assert_no_application_auth_cookie() {
+            local headers="$1"
+            if grep -Eqi '^set-cookie: *(rcitcs_admin_session|rcitcs_admin_csrf|rcitcs_admin_recovery|rcitcs_admin_recovery_csrf)=' "$headers"; then
+              echo "Application authentication cookie was unexpectedly issued by a rejected request." >&2
+              grep -Ei '^set-cookie:' "$headers" | sed -E 's/^set-cookie: *([^=]+)=.*/unexpected cookie name: \\1/I' >&2 || true
+              exit 1
+            fi
+          }
 
           hostile=$(curl -sS --max-time 20 -D /tmp/hostile.headers -o /tmp/hostile.html -w '%{http_code}' \
             -X POST \
@@ -111,7 +131,7 @@ jobs:
             "${ADMIN}/login")
           test "$hostile" = '403'
           grep -q 'Request rejected' /tmp/hostile.html
-          ! grep -qi '^set-cookie:' /tmp/hostile.headers
+          assert_no_application_auth_cookie /tmp/hostile.headers
           ! grep -qi '^access-control-allow-origin: *\*' /tmp/hostile.headers
 
           media=$(curl -sS --max-time 20 -D /tmp/media.headers -o /tmp/media.html -w '%{http_code}' \
@@ -122,7 +142,7 @@ jobs:
             "${ADMIN}/login")
           test "$media" = '415'
           grep -q 'Unsupported request' /tmp/media.html
-          ! grep -qi '^set-cookie:' /tmp/media.headers
+          assert_no_application_auth_cookie /tmp/media.headers
 
           unknown=$(curl -sS --max-time 20 -D /tmp/unknown.headers -o /tmp/unknown.html -w '%{http_code}' \
             -X POST \
@@ -130,7 +150,7 @@ jobs:
             --data 'x=1' \
             "${ADMIN}/__phase20_11_unknown_mutation__")
           test "$unknown" = '405'
-          ! grep -qi '^set-cookie:' /tmp/unknown.headers
+          assert_no_application_auth_cookie /tmp/unknown.headers
 
           protected=$(curl -sS --max-time 20 -D /tmp/protected-post.headers -o /tmp/protected-post.html -w '%{http_code}' \
             -X POST \
@@ -144,7 +164,7 @@ jobs:
             "${ADMIN}/jobs/create")
           test "$protected" = '200'
           grep -q 'Administrator sign in' /tmp/protected-post.html
-          ! grep -qi '^set-cookie:' /tmp/protected-post.headers
+          assert_no_application_auth_cookie /tmp/protected-post.headers
 
       - name: Phase 20.11 certification boundary
         run: echo 'Phase 20.11 production-safe authentication / authorization / session / RBAC acceptance passed.'
