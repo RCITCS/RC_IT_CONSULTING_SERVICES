@@ -1,0 +1,51 @@
+name: Phase 20.12 Database Persistence Migration RLS Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-12-database-persistence-rls-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE20_11_CERTIFIED_BASELINE: 10400c7b6c8efe46d001e6aba82ba8e36523318d
+
+jobs:
+  source-and-regression:
+    name: 20.12 Source migration and inherited persistence certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify certified Phase 20.11 baseline remains in ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          git cat-file -e "${PHASE20_11_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE20_11_CERTIFIED_BASELINE}" HEAD
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - run: npm install --no-audit --no-fund
+
+      - name: Run complete inherited verification
+        run: npm run verify
+
+      - name: Run dedicated Phase 20.12 database certification contract
+        run: node tests/phase20-database-persistence-rls-certification.mjs
+
+      - name: Phase 20.12 source certification boundary
+        run: echo 'Phase 20.12 source migration and persistence certification passed.'
