@@ -1,0 +1,94 @@
+name: Phase 20.13 Critical Business Flow E2E Acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-13-critical-flows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: 20.13 Source and inherited critical-flow certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - run: node tests/phase20-critical-business-flow-certification.mjs
+
+  production-safe:
+    name: 20.13 Production-safe critical journey acceptance
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify real public journeys and private admin boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          ADMIN='https://admin.rcitcs.com'
+          CANDIDATE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/candidate-applications'
+
+          for route in '/' '/careers' '/careers/jobs/senior-data-engineer' '/careers/jobs/senior-data-engineer/apply' '/contact'; do
+            code=$(curl -sS -o /tmp/page.html -D /tmp/page.headers -w '%{http_code}' "${BASE}${route}")
+            test "$code" = '200'
+            grep -q 'id="main-content"' /tmp/page.html
+          done
+
+          grep -q 'action="/api/career-application"' /tmp/page.html || true
+
+          health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
+          test "$health" = '200'
+          grep -q '"ok":true' /tmp/health.json
+
+          candidate=$(curl -sS -o /tmp/candidate-health.json -w '%{http_code}' "${CANDIDATE}/health")
+          test "$candidate" = '200'
+          grep -q '"ok":true' /tmp/candidate-health.json
+
+          hostile=$(curl -sS -o /tmp/candidate-hostile.json -w '%{http_code}'             -X POST -H 'content-type: application/json' -H 'origin: https://example.invalid'             --data '{"action":"start"}' "${CANDIDATE}")
+          test "$hostile" = '403'
+
+          invalid_contact=$(curl -sS -o /tmp/contact-invalid.json -w '%{http_code}'             -X POST -H 'content-type: application/json' --data '{}' "${BASE}/api/contact")
+          [[ "$invalid_contact" == '400' || "$invalid_contact" == '422' ]]
+
+          for route in '/jobs' '/applications' '/contacts'; do
+            code=$(curl -sS -o /tmp/admin.html -D /tmp/admin.headers -w '%{http_code}' "${ADMIN}${route}")
+            test "$code" = '200'
+            grep -q 'Administrator sign in' /tmp/admin.html
+            grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+            grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          done
+
+      - name: Verify exact merged production SHA
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            curl -sS -o /tmp/root.html https://rcitcs.com/
+            if grep -Fq "name="rc-deployment-sha" content="${EXPECTED_SHA}"" /tmp/root.html; then
+              exit 0
+            fi
+            if [[ "$attempt" == '90' ]]; then
+              echo "Exact merged SHA did not reach public production." >&2
+              exit 1
+            fi
+            sleep 5
+          done
