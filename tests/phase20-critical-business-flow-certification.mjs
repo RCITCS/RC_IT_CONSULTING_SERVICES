@@ -21,3 +21,6 @@ assert.match(candidate,/email_queued', false/);
 assert.match(phase12,/candidate/i);
 
 console.log("Phase 20.13 critical business-flow source certification: PASS");
+
+const workflow = fs.readFileSync(".github/workflows/phase20-critical-business-flow-acceptance.yml","utf8");
+assert.ok(workflow.includes('name=\\\\\\"rc-deployment-sha\\\\\\" content=\\\\\\"${EXPECTED_SHA}\\\\\\"'), "exact-SHA workflow must preserve quoted HTML meta attributes");
