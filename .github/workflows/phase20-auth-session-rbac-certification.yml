@@ -129,6 +129,7 @@ jobs:
             -H 'content-type: application/x-www-form-urlencoded' \
             --data 'email=x&password=x' \
             "${ADMIN}/login")
+          echo "Hostile-origin /login: HTTP ${hostile}"
           test "$hostile" = '403'
           grep -q 'Request rejected' /tmp/hostile.html
           assert_no_application_auth_cookie /tmp/hostile.headers
@@ -140,6 +141,7 @@ jobs:
             -H 'content-type: application/json' \
             --data '{"email":"x"}' \
             "${ADMIN}/login")
+          echo "Unsupported-media /login: HTTP ${media}"
           test "$media" = '415'
           grep -q 'Unsupported request' /tmp/media.html
           assert_no_application_auth_cookie /tmp/media.headers
@@ -149,6 +151,7 @@ jobs:
             -H 'content-type: application/x-www-form-urlencoded' \
             --data 'x=1' \
             "${ADMIN}/__phase20_11_unknown_mutation__")
+          echo "Unknown mutation route: HTTP ${unknown}"
           test "$unknown" = '405'
           assert_no_application_auth_cookie /tmp/unknown.headers
 
@@ -162,6 +165,7 @@ jobs:
             -H 'content-type: application/x-www-form-urlencoded' \
             --data 'csrf=invalid&intent=draft' \
             "${ADMIN}/jobs/create")
+          echo "Unauthenticated same-origin /jobs/create: HTTP ${protected}"
           test "$protected" = '200'
           grep -q 'Administrator sign in' /tmp/protected-post.html
           assert_no_application_auth_cookie /tmp/protected-post.headers
