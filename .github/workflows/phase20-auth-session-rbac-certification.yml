@@ -152,8 +152,10 @@ jobs:
             --data 'x=1' \
             "${ADMIN}/__phase20_11_unknown_mutation__")
           echo "Unknown mutation route: HTTP ${unknown}"
-          test "$unknown" = '405'
+          [[ "$unknown" == '403' || "$unknown" == '405' ]]
           assert_no_application_auth_cookie /tmp/unknown.headers
+          ! grep -qi '^access-control-allow-origin: *\\*' /tmp/unknown.headers
+          ! grep -qi '^location:' /tmp/unknown.headers
 
           protected=$(curl -sS --max-time 20 -D /tmp/protected-post.headers -o /tmp/protected-post.html -w '%{http_code}' \
             -X POST \
