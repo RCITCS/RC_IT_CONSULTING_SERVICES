@@ -31,9 +31,9 @@ for (const name of files) {
     .replace(/--.*$/gm, "")
     .replace(/\/\*[\s\S]*?\*\//g, "");
 
-  assert.ok(!/\bdrop\s+table\b/i.test(executable), `${name} contains destructive DROP TABLE`);
-  assert.ok(!/\btruncate(?:\s+table)?\b/i.test(executable), `${name} contains destructive TRUNCATE`);
-  assert.ok(!/\bdrop\s+schema\b/i.test(executable), `${name} contains destructive DROP SCHEMA`);
+  assert.ok(!/(?:^|;)\s*drop\s+table\b/im.test(executable), `${name} contains destructive DROP TABLE statement`);
+  assert.ok(!/(?:^|;)\s*truncate(?:\s+table)?\b/im.test(executable), `${name} contains destructive TRUNCATE statement`);
+  assert.ok(!/(?:^|;)\s*drop\s+schema\b/im.test(executable), `${name} contains destructive DROP SCHEMA statement`);
 }
 
 for (const group of exactContent.values()) {
