@@ -79,6 +79,6 @@ assert(mobileSource && !mobileSource.includes('w=960'), 'Page hero mobile source
 const phase19QualityCss = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
 assert(phase19QualityCss.includes('.careers-page > .section'), 'Careers below-fold rendering deferral contract is missing.');
 assert(phase19QualityCss.includes('content-visibility: auto'), 'Careers below-fold rendering must use content-visibility.');
-assert(phase19QualityCss.includes('contain-intrinsic-size'), 'Careers deferred sections must reserve intrinsic layout space.');
+assert(phase19QualityCss.includes('contain-intrinsic-block-size'), 'Careers deferred sections must reserve intrinsic block-size layout space.');
 
 console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints, responsive-image delivery, async image decode, right-sized mobile hero delivery and Careers below-fold rendering contracts verified.');

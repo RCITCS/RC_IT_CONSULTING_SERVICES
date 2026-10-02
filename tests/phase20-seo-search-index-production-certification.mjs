@@ -34,5 +34,8 @@ assert.match(content,/mobileMaxWidth: 640/);
 assert.ok(workflow.includes("careers/jobs/[^<]+"), "production SEO certification must discover a current published job from the sitemap");
 assert.ok(workflow.includes('job_url="${job_loc#<loc>}"'), "production SEO certification must validate the discovered job URL");
 assert.doesNotMatch(workflow,/careers\/jobs\/(?:data-analyst|senior-data-engineer)/, "production SEO certification must not hardcode mutable job slugs");
+assert.ok(workflow.includes("for sitemap_attempt in $(seq 1 24)"), "SEO discovery must retry transient sitemap projection gaps");
+assert.ok(workflow.includes("for job_attempt in $(seq 1 24)"), "representative published-job discovery must retry");
+assert.ok(workflow.includes("sed -n '1p' || true"), "published-job discovery must not abort early under pipefail");
 
 console.log("Phase 20.15 SEO/search-index source certification: PASS");

@@ -93,13 +93,24 @@ jobs:
           while IFS= read -r route; do
             [[ -n "$route" ]] || continue
             route_count=$((route_count + 1))
-            code=$(curl -sS --max-time 20 -o /tmp/route.html -w '%{http_code}' "${BASE}${route}")
-            test "$code" = '200'
-            grep -q 'id="main-content"' /tmp/route.html
-            grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/route.html
-            grep -Fq "data-prerendered-path=\"${route}\"" /tmp/route.html
-            grep -Fq 'https://rcitcs.com' /tmp/route.html
-            ! grep -q 'Administrator sign in' /tmp/route.html
+            route_ready=0
+            for route_attempt in $(seq 1 12); do
+              code=$(curl -sS --max-time 20 -o /tmp/route.html -w '%{http_code}' "${BASE}${route}" || true)
+              if [[ "$code" == '200' ]] \
+                && grep -q 'id="main-content"' /tmp/route.html \
+                && grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_PRODUCTION_SHA}\"" /tmp/route.html \
+                && grep -Fq "data-prerendered-path=\"${route}\"" /tmp/route.html \
+                && grep -Fq 'https://rcitcs.com' /tmp/route.html \
+                && ! grep -q 'Administrator sign in' /tmp/route.html; then
+                route_ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [[ "$route_ready" != '1' ]]; then
+              echo "Canonical route ${route} did not converge to exact SHA ${EXPECTED_PRODUCTION_SHA}." >&2
+              exit 1
+            fi
           done < /tmp/phase20-routes.txt
           test "$route_count" -ge 60
           echo "Verified ${route_count} canonical production routes from ${EXPECTED_PRODUCTION_SHA}."

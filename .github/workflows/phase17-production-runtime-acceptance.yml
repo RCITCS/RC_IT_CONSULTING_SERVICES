@@ -100,11 +100,37 @@ jobs:
             sleep 5
           done
 
-          for route in '/careers' '/contact' '/services/it/cyber-security' '/careers/jobs/senior-data-engineer' '/careers/jobs/senior-data-engineer/apply' '/privacy'; do
+          job_loc=''
+          for job_attempt in $(seq 1 24); do
+            if curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml; then
+              job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p' || true)
+              [[ -z "$job_loc" ]] || break
+            fi
+            if [[ "$job_attempt" == '24' ]]; then
+              echo 'No published job became discoverable in the production sitemap.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          test -n "$job_loc"
+          job_url="${job_loc#<loc>}"
+          job_url="${job_url%</loc>}"
+          job_path="${job_url#${BASE}}"
+          test "$job_path" != "$job_url"
+          apply_path="${job_path}/apply"
+
+          for route in '/careers' '/contact' '/services/it/cyber-security' "$job_path" "$apply_path" '/privacy'; do
             code=$(curl -sS -o /tmp/route.html -w '%{http_code}' "${BASE}${route}")
             test "$code" = '200'
             grep -q 'id="main-content"' /tmp/route.html
           done
+
+          job_code=$(curl -sS -o /tmp/job.html -w '%{http_code}' "$job_url")
+          test "$job_code" = '200'
+          grep -q 'data-runtime-job-posting' /tmp/job.html
+          apply_code=$(curl -sS -o /tmp/apply.html -w '%{http_code}' "${BASE}${apply_path}")
+          test "$apply_code" = '200'
+          grep -q 'data-career-application' /tmp/apply.html
 
           health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
           test "$health" = '200'

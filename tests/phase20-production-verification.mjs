@@ -45,6 +45,9 @@ requireAll(workflow, [
   '/robots.txt',
   'missing_code',
   'test "$route_count" -ge 60',
+  'for route_attempt in $(seq 1 12)',
+  'route_ready=0',
+  'did not converge to exact SHA',
   'git worktree add --detach /tmp/phase20-deployed-base "${EXPECTED_PRODUCTION_SHA}"',
   "route_source='/tmp/phase20-deployed-base'"
 ], '20.6 public production gate');

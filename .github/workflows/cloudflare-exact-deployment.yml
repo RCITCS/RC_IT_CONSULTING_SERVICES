@@ -68,22 +68,43 @@ jobs:
             fi
           }
 
-          curl -L -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
+          job_loc=''
+          for job_attempt in $(seq 1 24); do
+            if curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml; then
+              job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p' || true)
+              [[ -z "$job_loc" ]] || break
+            fi
+            if [[ "$job_attempt" == '24' ]]; then
+              echo 'No published job became discoverable in the production sitemap.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          test -n "$job_loc"
+          job_url="${job_loc#<loc>}"
+          job_url="${job_url%</loc>}"
+          job_path="${job_url#${BASE}}"
+          test "$job_path" != "$job_url"
+          apply_url="${job_url}/apply"
+          apply_path="${job_path}/apply"
+
+          job_code=$(curl -L -sS -o /tmp/job.html -w '%{http_code}' "$job_url")
+          test "$job_code" = '200'
           require_match 'job page index directive' 'name="robots" content="index,follow"' /tmp/job.html
           require_match 'runtime job marker' 'data-runtime-job-posting' /tmp/job.html
           require_match 'JobPosting structured data' '"@type":"JobPosting"' /tmp/job.html
           require_match 'directApply structured data' '"directApply":true' /tmp/job.html
-          require_match 'application link' 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
+          require_match 'application link' "href=\"${apply_path}\"" /tmp/job.html
 
-          curl -L -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
+          apply_code=$(curl -L -sS -o /tmp/apply.html -w '%{http_code}' "$apply_url")
+          test "$apply_code" = '200'
           require_match 'candidate application form' 'data-career-application' /tmp/apply.html
           require_match 'application noindex directive' 'name="robots" content="noindex,nofollow"' /tmp/apply.html
           reject_match 'JobPosting marker on application page' 'data-runtime-job-posting' /tmp/apply.html
           reject_match 'Supabase secret variable name in application page' 'SUPABASE_SECRET_KEY' /tmp/apply.html
           reject_match 'Supabase secret value prefix in application page' 'sb_secret_' /tmp/apply.html
 
-          curl -L -sS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
-          require_match 'published vacancy in runtime sitemap' '/careers/jobs/senior-data-engineer</loc>' /tmp/sitemap.xml
+          require_match 'published vacancy in runtime sitemap' "<loc>${job_url}</loc>" /tmp/sitemap.xml
           reject_match 'application URL in sitemap' '/apply</loc>' /tmp/sitemap.xml
 
           health_code=$(curl -L -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")

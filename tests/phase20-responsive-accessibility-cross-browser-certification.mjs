@@ -11,6 +11,10 @@ const phase18Config = fs.readFileSync("playwright.config.mjs","utf8");
 const phase20Config = fs.readFileSync("playwright.phase20-16.config.mjs","utf8");
 const phase20Spec = fs.readFileSync("tests/phase20-16-cross-browser-accessibility.spec.mjs","utf8");
 const phase20Workflow = fs.readFileSync(".github/workflows/phase20-responsive-accessibility-cross-browser-certification.yml","utf8");
+const tokensCss = fs.readFileSync("src/frontend/styles/tokens.css","utf8");
+const phase19QualityCss = fs.readFileSync("src/frontend/styles/phase19-quality.css","utf8");
+const adminResponsive = fs.readFileSync("worker/admin-responsive.js","utf8");
+const adminUi = fs.readFileSync("supabase/functions/admin-auth/ui.ts","utf8");
 
 for (const browser of ["chromium","firefox","webkit"]) {
   assert.ok(phase18Config.includes(browser), `Phase 18 matrix lost browser: ${browser}`);
@@ -44,5 +48,12 @@ assert.doesNotMatch(phase18Css,/html\s*\{\s*overflow-x:/i);
 assert.match(phase20Spec,/PHASE20_16_ADMIN_URL/);
 assert.match(phase20Spec,/Administrator sign in/);
 assert.match(phase20Workflow,/PHASE20_16_ADMIN_URL:\s*https:\/\/admin\.rcitcs\.com/);
+
+assert.match(tokensCss,/--color-ink-500:\s*#5f6f78;/i);
+assert.match(phase19QualityCss,/content-visibility:\s*auto/);
+assert.match(phase19QualityCss,/contain-intrinsic-block-size:\s*760px/);
+assert.doesNotMatch(phase19QualityCss,/contain-intrinsic-size:\s*1px\s+760px/);
+assert.match(adminResponsive,/:root\{--quiet:#647080\}/i);
+assert.match(adminUi,/--quiet:#647080;/i);
 
 console.log("Phase 20.16 responsive/accessibility/cross-browser source certification: PASS");
