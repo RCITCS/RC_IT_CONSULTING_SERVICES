@@ -1,0 +1,82 @@
+name: Phase 20.14 Email Notification Production Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-14-email-notification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE20_13_CERTIFIED_BASELINE: dde39793207b2705382a8b8403b3a8a21955bfab
+
+jobs:
+  source:
+    name: 20.14 Source and inherited notification certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify certified Phase 20.13 baseline remains in ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${PHASE20_13_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE20_13_CERTIFIED_BASELINE}" HEAD
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - run: node tests/phase20-email-notification-production-certification.mjs
+
+  production-safe:
+    name: 20.14 Production email runtime and auth boundary
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify transactional-email health contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/transactional-email'
+          code=$(curl -sS -o /tmp/health.json -D /tmp/health.headers -w '%{http_code}' "${BASE}/health")
+          test "$code" = '200'
+          grep -q '"ok":true' /tmp/health.json
+          grep -q '"provider":"resend"' /tmp/health.json
+          grep -q '"providerConfigured":true' /tmp/health.json
+          grep -q '"databaseConfigured":true' /tmp/health.json
+          grep -q '"applicationNotifications":true' /tmp/health.json
+          grep -q '"contactNotifications":true' /tmp/health.json
+          grep -q '"contactAdminReplies":true' /tmp/health.json
+          grep -q '"candidateAdminReplies":true' /tmp/health.json
+          grep -q '"retryScheduler":true' /tmp/health.json
+          grep -q '"monitoring":true' /tmp/health.json
+          grep -qi '^cache-control:.*no-store' /tmp/health.headers
+
+      - name: Verify provider dispatch remains private
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/transactional-email'
+          code=$(curl -sS -o /tmp/unauth.json -w '%{http_code}' \
+            -X POST -H 'content-type: application/json' \
+            --data '{"emailLogId":"11111111-1111-4111-8111-111111111111"}' "${BASE}/dispatch")
+          test "$code" = '401'
+          grep -q '"code":"UNAUTHORIZED"' /tmp/unauth.json
+
+          sweep=$(curl -sS -o /tmp/sweep.json -w '%{http_code}' -X POST "${BASE}/sweep")
+          test "$sweep" = '401'
+
+          monitor=$(curl -sS -o /tmp/monitor.json -w '%{http_code}' "${BASE}/monitor")
+          [[ "$monitor" == '401' || "$monitor" == '405' ]]
