@@ -1,0 +1,112 @@
+name: Phase 20.16 Responsive Accessibility Cross-Browser Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-16-responsive-accessibility-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE20_15_CERTIFIED_BASELINE: fddced2a11b34ca051be9ba2cf7ed681e84a9632
+
+jobs:
+  source:
+    name: 20.16 Source and inherited responsive/accessibility certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify certified Phase 20.15 baseline ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${PHASE20_15_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE20_15_CERTIFIED_BASELINE}" HEAD
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - run: node tests/phase20-responsive-accessibility-cross-browser-certification.mjs
+
+  browser-matrix:
+    name: 20.16 Chromium Firefox WebKit WCAG matrix
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: Install pinned browser and accessibility runners
+        run: npm install --no-save --no-package-lock @playwright/test@1.55.0 @axe-core/playwright@4.13.0
+      - name: Install Chromium Firefox and WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Preserve complete Phase 18 responsive matrix
+        run: npx playwright test --config=playwright.config.mjs
+      - name: Run Phase 20.16 WCAG matrix on Chromium Firefox and WebKit
+        run: npx playwright test --config=playwright.phase20-16.config.mjs
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase20-16-browser-evidence
+          path: |
+            playwright-report
+            playwright-report-phase20-16
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production:
+    name: 20.16 Exact-SHA production cross-browser acceptance
+    needs: [source, browser-matrix]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: Wait for exact merged SHA on public production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            code=$(curl -sS -o /tmp/root.html -w '%{http_code}' https://rcitcs.com/ || true)
+            if [[ "$code" == '200' ]] && grep -Fq "name=\"rc-deployment-sha\" content=\"${GITHUB_SHA}\"" /tmp/root.html; then exit 0; fi
+            [[ "$attempt" != '120' ]] || { echo "Production did not converge to exact SHA ${GITHUB_SHA}." >&2; exit 1; }
+            sleep 5
+          done
+      - name: Verify production admin remains private and available
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' https://admin.rcitcs.com/)
+          test "$code" = '200'
+          grep -q 'Administrator sign in' /tmp/admin.html
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+      - name: Install production browser matrix
+        run: |
+          npm install --no-save --no-package-lock @playwright/test@1.55.0 @axe-core/playwright@4.13.0
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Run exact-production Chromium Firefox WebKit WCAG acceptance
+        env:
+          PHASE20_16_BASE_URL: https://rcitcs.com
+          PHASE20_16_ADMIN_URL: https://admin.rcitcs.com
+        run: npx playwright test --config=playwright.phase20-16.config.mjs

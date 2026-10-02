@@ -24,3 +24,8 @@ console.log("Phase 20.13 critical business-flow source certification: PASS");
 
 const workflow = fs.readFileSync(".github/workflows/phase20-critical-business-flow-acceptance.yml","utf8");
 assert.ok(workflow.includes('name=\\"rc-deployment-sha\\" content=\\"${EXPECTED_SHA}\\"'), "exact-SHA workflow must preserve quoted HTML meta attributes without literal backslashes");
+assert.ok(workflow.includes("careers/jobs/[^<]+"), "production flow must discover a currently published job from the live sitemap");
+assert.ok(workflow.includes('job_path="${job_url#${BASE}}"'), "production flow must derive the real job path from the discovered sitemap URL");
+assert.ok(!workflow.includes("/careers/jobs/senior-data-engineer"), "production flow must not hardcode mutable business job slugs");
+assert.ok(workflow.includes('grep -q \'action="/api/career-application"\' /tmp/apply.html'), "production flow must assert the real application form");
+assert.ok(!workflow.includes('action="/api/career-application"\' /tmp/page.html || true'), "application-entry acceptance must not be a fail-open no-op");

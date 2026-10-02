@@ -80,8 +80,7 @@ jobs:
           grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
 
           grep -Fq '<loc>https://rcitcs.com/</loc>' /tmp/sitemap.xml
-          grep -Fq '<loc>https://rcitcs.com/careers/jobs/data-analyst</loc>' /tmp/sitemap.xml
-          grep -Fq '<loc>https://rcitcs.com/careers/jobs/senior-data-engineer</loc>' /tmp/sitemap.xml
+          grep -Eq '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml
 
           ! grep -Fq 'admin.rcitcs.com' /tmp/sitemap.xml
           ! grep -Fq 'workers.dev' /tmp/sitemap.xml
@@ -95,20 +94,27 @@ jobs:
           set -euo pipefail
           BASE='https://rcitcs.com'
 
-          code=$(curl -sS -D /tmp/job.headers -o /tmp/job.html -w '%{http_code}' "${BASE}/careers/jobs/data-analyst")
+          curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+          job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p')
+          test -n "$job_loc"
+          job_url="${job_loc#<loc>}"
+          job_url="${job_url%</loc>}"
+          apply_url="${job_url}/apply"
+
+          code=$(curl -sS -D /tmp/job.headers -o /tmp/job.html -w '%{http_code}' "$job_url")
           test "$code" = '200'
           grep -Fq '<meta name="robots" content="index,follow"' /tmp/job.html
-          grep -Fq '<link rel="canonical" href="https://rcitcs.com/careers/jobs/data-analyst"' /tmp/job.html
+          grep -Fq "<link rel=\"canonical\" href=\"${job_url}\"" /tmp/job.html
           grep -Fq '"@type":"JobPosting"' /tmp/job.html
           grep -Fq '"directApply":true' /tmp/job.html
           grep -Fq '"hiringOrganization"' /tmp/job.html
           grep -Fq '"datePosted"' /tmp/job.html
           grep -Fq '"identifier"' /tmp/job.html
 
-          apply=$(curl -sS -D /tmp/apply.headers -o /tmp/apply.html -w '%{http_code}' "${BASE}/careers/jobs/data-analyst/apply")
+          apply=$(curl -sS -D /tmp/apply.headers -o /tmp/apply.html -w '%{http_code}' "$apply_url")
           test "$apply" = '200'
           grep -Fq '<meta name="robots" content="noindex,nofollow"' /tmp/apply.html
-          grep -Fq '<link rel="canonical" href="https://rcitcs.com/careers/jobs/data-analyst/apply"' /tmp/apply.html
+          grep -Fq "<link rel=\"canonical\" href=\"${apply_url}\"" /tmp/apply.html
           ! grep -Fq 'data-runtime-job-posting' /tmp/apply.html
 
       - name: Verify private and error surfaces remain non-indexable

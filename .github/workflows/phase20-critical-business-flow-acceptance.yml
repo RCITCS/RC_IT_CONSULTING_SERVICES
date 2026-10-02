@@ -44,13 +44,25 @@ jobs:
           ADMIN='https://admin.rcitcs.com'
           CANDIDATE='https://chsizmffzpxcqhaptjeu.supabase.co/functions/v1/candidate-applications'
 
-          for route in '/' '/careers' '/careers/jobs/senior-data-engineer' '/careers/jobs/senior-data-engineer/apply' '/contact'; do
+          curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+          job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p')
+          test -n "$job_loc"
+          job_url="${job_loc#<loc>}"
+          job_url="${job_url%</loc>}"
+          job_path="${job_url#${BASE}}"
+          test "$job_path" != "$job_url"
+          apply_path="${job_path}/apply"
+
+          for route in '/' '/careers' "$job_path" '/contact'; do
             code=$(curl -sS -o /tmp/page.html -D /tmp/page.headers -w '%{http_code}' "${BASE}${route}")
             test "$code" = '200'
             grep -q 'id="main-content"' /tmp/page.html
           done
 
-          grep -q 'action="/api/career-application"' /tmp/page.html || true
+          apply_code=$(curl -sS -o /tmp/apply.html -D /tmp/apply.headers -w '%{http_code}' "${BASE}${apply_path}")
+          test "$apply_code" = '200'
+          grep -q 'id="main-content"' /tmp/apply.html
+          grep -q 'action="/api/career-application"' /tmp/apply.html
 
           health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
           test "$health" = '200'
