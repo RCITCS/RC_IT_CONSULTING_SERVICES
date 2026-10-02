@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 const routes = ['/', '/careers', '/contact'];
+const productionAdminUrl = process.env.PHASE20_16_ADMIN_URL || '';
 
 async function expectNoOverflow(page, label) {
   const m = await page.evaluate(() => ({
@@ -26,6 +27,20 @@ for (const route of routes) {
     expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
   });
 }
+
+test('production admin sign-in remains responsive and WCAG A/AA clean across engines', async ({ page }, testInfo) => {
+  test.skip(!productionAdminUrl, 'Production-only admin browser acceptance.');
+
+  const response = await page.goto(productionAdminUrl, { waitUntil: 'networkidle' });
+  expect(response?.ok(), 'admin sign-in must return successfully').toBeTruthy();
+  await expect(page.getByRole('heading', { name: 'Administrator sign in' })).toBeVisible();
+  await expectNoOverflow(page, `${testInfo.project.name} admin sign-in`);
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'])
+    .analyze();
+  expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+});
 
 test('keyboard bypass and visible focus remain operable across engines', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
