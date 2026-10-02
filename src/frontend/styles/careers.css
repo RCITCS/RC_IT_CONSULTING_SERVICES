@@ -1,6 +1,7 @@
 /* Careers — structured vacancy discovery and role-specific application journey */
 .careers-page .page-hero,
 .career-application-page .page-hero { background:linear-gradient(180deg,#f7f5f1 0%,#fff 100%); }
+.careers-page > .section:not(.section--soft):not(.career-privacy) { background:var(--color-surface); }
 
 .career-intro { border-bottom:1px solid var(--color-line); }
 .career-intro__grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:clamp(2rem,5vw,5rem); align-items:end; }
