@@ -71,6 +71,10 @@ const heroMarkup = pageHero({
 assert(heroMarkup.includes('loading="eager"'), 'Page hero must remain eagerly requested.');
 assert(heroMarkup.includes('fetchpriority="high"'), 'Page hero must retain high fetch priority.');
 assert(heroMarkup.includes('decoding="async"'), 'Page hero must preserve non-blocking async decode while bandwidth is controlled by responsive candidates.');
+assert(heroMarkup.includes('<picture><source media="(max-width: 900px)"'), 'Page hero must provide a mobile-specific picture source.');
+assert(heroMarkup.includes('/media/pexels/5439138?w=640 640w'), 'Page hero mobile source must include the capped 640w candidate.');
+const mobileSource = heroMarkup.match(/<source media="\(max-width: 900px\)" srcset="([^"]+)"/)?.[1] || '';
+assert(mobileSource && !mobileSource.includes('w=960'), 'Page hero mobile source must not expose the oversized 960w candidate.');
 
 const phase19QualityCss = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
 assert(phase19QualityCss.includes('.careers-page > .section'), 'Careers below-fold rendering deferral contract is missing.');
