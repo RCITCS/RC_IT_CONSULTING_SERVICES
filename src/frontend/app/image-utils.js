@@ -35,9 +35,7 @@ function withWidth(src, width) {
   return src;
 }
 
-function responsiveSet(src) {
-  // 640 closes the common mobile-DPR gap without over-fetching the former 720w candidate.
-  const widths = [320, 480, 640, 960, 1280, 1600];
+function responsiveSet(src, widths = [320, 480, 640, 960, 1280, 1600]) {
   const candidates = widths.map((width) => `${withWidth(src, width)} ${width}w`);
   return candidates.every((candidate) => candidate.startsWith(src)) ? '' : candidates.join(', ');
 }
@@ -50,11 +48,16 @@ export function responsiveImageMarkup(src, alt, {
   sizes = '(max-width: 640px) calc(100vw - 2rem), (max-width: 980px) calc(100vw - 3rem), 50vw',
   width = 1600,
   height = 1000,
-  extra = ''
+  extra = '',
+  mobileMaxWidth = 0
 } = {}) {
   const srcset = responsiveSet(src);
+  const mobileWidths = mobileMaxWidth > 0 ? [320, 480, 640].filter((width) => width <= mobileMaxWidth) : [];
+  const mobileSrcset = mobileWidths.length ? responsiveSet(src, mobileWidths) : '';
   const optimizedSrc = withWidth(src, 1280);
   const priority = fetchPriority === 'auto' ? '' : ` fetchpriority="${esc(fetchPriority)}"`;
   const decodeMode = decoding === 'sync' ? 'sync' : 'async';
-  return `<img src="${esc(optimizedSrc)}"${srcset ? ` srcset="${esc(srcset)}" sizes="${esc(sizes)}"` : ''} alt="${esc(alt)}" width="${width}" height="${height}" loading="${esc(loading)}" decoding="${decodeMode}"${priority}${className ? ` class="${esc(className)}"` : ''}${extra ? ` ${extra}` : ''}>`;
+  const image = `<img src="${esc(optimizedSrc)}"${srcset ? ` srcset="${esc(srcset)}" sizes="${esc(sizes)}"` : ''} alt="${esc(alt)}" width="${width}" height="${height}" loading="${esc(loading)}" decoding="${decodeMode}"${priority}${className ? ` class="${esc(className)}"` : ''}${extra ? ` ${extra}` : ''}>`;
+  if (!mobileSrcset) return image;
+  return `<picture><source media="(max-width: 900px)" srcset="${esc(mobileSrcset)}" sizes="calc(100vw - 2rem)">${image}</picture>`;
 }
