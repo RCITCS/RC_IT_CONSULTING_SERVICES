@@ -68,8 +68,18 @@ jobs:
             fi
           }
 
-          curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
-          job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p')
+          job_loc=''
+          for job_attempt in $(seq 1 24); do
+            if curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml; then
+              job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p' || true)
+              [[ -z "$job_loc" ]] || break
+            fi
+            if [[ "$job_attempt" == '24' ]]; then
+              echo 'No published job became discoverable in the production sitemap.' >&2
+              exit 1
+            fi
+            sleep 5
+          done
           test -n "$job_loc"
           job_url="${job_loc#<loc>}"
           job_url="${job_url%</loc>}"
