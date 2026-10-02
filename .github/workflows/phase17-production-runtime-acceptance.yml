@@ -115,7 +115,6 @@ jobs:
             grep -q 'id="main-content"' /tmp/route.html
           done
 
-          grep -q 'data-runtime-job-posting' /tmp/route.html || true
           job_code=$(curl -sS -o /tmp/job.html -w '%{http_code}' "$job_url")
           test "$job_code" = '200'
           grep -q 'data-runtime-job-posting' /tmp/job.html
