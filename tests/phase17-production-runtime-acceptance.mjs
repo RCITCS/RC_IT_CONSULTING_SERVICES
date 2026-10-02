@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const ci = fs.readFileSync('.github/workflows/cloudflare-deploy.yml', 'utf8');
 const exact = fs.readFileSync('.github/workflows/cloudflare-exact-deployment.yml', 'utf8');
+const runtime = fs.readFileSync('.github/workflows/phase17-production-runtime-acceptance.yml', 'utf8');
 const doc = fs.readFileSync('docs/PHASE_17_14_PRODUCTION_RUNTIME_ACCEPTANCE.md', 'utf8');
 
 assert.match(ci, /BASE='https:\/\/rcitcs\.com'/);
@@ -26,6 +27,14 @@ assert.match(ci, /immutable/);
 
 assert.match(exact, /EXPECTED_SHA: \$\{\{ github\.sha \}\}/);
 assert.match(exact, /BASE='https:\/\/rcitcs\.com'/);
+assert.match(exact, /job_loc=\$\(grep -oE '<loc>https:\/\/rcitcs\\\.com\/careers\/jobs\/\[\^<\]\+<\/loc>'/);
+assert.doesNotMatch(exact, /senior-data-engineer/);
+assert.match(runtime, /job_loc=\$\(grep -oE '<loc>https:\/\/rcitcs\\\.com\/careers\/jobs\/\[\^<\]\+<\/loc>'/);
+assert.match(runtime, /apply_path="\$\{job_path\}\/apply"/);
+assert.match(runtime, /grep -q 'data-runtime-job-posting' \/tmp\/job\.html/);
+assert.match(runtime, /grep -q 'data-career-application' \/tmp\/apply\.html/);
+assert.doesNotMatch(runtime, /senior-data-engineer/);
+assert.doesNotMatch(runtime, /data-runtime-job-posting'.*\|\| true/);
 assert.match(doc, /workers\.dev`, Vercel and raw Supabase URLs are not accepted production browser identities/);
 assert.match(doc, /does not replace Phase 18 responsive testing/);
 
