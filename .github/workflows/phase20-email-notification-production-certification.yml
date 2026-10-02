@@ -78,5 +78,6 @@ jobs:
           sweep=$(curl -sS -o /tmp/sweep.json -w '%{http_code}' -X POST "${BASE}/sweep")
           test "$sweep" = '401'
 
-          monitor=$(curl -sS -o /tmp/monitor.json -w '%{http_code}' "${BASE}/monitor")
-          [[ "$monitor" == '401' || "$monitor" == '405' ]]
+          monitor=$(curl -sS -o /tmp/monitor.json -w '%{http_code}' -X POST "${BASE}/monitor")
+          test "$monitor" = '401'
+          grep -q '"code":"UNAUTHORIZED"' /tmp/monitor.json
