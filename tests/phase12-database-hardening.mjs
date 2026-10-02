@@ -42,8 +42,8 @@ assert.match(
 );
 assert.ok(contractMigration.includes("if v_cover_letter_text is null"), 'SQL finalization must reassert the cover-letter requirement.');
 assert.ok(contractMigration.includes("d->>'kind' = 'cover_letter'"), 'SQL finalization must accept a private cover-letter document as the alternative to message text.');
-assert.ok(edge.includes('/storage/v1/upload/resumable`'), 'Signed TUS uploads must use the documented direct resumable endpoint.');
-assert.ok(!edge.includes('/storage/v1/upload/resumable/sign'), 'Undocumented TUS /sign endpoint must not return.');
+assert.ok(edge.includes('/storage/v1/upload/resumable/sign`'), 'Signed TUS uploads must use the documented signed resumable endpoint.');
+assert.ok(!edge.includes('endpoint: `${storageOrigin(supabaseUrl)}/storage/v1/upload/resumable`'), 'Signed uploads must not use the ordinary RLS-governed resumable endpoint.');
 assert.ok(edge.includes('hasCoverLetterDocument'), 'Edge finalization must revalidate cover-letter presence after loading the intake session.');
 assert.ok(edge.includes('COVER_LETTER_REQUIRED'), 'Missing final cover-letter content must produce an explicit validation result.');
 
