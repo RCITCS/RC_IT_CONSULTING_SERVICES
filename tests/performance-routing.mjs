@@ -69,11 +69,11 @@ const heroMarkup = pageHero({
 });
 assert(heroMarkup.includes('loading="eager"'), 'Page hero must remain eagerly requested.');
 assert(heroMarkup.includes('fetchpriority="high"'), 'Page hero must retain high fetch priority.');
-assert(heroMarkup.includes('decoding="async"'), 'Page hero must not synchronously block rendering on image decode.');
+assert(heroMarkup.includes('decoding="sync"'), 'Priority page hero must decode synchronously so the already-loaded LCP image is not deferred behind async decode.');
 
 const phase19QualityCss = await readFile(new URL('../src/frontend/styles/phase19-quality.css', import.meta.url), 'utf8');
 assert(phase19QualityCss.includes('.careers-page > .section'), 'Careers below-fold rendering deferral contract is missing.');
 assert(phase19QualityCss.includes('content-visibility: auto'), 'Careers below-fold rendering must use content-visibility.');
 assert(phase19QualityCss.includes('contain-intrinsic-size'), 'Careers deferred sections must reserve intrinsic layout space.');
 
-console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints, responsive-image delivery, async priority hero decode and Careers below-fold rendering contracts verified.');
+console.log('PASS: route JS splitting, cascade-safe route CSS splitting, lazy interaction loading, desktop/tablet/mobile breakpoints, responsive-image delivery, async default image decode, synchronous priority hero decode and Careers below-fold rendering contracts verified.');
