@@ -108,4 +108,5 @@ jobs:
       - name: Run exact-production Chromium Firefox WebKit WCAG acceptance
         env:
           PHASE20_16_BASE_URL: https://rcitcs.com
+          PHASE20_16_ADMIN_URL: https://admin.rcitcs.com
         run: npx playwright test --config=playwright.phase20-16.config.mjs
