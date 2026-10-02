@@ -29,5 +29,6 @@ assert.match(careers,/appendRuntimeJobPosting/);
 assert.match(content,/loading: 'eager'/);
 assert.match(content,/fetchPriority: 'high'/);
 assert.match(content,/decoding: 'async'/);
+assert.match(content,/mobileMaxWidth: 640/);
 
 console.log("Phase 20.15 SEO/search-index source certification: PASS");
