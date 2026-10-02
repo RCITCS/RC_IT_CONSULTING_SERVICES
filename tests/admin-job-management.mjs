@@ -72,10 +72,11 @@ assert.ok(!routes.includes('localStorage') && !routes.includes('sessionStorage')
 
 for (const capability of [
   'Create job','Edit job','Preview','Publish','Unpublish','Close','Archive','Restore','Duplicate',
-  'Department / category','Position title','Office / job location','Work mode','Employment type','Experience required',
+  'Department / category','Job title','Office / job location','Work mode','Employment type','Experience required',
   'Required skills','Job description','Benefits','Response time','Start date','End date','Publish indefinitely / no end date',
-  'Save draft','Advanced optional details'
+  'Save draft','Job summary','Preferred skills','Responsibilities','Qualifications','Location details'
 ]) assert.ok(ui.includes(capability), `Streamlined admin UI capability missing: ${capability}`);
+assert.ok(!ui.includes('Advanced optional details'), 'All job fields must remain visible in one editor without an advanced disclosure.');
 assert.ok(ui.includes('data-rc-admin-modal="true"'), 'Create/Edit/Preview actions must explicitly request modal treatment.');
 assert.ok(ui.includes('Generated automatically'));
 assert.ok(ui.includes('generatedSlug(title)'));
