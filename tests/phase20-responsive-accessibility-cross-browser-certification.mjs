@@ -9,6 +9,8 @@ const responsiveCss = fs.readFileSync("src/frontend/styles/responsive.css","utf8
 const phase18Css = fs.readFileSync("src/frontend/styles/phase18-responsive.css","utf8");
 const phase18Config = fs.readFileSync("playwright.config.mjs","utf8");
 const phase20Config = fs.readFileSync("playwright.phase20-16.config.mjs","utf8");
+const phase20Spec = fs.readFileSync("tests/phase20-16-cross-browser-accessibility.spec.mjs","utf8");
+const phase20Workflow = fs.readFileSync(".github/workflows/phase20-responsive-accessibility-cross-browser-certification.yml","utf8");
 
 for (const browser of ["chromium","firefox","webkit"]) {
   assert.ok(phase18Config.includes(browser), `Phase 18 matrix lost browser: ${browser}`);
@@ -39,5 +41,8 @@ assert.match(phase18,/min-height:44px/);
 assert.match(responsiveCss,/prefers-reduced-motion:\s*reduce/);
 assert.match(phase18Css,/overflow-wrap:\s*anywhere/);
 assert.doesNotMatch(phase18Css,/html\s*\{\s*overflow-x:/i);
+assert.match(phase20Spec,/PHASE20_16_ADMIN_URL/);
+assert.match(phase20Spec,/Administrator sign in/);
+assert.match(phase20Workflow,/PHASE20_16_ADMIN_URL:\s*https:\/\/admin\.rcitcs\.com/);
 
 console.log("Phase 20.16 responsive/accessibility/cross-browser source certification: PASS");
