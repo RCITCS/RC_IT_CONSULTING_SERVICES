@@ -53,13 +53,16 @@ jobs:
           test "$job_path" != "$job_url"
           apply_path="${job_path}/apply"
 
-          for route in '/' '/careers' "$job_path" "$apply_path" '/contact'; do
+          for route in '/' '/careers' "$job_path" '/contact'; do
             code=$(curl -sS -o /tmp/page.html -D /tmp/page.headers -w '%{http_code}' "${BASE}${route}")
             test "$code" = '200'
             grep -q 'id="main-content"' /tmp/page.html
           done
 
-          grep -q 'action="/api/career-application"' /tmp/page.html || true
+          apply_code=$(curl -sS -o /tmp/apply.html -D /tmp/apply.headers -w '%{http_code}' "${BASE}${apply_path}")
+          test "$apply_code" = '200'
+          grep -q 'id="main-content"' /tmp/apply.html
+          grep -q 'action="/api/career-application"' /tmp/apply.html
 
           health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "${BASE}/api/health")
           test "$health" = '200'
