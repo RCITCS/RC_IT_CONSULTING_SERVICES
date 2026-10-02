@@ -21,7 +21,8 @@ assert.doesNotMatch(sitemap,/\/apply/);
 for (const marker of ["'@type': 'JobPosting'","directApply: true","hiringOrganization","datePosted","jobLocation","identifier"]) {
   assert.ok(jobs.includes(marker), `runtime JobPosting marker missing: ${marker}`);
 }
-assert.match(careers,/name="robots" content="noindex,nofollow"/);
+assert.match(careers,/if \(applicationMatch\)[\s\S]*robots: 'noindex,nofollow'/);
+assert.match(careers,/robots: 'index,follow'[\s\S]*appendRuntimeJobPosting/);
 assert.match(careers,/appendRuntimeJobPosting/);
 
 console.log("Phase 20.15 SEO/search-index source certification: PASS");
