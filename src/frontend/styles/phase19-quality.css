@@ -21,6 +21,6 @@
 @supports (content-visibility: auto) {
   .careers-page > .section {
     content-visibility: auto;
-    contain-intrinsic-size: 1px 760px;
+    contain-intrinsic-block-size: 760px;
   }
 }
