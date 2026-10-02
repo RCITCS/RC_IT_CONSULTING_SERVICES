@@ -287,7 +287,7 @@ async function startApplication({ body, boundary, supabaseUrl, serviceKey, stora
     return json({
       ok: true, intakeToken, expiresAt: result.expires_at, consentVersion: CANDIDATE_CONSENT_VERSION, job: result.job,
       upload: {
-        endpoint: `${storageOrigin(supabaseUrl)}/storage/v1/upload/resumable`,
+        endpoint: `${storageOrigin(supabaseUrl)}/storage/v1/upload/resumable/sign`,
         apiKey: storageApiKey,
         bucket: CANDIDATE_DOCUMENT_BUCKET,
         chunkSize: TUS_CHUNK_BYTES,
