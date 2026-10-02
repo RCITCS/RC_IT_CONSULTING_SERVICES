@@ -28,6 +28,6 @@ assert.match(careers,/appendRuntimeJobPosting/);
 
 assert.match(content,/loading: 'eager'/);
 assert.match(content,/fetchPriority: 'high'/);
-assert.match(content,/decoding: 'sync'/);
+assert.match(content,/decoding: 'async'/);
 
 console.log("Phase 20.15 SEO/search-index source certification: PASS");
