@@ -36,8 +36,8 @@ function withWidth(src, width) {
 }
 
 function responsiveSet(src) {
-  // 640 closes the common mobile-DPR gap between the former 480 and 720 candidates.
-  const widths = [320, 480, 640, 720, 960, 1280, 1600];
+  // 640 closes the common mobile-DPR gap without over-fetching the former 720w candidate.
+  const widths = [320, 480, 640, 960, 1280, 1600];
   const candidates = widths.map((width) => `${withWidth(src, width)} ${width}w`);
   return candidates.every((candidate) => candidate.startsWith(src)) ? '' : candidates.join(', ');
 }
