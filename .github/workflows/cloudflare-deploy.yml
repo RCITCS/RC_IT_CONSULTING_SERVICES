@@ -133,8 +133,6 @@ jobs:
             '/contact'
             '/services/it/cyber-security'
             '/services/it/consultancy-services/agile'
-            '/careers/jobs/senior-data-engineer'
-            '/careers/jobs/senior-data-engineer/apply'
             '/privacy'
           )
 
@@ -186,16 +184,22 @@ jobs:
           grep -q '"@type":"Service"' /tmp/service.html
           grep -q 'BreadcrumbList' /tmp/service.html
 
-          curl -sS "${BASE}/careers/jobs/senior-data-engineer" -o /tmp/job.html
-          grep -q "rel=\"canonical\" href=\"${BASE}/careers/jobs/senior-data-engineer\"" /tmp/job.html
+          curl -fLsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+          job_loc=$(grep -oE '<loc>https://rcitcs\.com/careers/jobs/[^<]+</loc>' /tmp/sitemap.xml | sed -n '1p')
+          test -n "$job_loc"
+          job_url="${job_loc#<loc>}"
+          job_url="${job_url%</loc>}"
+          job_path="${job_url#${BASE}}"
+          curl -fLsS "$job_url" -o /tmp/job.html
+          grep -Fq "rel=\"canonical\" href=\"${job_url}\"" /tmp/job.html
           grep -q 'name="robots" content="index,follow"' /tmp/job.html
           grep -q 'Apply for this role' /tmp/job.html
-          grep -q 'href="/careers/jobs/senior-data-engineer/apply"' /tmp/job.html
+          grep -Fq "href=\"${job_path}/apply\"" /tmp/job.html
           grep -q 'data-runtime-job-posting' /tmp/job.html
           grep -q '"@type":"JobPosting"' /tmp/job.html
           grep -q '"directApply":true' /tmp/job.html
 
-          curl -sS "${BASE}/careers/jobs/senior-data-engineer/apply" -o /tmp/apply.html
+          curl -fLsS "${job_url}/apply" -o /tmp/apply.html
           grep -q 'data-career-application' /tmp/apply.html
           grep -q 'name="resume" type="file"' /tmp/apply.html
           grep -q 'name="robots" content="noindex,nofollow"' /tmp/apply.html
@@ -204,7 +208,7 @@ jobs:
 
           rejected_code=$(curl -sS -o /tmp/application-rejected.json -w '%{http_code}' -X POST \
             -H 'content-type: application/json' \
-            --data '{"action":"start","jobSlug":"senior-data-engineer"}' \
+            --data "{\"action\":\"start\",\"jobSlug\":\"${job_path##*/}\"}" \
             "${BASE}/api/career-application")
           test "$rejected_code" = '403'
           grep -q 'REQUEST_REJECTED' /tmp/application-rejected.json
