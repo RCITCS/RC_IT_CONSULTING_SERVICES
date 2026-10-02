@@ -11,10 +11,11 @@ export function pageHero({ category, title, lead, image, imageAlt, crumbs = [] }
   const heroImage = responsiveImageMarkup(image, imageAlt, {
     loading: 'eager',
     fetchPriority: 'high',
-    decoding: 'sync',
+    decoding: 'async',
     sizes: '(max-width: 900px) calc(100vw - 2rem), 42vw',
     width: 1600,
-    height: 1000
+    height: 1000,
+    mobileMaxWidth: 640
   });
   const inner = `<div>${breadcrumbs(crumbs)}<span class="eyebrow">${esc(category)}</span><h1>${esc(title)}</h1><p>${esc(lead)}</p></div>${heroImage}`;
   return `<section class="page-hero">${container(inner, { className: 'page-hero-grid' })}</section>`;
