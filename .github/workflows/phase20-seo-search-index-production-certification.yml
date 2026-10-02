@@ -1,0 +1,125 @@
+name: Phase 20.15 SEO Search Index Production Certification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase20-15-seo-search-index-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PHASE20_14_CERTIFIED_BASELINE: b3f4dde65ad91ba6378b9d5fb2ca4495dc147b85
+
+jobs:
+  source:
+    name: 20.15 Source and inherited SEO certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify certified Phase 20.14 baseline remains in ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${PHASE20_14_CERTIFIED_BASELINE}^{commit}"
+          git merge-base --is-ancestor "${PHASE20_14_CERTIFIED_BASELINE}" HEAD
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - run: npm run test:seo
+      - run: npm run test:seo-preview
+      - run: node tests/phase20-seo-search-index-production-certification.mjs
+
+  production:
+    name: 20.15 Production crawl metadata and JobPosting acceptance
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify exact merged production SHA
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 120); do
+            curl -sS -o /tmp/root.html https://rcitcs.com/
+            if grep -Fq "name=\"rc-deployment-sha\" content=\"${EXPECTED_SHA}\"" /tmp/root.html; then
+              exit 0
+            fi
+            if [[ "$attempt" == '120' ]]; then
+              echo "Exact merged SHA did not reach public production." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify sitemap and robots discovery boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+          curl -fsS "${BASE}/robots.txt" -o /tmp/robots.txt
+          curl -fsS "${BASE}/sitemap.xml" -o /tmp/sitemap.xml
+
+          grep -Fq 'User-agent: *' /tmp/robots.txt
+          grep -Fq 'Disallow: /api/' /tmp/robots.txt
+          grep -Fq 'Disallow: /admin/' /tmp/robots.txt
+          grep -Fq 'Sitemap: https://rcitcs.com/sitemap.xml' /tmp/robots.txt
+
+          grep -Fq '<loc>https://rcitcs.com/</loc>' /tmp/sitemap.xml
+          grep -Fq '<loc>https://rcitcs.com/careers/jobs/data-analyst</loc>' /tmp/sitemap.xml
+          grep -Fq '<loc>https://rcitcs.com/careers/jobs/senior-data-engineer</loc>' /tmp/sitemap.xml
+
+          ! grep -Fq 'admin.rcitcs.com' /tmp/sitemap.xml
+          ! grep -Fq 'workers.dev' /tmp/sitemap.xml
+          ! grep -Fq '/api/' /tmp/sitemap.xml
+          ! grep -Fq '/login</loc>' /tmp/sitemap.xml
+          ! grep -Fq '/apply</loc>' /tmp/sitemap.xml
+
+      - name: Verify representative indexed job and noindex application
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://rcitcs.com'
+
+          code=$(curl -sS -D /tmp/job.headers -o /tmp/job.html -w '%{http_code}' "${BASE}/careers/jobs/data-analyst")
+          test "$code" = '200'
+          grep -Fq '<meta name="robots" content="index,follow"' /tmp/job.html
+          grep -Fq '<link rel="canonical" href="https://rcitcs.com/careers/jobs/data-analyst"' /tmp/job.html
+          grep -Fq '"@type":"JobPosting"' /tmp/job.html
+          grep -Fq '"directApply":true' /tmp/job.html
+          grep -Fq '"hiringOrganization"' /tmp/job.html
+          grep -Fq '"datePosted"' /tmp/job.html
+          grep -Fq '"identifier"' /tmp/job.html
+
+          apply=$(curl -sS -D /tmp/apply.headers -o /tmp/apply.html -w '%{http_code}' "${BASE}/careers/jobs/data-analyst/apply")
+          test "$apply" = '200'
+          grep -Fq '<meta name="robots" content="noindex,nofollow"' /tmp/apply.html
+          grep -Fq '<link rel="canonical" href="https://rcitcs.com/careers/jobs/data-analyst/apply"' /tmp/apply.html
+          ! grep -Fq 'data-runtime-job-posting' /tmp/apply.html
+
+      - name: Verify private and error surfaces remain non-indexable
+        shell: bash
+        run: |
+          set -euo pipefail
+          admin=$(curl -sS -D /tmp/admin.headers -o /tmp/admin.html -w '%{http_code}' https://admin.rcitcs.com/)
+          test "$admin" = '200'
+          grep -qi '^x-robots-tag:.*noindex' /tmp/admin.headers
+          grep -qi '^cache-control:.*no-store' /tmp/admin.headers
+
+          missing=$(curl -sS -o /tmp/missing.html -w '%{http_code}' https://rcitcs.com/phase20-15-not-found)
+          test "$missing" = '404'
+          grep -Fq '<meta name="robots" content="noindex,nofollow"' /tmp/missing.html
