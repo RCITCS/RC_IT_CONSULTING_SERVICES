@@ -13,6 +13,7 @@ const phase20Spec = fs.readFileSync("tests/phase20-16-cross-browser-accessibilit
 const phase20Workflow = fs.readFileSync(".github/workflows/phase20-responsive-accessibility-cross-browser-certification.yml","utf8");
 const tokensCss = fs.readFileSync("src/frontend/styles/tokens.css","utf8");
 const phase19QualityCss = fs.readFileSync("src/frontend/styles/phase19-quality.css","utf8");
+const careersCss = fs.readFileSync("src/frontend/styles/careers.css","utf8");
 const adminResponsive = fs.readFileSync("worker/admin-responsive.js","utf8");
 const adminUi = fs.readFileSync("supabase/functions/admin-auth/ui.ts","utf8");
 
@@ -53,6 +54,7 @@ assert.match(tokensCss,/--color-ink-500:\s*#5f6f78;/i);
 assert.match(phase19QualityCss,/content-visibility:\s*auto/);
 assert.match(phase19QualityCss,/contain-intrinsic-block-size:\s*760px/);
 assert.doesNotMatch(phase19QualityCss,/contain-intrinsic-size:\s*1px\s+760px/);
+assert.match(careersCss,/\.careers-page\s*>\s*\.section:not\(\.section--soft\):not\(\.career-privacy\)\s*\{\s*background:var\(--color-surface\)/);
 assert.match(adminResponsive,/:root\{--quiet:#647080\}/i);
 assert.match(adminUi,/--quiet:#647080;/i);
 
