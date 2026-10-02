@@ -8,7 +8,7 @@ export const LEGAL_PAGES = {
     highlights: [
       ['Data controller', 'R C OVERSEAS LTD'],
       ['Company number', '14124566'],
-      ['Registered office', '93 Metcalfe Court John Harrison Way, London, England, SE10 0BZ'],
+      ['Registered office', '66 Paul Street, London, England, EC2A 4NA'],
       ['Privacy contact', 'Use the Contact page and identify your message as a Data Protection Request']
     ],
     sections: [
@@ -248,7 +248,7 @@ export const LEGAL_PAGES = {
     highlights: [
       ['Website operator', 'R C OVERSEAS LTD'],
       ['Company number', '14124566'],
-      ['Registered office', '93 Metcalfe Court John Harrison Way, London, England, SE10 0BZ'],
+      ['Registered office', '66 Paul Street, London, England, EC2A 4NA'],
       ['Governing law', 'England and Wales, subject to mandatory rights that apply by law']
     ],
     sections: [

@@ -2,7 +2,7 @@ export const COMPANY = {
   brand: 'RC IT Services',
   legalName: 'R C OVERSEAS LTD',
   companyNumber: '14124566',
-  registeredOffice: '93 Metcalfe Court John Harrison Way, London, England, SE10 0BZ'
+  registeredOffice: '66 Paul Street, London, England, EC2A 4NA'
 };
 
 // Visual policy: real-world photography only. No generated AI artwork or synthetic people.

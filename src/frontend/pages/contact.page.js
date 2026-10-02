@@ -100,7 +100,7 @@ export function renderContactPage() {
         <p class="contact-company-number">Registered in England and Wales · Company No. ${esc(COMPANY.companyNumber)}</p>
         <p class="contact-privacy-note">Please do not include passwords, secret keys, payment-card information or other unnecessary sensitive data in a public website enquiry.</p>
       </div></div>
-      <div class="col-lg-7"><div class="contact-map-shell h-100"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=93%20Metcalfe%20Court%20John%20Harrison%20Way%20London%20SE10%200BZ&output=embed" width="100%" height="440" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div>
+      <div class="col-lg-7"><div class="contact-map-shell h-100"><iframe title="Map showing the registered office of R C OVERSEAS LTD" src="https://www.google.com/maps?q=66%20Paul%20Street%20London%20EC2A%204NA&output=embed" width="100%" height="440" style="display:block;border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div></div>
     </div></div></section>
   </main>`;
 }
