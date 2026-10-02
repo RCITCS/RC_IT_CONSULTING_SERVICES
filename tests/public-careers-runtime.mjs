@@ -53,6 +53,20 @@ function successfulFetch(calls, selected = selectedJob, jobs = [listJob]) {
 }
 
 {
+  const headings = ['Key responsibilities', 'Candidate requirements', 'Working arrangement', 'Working hours', 'Salary', 'Skilled Worker classification', 'Equal opportunities'];
+  const description = ['Role introduction.', ...headings.flatMap((heading) => [heading, `Details for ${heading}.`]), '<script>alert(1)</script>'].join('\n\n');
+  const response = await handlePublicCareersRequest(new Request('https://preview.example/careers/jobs/platform-engineer'), env(), {
+    fetchImpl: successfulFetch([], { ...selectedJob, description })
+  });
+  const html = await response.text();
+  for (const heading of headings) {
+    assert.ok(html.includes(`<h4 class="career-description-heading">${heading}</h4>`), `${heading} should be a bold description heading`);
+  }
+  assert.ok(html.includes('<p>Details for Salary.</p>'), 'Body text must remain a paragraph.');
+  assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'), 'Description text must remain escaped.');
+}
+
+{
   const calls = [];
   const response = await handlePublicCareersRequest(new Request('https://preview.example/careers'), env(), { fetchImpl: successfulFetch(calls) });
   const html = await response.text();

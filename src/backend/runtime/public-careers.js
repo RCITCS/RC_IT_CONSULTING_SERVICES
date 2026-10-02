@@ -19,6 +19,19 @@ function paragraphs(value = '') {
   return String(value || '').split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
 }
 
+const DESCRIPTION_HEADINGS = new Set([
+  'key responsibilities', 'candidate requirements', 'working arrangement',
+  'working hours', 'salary', 'skilled worker classification', 'equal opportunities'
+]);
+
+function descriptionParagraph(part) {
+  const heading = part.replace(/:$/, '').trim();
+  if (DESCRIPTION_HEADINGS.has(heading.toLowerCase())) {
+    return `<h4 class="career-description-heading">${esc(part)}</h4>`;
+  }
+  return `<p>${esc(part)}</p>`;
+}
+
 function publicDate(value) {
   if (!value) return '';
   try {
@@ -82,7 +95,7 @@ function roleDetail(job) {
     ${detailList('Required skills', job.requiredSkills)}
     ${detailList('Preferred skills', job.preferredSkills)}
     ${tagGroup('Industry context', job.industries)}
-    ${description.length ? `<section class="career-role-section"><h3>Job description</h3>${description.map((paragraph) => `<p>${esc(paragraph)}</p>`).join('')}</section>` : ''}
+    ${description.length ? `<section class="career-role-section"><h3>Job description</h3>${description.map(descriptionParagraph).join('')}</section>` : ''}
     ${detailList('Key responsibilities', job.responsibilities)}
     ${detailList('Qualifications', job.qualifications)}
     ${detailList('Preferred qualifications', job.preferredQualifications)}

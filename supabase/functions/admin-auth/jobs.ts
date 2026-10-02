@@ -265,6 +265,19 @@ function previewList(title: string, items: unknown, tags = false): string {
   return `<section style="padding:18px 0;border-top:1px solid var(--line)"><h3 style="margin:0 0 10px;font-size:13px">${esc(title)}</h3><ul style="margin:0;padding-left:20px;line-height:1.65;font-size:12px">${values.map((item)=>`<li>${esc(item)}</li>`).join("")}</ul></section>`;
 }
 
+const DESCRIPTION_HEADINGS = new Set([
+  "key responsibilities", "candidate requirements", "working arrangement",
+  "working hours", "salary", "skilled worker classification", "equal opportunities"
+]);
+
+function previewDescriptionParagraph(part: string): string {
+  const heading = part.replace(/:$/, "").trim();
+  if (DESCRIPTION_HEADINGS.has(heading.toLowerCase())) {
+    return `<h4 style="margin:18px 0 8px;color:var(--ink);font-size:13px;font-weight:800">${esc(part)}</h4>`;
+  }
+  return `<p style="font-size:12px;line-height:1.7">${esc(part)}</p>`;
+}
+
 function fact(label: string, current: unknown): string {
   if (current == null || String(current).trim() === "") return "";
   return `<div style="padding:12px;border:1px solid var(--line);background:var(--surface-subtle)"><span style="display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.05em">${esc(label)}</span><strong style="display:block;margin-top:5px;font-size:12px">${esc(current)}</strong></div>`;
@@ -275,7 +288,7 @@ export function jobPreviewPage(basePath: string, session: AdminSessionView, job:
   const facts = [fact("Job code",job.code),fact("Category",job.category_name),fact("Location",job.location),fact("Work model",job.workplace_type),fact("Employment type",job.employment_type),fact("Experience",job.experience),fact("Response time",job.application_response_window),job.published_at?fact("Posted",prettyTime(job.published_at)):"",job.opens_at?fact("Starts",prettyTime(job.opens_at)):"",job.closes_at?fact("Available through",londonDate(job.closes_at,true)):fact("Availability","No expiry")].join("");
   return shell("Job preview", `<div class="admin-shell">${adminHeader(basePath, session, "jobs")}${workspaceBar("Private vacancy preview")}
   <main class="workspace" id="main-content" aria-labelledby="job-preview-title"><div class="page-heading"><div><div class="eyebrow">Private preview · ${esc(job.status || "draft")}</div><h1 id="job-preview-title">${esc(job.title || "Untitled vacancy")}</h1><p>${esc(job.summary || "Candidate-facing preview")}</p></div><div class="snapshot"><strong>${esc(job.code || "Identifier pending")}</strong>${esc(job.category_name || "Uncategorised")}<br>Version ${esc(job.version ?? 1)}</div></div>
-    <section class="data-plane"><header class="section-header"><div><h2>Candidate-content preview</h2><p>This is the authoritative content that will be used by the public Careers page.</p></div>${statusBadge(job.status)}</header><div style="padding:22px;max-width:980px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px;margin-bottom:20px">${facts}</div>${previewList("Required skills",job.required_skills)}${paragraphs.length?`<section style="padding:18px 0;border-top:1px solid var(--line)"><h3 style="margin:0 0 10px;font-size:13px">Job description</h3>${paragraphs.map((p)=>`<p style="font-size:12px;line-height:1.7">${esc(p)}</p>`).join("")}</section>`:""}${previewList("Technology environment",job.technologies,true)}${previewList("Preferred skills",job.preferred_skills)}${previewList("Key responsibilities",job.responsibilities)}${previewList("Qualifications",job.qualifications)}${previewList("Preferred qualifications",job.preferred_qualifications)}${previewList("Benefits & employment terms",job.benefits)}${previewList("Industry context",job.industries,true)}${previewList("Nature of working style",job.working_style_details)}${job.location_details?`<section style="padding:18px 0;border-top:1px solid var(--line)"><h3>Location</h3><p>${esc(job.location_details)}</p></section>`:""}</div></section>
+    <section class="data-plane"><header class="section-header"><div><h2>Candidate-content preview</h2><p>This is the authoritative content that will be used by the public Careers page.</p></div>${statusBadge(job.status)}</header><div style="padding:22px;max-width:980px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:10px;margin-bottom:20px">${facts}</div>${previewList("Required skills",job.required_skills)}${paragraphs.length?`<section style="padding:18px 0;border-top:1px solid var(--line)"><h3 style="margin:0 0 10px;font-size:13px">Job description</h3>${paragraphs.map(previewDescriptionParagraph).join("")}</section>`:""}${previewList("Technology environment",job.technologies,true)}${previewList("Preferred skills",job.preferred_skills)}${previewList("Key responsibilities",job.responsibilities)}${previewList("Qualifications",job.qualifications)}${previewList("Preferred qualifications",job.preferred_qualifications)}${previewList("Benefits & employment terms",job.benefits)}${previewList("Industry context",job.industries,true)}${previewList("Nature of working style",job.working_style_details)}${job.location_details?`<section style="padding:18px 0;border-top:1px solid var(--line)"><h3>Location</h3><p>${esc(job.location_details)}</p></section>`:""}</div></section>
     <div class="actions"><a class="btn" data-rc-admin-modal="true" href="${basePath}/jobs/${esc(job.id || "")}/edit">Edit job</a><a class="btn secondary" href="${basePath}/jobs">Back to jobs</a></div></main></div>`);
 }
 
