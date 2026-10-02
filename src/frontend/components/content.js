@@ -11,7 +11,7 @@ export function pageHero({ category, title, lead, image, imageAlt, crumbs = [] }
   const heroImage = responsiveImageMarkup(image, imageAlt, {
     loading: 'eager',
     fetchPriority: 'high',
-    decoding: 'async',
+    decoding: 'sync',
     sizes: '(max-width: 900px) calc(100vw - 2rem), 42vw',
     width: 1600,
     height: 1000
