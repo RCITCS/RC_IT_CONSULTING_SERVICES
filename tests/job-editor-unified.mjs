@@ -8,7 +8,7 @@ const bundle = await build({
   format: 'esm',
   write: false
 });
-const { jobEditorPage } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { jobEditorPage, jobPreviewPage } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const session = { admin: { email: 'admin@example.test', role: 'super_admin' }, csrf: 'test-csrf', expires_at: '2026-10-02T00:00:00Z' };
 const context = { categories: [{ name: 'Data Engineering', is_active: true }] };
 const html = await jobEditorPage('', session, context).text();
@@ -32,5 +32,13 @@ assert.match(html, /\.job-editor-form \.field label\{color:var\(--ink\);font-wei
 assert.match(html, /\.job-editor-form #job-title\{font-weight:700\}/);
 assert.match(html, /name="intent" value="draft"/);
 assert.match(html, /name="intent" value="publish"/);
+
+const preview = await jobPreviewPage('', session, {
+  id: 'test-job', title: 'Data Analyst', status: 'published',
+  description: 'Role introduction.\n\nCandidate requirements\n\nRelevant experience.\n\nSalary\n\nSalary details.'
+}).text();
+assert.match(preview, /<h4[^>]*>Candidate requirements<\/h4>/);
+assert.match(preview, /<h4[^>]*>Salary<\/h4>/);
+assert.match(preview, /<p[^>]*>Relevant experience\.<\/p>/);
 
 console.log('PASS: job creation has one visible editor, one copy of every field, bold labels and unchanged draft/publish actions.');
