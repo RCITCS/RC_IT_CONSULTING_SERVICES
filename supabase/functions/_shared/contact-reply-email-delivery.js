@@ -59,7 +59,13 @@ export function buildContactReplyEnvelope(queue, message) {
   if (attachments.length > 5 || attachments.some((item) => !item || typeof item.filename !== 'string' || typeof item.content !== 'string')) {
     throw new TypeError('Persisted contact reply attachments are invalid.');
   }
-  return attachments.length ? { ...envelope, attachments } : envelope;
+  const parentId = text(message.thread_parent_message_id);
+  if (parentId && !/^<[^<>\s\r\n]{3,510}>$/.test(parentId)) throw new TypeError('Contact thread parent Message-ID is invalid.');
+  return {
+    ...envelope,
+    ...(attachments.length ? { attachments } : {}),
+    ...(parentId ? { headers: { 'In-Reply-To': parentId, References: parentId } } : {})
+  };
 }
 
 export async function dispatchContactReplyEmail({ queue, message, provider, markSent, markFailed } = {}) {

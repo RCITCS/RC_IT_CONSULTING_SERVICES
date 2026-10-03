@@ -171,6 +171,29 @@ async function loadContactReplyMessage(emailLogId: string): Promise<Record<strin
   return { ...message, attachments };
 }
 
+function validMailMessageId(value: unknown): string {
+  const id = String(value ?? "").trim();
+  return /^<[^<>\s\r\n]{3,510}>$/.test(id) ? id : "";
+}
+
+async function contactThreadParent(enquiryId: string, currentEmailLogId: string): Promise<string> {
+  const inbound = await rows(`contact_inbound_messages?enquiry_id=eq.${encodeURIComponent(enquiryId)}&select=source_message_id&order=received_at.desc&limit=1`);
+  const receivedId = validMailMessageId(inbound[0]?.source_message_id);
+  if (receivedId) return receivedId;
+
+  const sent = await rows(`contact_enquiry_messages?enquiry_id=eq.${encodeURIComponent(enquiryId)}&email_log_id=not.eq.${encodeURIComponent(currentEmailLogId)}&select=email_log_id&order=created_at.asc&limit=20`);
+  for (const item of sent) {
+    const logId = String(item.email_log_id ?? "");
+    if (!UUID.test(logId)) continue;
+    const logs = await rows(`email_logs?id=eq.${encodeURIComponent(logId)}&status=eq.sent&select=provider_message_id&limit=1`);
+    const providerId = String(logs[0]?.provider_message_id ?? "");
+    if (!UUID.test(providerId)) continue;
+    const mailId = validMailMessageId(await provider.messageId(providerId));
+    if (mailId) return mailId;
+  }
+  return "";
+}
+
 async function loadCandidateReplyMessage(emailLogId: string): Promise<Record<string, unknown> | null> {
   if (!UUID.test(emailLogId)) return null;
   const data = await rows(
@@ -285,6 +308,8 @@ async function dispatchEmailById(emailLogId: string): Promise<{ ok: boolean; cod
         return { ok: false, code: "CONTACT_ATTACHMENT_UNAVAILABLE" };
       }
       if (!message) throw new Error("persisted contact reply message unavailable");
+      const parentId = await contactThreadParent(String(message.enquiry_id), String(queue.id));
+      if (parentId) message.thread_parent_message_id = parentId;
       await dispatchContactReplyEmail({ queue, message, provider, markSent, markFailed });
       return { ok: true };
     }
