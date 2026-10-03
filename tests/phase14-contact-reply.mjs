@@ -113,5 +113,10 @@ assert.equal(envelope.idempotencyKey, key);
 assert.equal(envelope.text, message.body_text);
 assert.match(envelope.html, /Hello &lt;customer&gt;<br>Second line/);
 assert.doesNotMatch(envelope.html, /Hello <customer>/);
+const threaded = buildContactReplyEnvelope(queue, { ...message, thread_parent_message_id: '<customer-reply@example.com>' });
+assert.deepEqual(threaded.headers, {
+  'In-Reply-To': '<customer-reply@example.com>',
+  References: '<customer-reply@example.com>'
+});
 
 console.log('Phase 14.8 customer reply composer, atomic persistence/queueing, fixed identity, escaping, idempotency, retry, backwards-compatible runtime health and audit-content isolation passed.');

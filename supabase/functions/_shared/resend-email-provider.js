@@ -44,6 +44,15 @@ export function createResendEmailProvider({ apiKey = '', fetchImpl = globalThis.
   return Object.freeze({
     name: 'resend',
     configured,
+    async messageId(emailId) {
+      if (!configured || !/^[0-9a-f-]{36}$/i.test(String(emailId ?? ''))) return '';
+      const response = await fetchImpl(`${RESEND_EMAIL_ENDPOINT}/${emailId}`, {
+        headers: { authorization: `Bearer ${secret}` }
+      });
+      if (!response.ok) return '';
+      const body = await safeJson(response);
+      return String(body.message_id ?? '').trim();
+    },
     async send(envelope) {
       if (!configured) {
         throw new EmailProviderError('Transactional email provider is not configured.', {
@@ -67,6 +76,7 @@ export function createResendEmailProvider({ apiKey = '', fetchImpl = globalThis.
           html: envelope.html,
           text: envelope.text,
           ...(envelope.replyTo ? { reply_to: envelope.replyTo } : {}),
+          ...(envelope.headers ? { headers: envelope.headers } : {}),
           ...(Array.isArray(envelope.attachments) && envelope.attachments.length ? { attachments: envelope.attachments } : {})
         };
         let response;

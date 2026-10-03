@@ -32,18 +32,28 @@ for (const captureFails of [false, true]) {
 }
 
 let delivered = null;
+let retrieved = false;
 const provider = createResendEmailProvider({
   apiKey: 'test',
-  fetchImpl: async (_url, init) => {
+  fetchImpl: async (url, init) => {
+    if (init.headers.authorization && !init.method) {
+      retrieved = true;
+      assert.equal(url, 'https://api.resend.com/emails/11111111-1111-4111-8111-111111111111');
+      return new Response(JSON.stringify({ message_id: '<prior@example.com>' }), { status: 200 });
+    }
     delivered = JSON.parse(init.body);
     return new Response(JSON.stringify({ id: 'email-id' }), { status: 200 });
   }
 });
+assert.equal(await provider.messageId('11111111-1111-4111-8111-111111111111'), '<prior@example.com>');
+assert.equal(retrieved, true);
 await provider.send({
   from: 'RC IT Services <contact@rcitcs.com>', to: 'customer@example.com',
   subject: 'Reply', html: '<p>Reply</p>', text: 'Reply',
   idempotencyKey: 'contact-conversation-test',
-  attachments: [{ filename: 'example.pdf', content: 'SGVsbG8=' }]
+  attachments: [{ filename: 'example.pdf', content: 'SGVsbG8=' }],
+  headers: { 'In-Reply-To': '<prior@example.com>', References: '<prior@example.com>' }
 });
 assert.deepEqual(delivered.attachments, [{ filename: 'example.pdf', content: 'SGVsbG8=' }]);
+assert.deepEqual(delivered.headers, { 'In-Reply-To': '<prior@example.com>', References: '<prior@example.com>' });
 console.log('Contact Gmail forwarding, capture failure isolation and email attachment delivery passed.');
