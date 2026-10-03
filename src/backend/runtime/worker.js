@@ -10,7 +10,7 @@ const ADMIN_HOSTS = new Set(['admin.rcitcs.com', 'admin-staging.rcitcs.com']);
 const ADMIN_UPSTREAM_ORIGIN = 'https://chsizmffzpxcqhaptjeu.supabase.co';
 const ADMIN_UPSTREAM_BASE = '/functions/v1/admin-auth';
 const ADMIN_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
-const ADMIN_ATTACHMENT_CSP = `${ADMIN_HTML_CSP}; connect-src 'self'; img-src 'self'; media-src 'self'; frame-src 'self'`;
+const ADMIN_ATTACHMENT_CSP = `${ADMIN_HTML_CSP}; connect-src 'self'; img-src 'self'; media-src 'self'; frame-src 'self' blob:`;
 const ADMIN_UI_SCRIPT = `(() => {
   const eye = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.75"/></svg>';
   const eyeOff = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 6.2A10.2 10.2 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1"/><path d="M6.1 6.2C3.7 8 2.5 12 2.5 12s3.5 6 9.5 6c1.5 0 2.8-.4 4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';

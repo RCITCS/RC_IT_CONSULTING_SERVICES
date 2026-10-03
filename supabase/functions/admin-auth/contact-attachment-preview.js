@@ -48,6 +48,12 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
   const libraries = {};
   const scriptBase = document.currentScript?.src || location.href;
   let previewNumber = 0;
+  let activePdfUrl = null;
+  function clearStage() {
+    stage.replaceChildren();
+    if (activePdfUrl) URL.revokeObjectURL(activePdfUrl);
+    activePdfUrl = null;
+  }
   function loadLibrary(name) {
     if (!libraries[name]) libraries[name] = new Promise((resolve, reject) => {
       const script = document.createElement('script');
@@ -61,7 +67,28 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
   function message(value) {
     const paragraph = document.createElement('p');
     paragraph.textContent = value;
-    stage.replaceChildren(paragraph);
+    clearStage();
+    stage.append(paragraph);
+  }
+  async function renderPdf(url, name, requestNumber) {
+    try {
+      const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok || !String(response.headers.get('content-type') || '').toLowerCase().startsWith('application/pdf')) throw new Error('PDF unavailable');
+      const bytes = await response.arrayBuffer();
+      if (requestNumber !== previewNumber || !dialog.open) return;
+      const signature = new TextDecoder('ascii').decode(bytes.slice(0, 1024));
+      if (!signature.includes('%PDF-')) throw new Error('Invalid PDF');
+      const blobUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      if (requestNumber !== previewNumber || !dialog.open) { URL.revokeObjectURL(blobUrl); return; }
+      const frame = document.createElement('iframe');
+      frame.title = name;
+      frame.src = blobUrl;
+      clearStage();
+      activePdfUrl = blobUrl;
+      stage.append(frame);
+    } catch {
+      if (requestNumber === previewNumber && dialog.open) message('PDF preview could not be loaded. You can download the file.');
+    }
   }
   async function renderOffice(kind, url, requestNumber) {
     try {
@@ -120,16 +147,15 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
     downloadUrl.searchParams.set('download', '1');
     download.href = downloadUrl.toString();
     download.setAttribute('download', name);
-    stage.replaceChildren();
+    clearStage();
     const requestNumber = ++previewNumber;
     let content;
     if (kind === 'image') {
       content = document.createElement('img');
       content.alt = name;
     } else if (kind === 'pdf') {
-      content = document.createElement('iframe');
-      content.title = name;
-      content.setAttribute('sandbox', '');
+      content = document.createElement('p');
+      content.textContent = 'Loading PDF preview…';
     } else if (kind === 'audio') {
       content = document.createElement('audio');
       content.controls = true;
@@ -143,11 +169,12 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
       content = document.createElement('p');
       content.textContent = 'A browser preview is not available for this file type. Download it to open it in the appropriate app.';
     }
-    if (['image', 'pdf', 'audio', 'video'].includes(kind)) content.src = previewUrl.toString();
+    if (['image', 'audio', 'video'].includes(kind)) content.src = previewUrl.toString();
     stage.append(content);
     dialog.showModal();
     close.focus();
     if (kind === 'image') content.onerror = () => message('Image preview could not be loaded. You can download the file.');
+    if (kind === 'pdf') renderPdf(previewUrl, name, requestNumber);
     if (kind === 'text') fetch(previewUrl, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
       if (!response.ok) throw new Error('Attachment unavailable');
       const pre = document.createElement('pre');
@@ -158,7 +185,7 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
     if (kind === 'document' || kind === 'spreadsheet') renderOffice(kind, previewUrl, requestNumber);
   });
   close.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => { ++previewNumber; stage.replaceChildren(); });
+  dialog.addEventListener('close', () => { ++previewNumber; clearStage(); });
 
   const input = document.getElementById('contact-reply-files');
   const selection = document.getElementById('contact-selected-files');
