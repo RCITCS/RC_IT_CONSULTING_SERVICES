@@ -56,7 +56,7 @@ export function buildContactReplyEnvelope(queue, message) {
   if (text(queue.idempotency_key) !== envelope.idempotencyKey) throw new TypeError('Contact reply idempotency key does not match the persisted message.');
   if (text(message.idempotency_key) !== envelope.idempotencyKey) throw new TypeError('Persisted contact reply idempotency key is invalid.');
   const attachments = Array.isArray(message.attachments) ? message.attachments : [];
-  if (attachments.length > 5 || attachments.some((item) => !item || typeof item.filename !== 'string' || typeof item.content !== 'string')) {
+  if (attachments.some((item) => !item || typeof item.filename !== 'string' || typeof item.content !== 'string')) {
     throw new TypeError('Persisted contact reply attachments are invalid.');
   }
   const parentId = text(message.thread_parent_message_id);

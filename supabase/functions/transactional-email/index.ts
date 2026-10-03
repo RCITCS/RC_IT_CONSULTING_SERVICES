@@ -24,7 +24,7 @@ try {
 
 const API_KEY = MODERN_SECRET_KEY || LEGACY_SERVICE_ROLE_KEY;
 const USING_LEGACY_KEY = !MODERN_SECRET_KEY && Boolean(LEGACY_SERVICE_ROLE_KEY);
-const provider = createResendEmailProvider({ apiKey: RESEND_API_KEY });
+const provider = createResendEmailProvider({ apiKey: RESEND_API_KEY, timeoutMs: 60_000 });
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SWEEP_LIMIT = 10;
 
@@ -153,17 +153,24 @@ async function loadContactReplyMessage(emailLogId: string): Promise<Record<strin
   );
   if (data.length !== 1) return null;
   const message = data[0];
-  const metadata = await rows(`contact_message_attachments?outbound_message_id=eq.${encodeURIComponent(String(message.id))}&select=storage_path,filename,size_bytes&order=created_at.asc&limit=5`);
+  const metadata: Array<Record<string, unknown>> = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = await rows(`contact_message_attachments?outbound_message_id=eq.${encodeURIComponent(String(message.id))}&select=storage_path,filename,size_bytes&order=created_at.asc,id.asc&limit=500&offset=${offset}`);
+    metadata.push(...page);
+    if (page.length < 500) break;
+  }
+  const totalBytes = metadata.reduce((sum, item) => sum + Number(item.size_bytes || 0), 0);
+  if (totalBytes > 25_000_000 || metadata.some((item) => !Number.isSafeInteger(Number(item.size_bytes)) || Number(item.size_bytes) < 1)) throw new Error("Contact reply attachment metadata invalid");
   const attachments: Array<{ filename: string; content: string }> = [];
   for (const item of metadata) {
     const path = String(item.storage_path || "");
-    if (!/^outbound\/[0-9a-f-]{36}\/[0-4]$/.test(path) || Number(item.size_bytes) > 10 * 1024 * 1024) throw new Error("Contact reply attachment metadata invalid");
+    if (!/^outbound\/[0-9a-f-]{36}\/\d+$/.test(path) || Number(item.size_bytes) > 25_000_000) throw new Error("Contact reply attachment metadata invalid");
     const headers = new Headers({ apikey: API_KEY });
     if (USING_LEGACY_KEY) headers.set("authorization", `Bearer ${LEGACY_SERVICE_ROLE_KEY}`);
     const file = await fetch(`${SUPABASE_URL}/storage/v1/object/contact-attachments/${path}`, { headers });
     if (!file.ok) throw new Error("Contact reply attachment unavailable");
     const bytes = new Uint8Array(await file.arrayBuffer());
-    if (!bytes.length || bytes.length > 10 * 1024 * 1024) throw new Error("Contact reply attachment size invalid");
+    if (!bytes.length || bytes.length !== Number(item.size_bytes)) throw new Error("Contact reply attachment size invalid");
     let binary = "";
     for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
     attachments.push({ filename: String(item.filename || "attachment"), content: btoa(binary) });

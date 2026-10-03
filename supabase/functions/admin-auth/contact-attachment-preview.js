@@ -14,6 +14,12 @@ const SAFE_MEDIA = Object.freeze({
   'text/plain': ['.txt', '.log'],
   'text/csv': ['.csv'],
   'application/json': ['.json'],
+  'text/markdown': ['.md', '.markdown'],
+  'text/html': ['.html', '.htm'],
+  'text/css': ['.css'],
+  'text/javascript': ['.js', '.mjs'],
+  'application/xml': ['.xml'],
+  'image/svg+xml': ['.svg'],
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
   'application/vnd.ms-excel': ['.xls'],
@@ -27,11 +33,12 @@ export function attachmentPreview(filename, contentType) {
   if (!extensions?.some((extension) => name.endsWith(extension))) {
     return { kind: 'file', contentType: 'application/octet-stream' };
   }
+  if (mime === 'image/svg+xml') return { kind: 'text', contentType: 'text/plain; charset=utf-8' };
   if (mime.startsWith('image/')) return { kind: 'image', contentType: mime };
   if (mime === 'application/pdf') return { kind: 'pdf', contentType: mime };
   if (mime.startsWith('audio/')) return { kind: 'audio', contentType: mime };
   if (mime.startsWith('video/')) return { kind: 'video', contentType: mime };
-  if (mime === 'text/plain' || mime === 'text/csv' || mime === 'application/json') return { kind: 'text', contentType: 'text/plain; charset=utf-8' };
+  if (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' || mime === 'image/svg+xml') return { kind: 'text', contentType: 'text/plain; charset=utf-8' };
   if (name.endsWith('.docx')) return { kind: 'document', contentType: mime };
   if (/\.(xlsx|xls|xlsb)$/.test(name)) return { kind: 'spreadsheet', contentType: mime };
   return { kind: 'file', contentType: 'application/octet-stream' };
@@ -132,6 +139,37 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
       if (requestNumber === previewNumber && dialog.open) message('This file could not be previewed. You can download it and open it in the appropriate app.');
     }
   }
+  async function renderGeneric(url, name, requestNumber) {
+    try {
+      const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) throw new Error('Attachment unavailable');
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (requestNumber !== previewNumber || !dialog.open) return;
+      const box = document.createElement('div');
+      box.className = 'attachment-preview-text';
+      const heading = document.createElement('strong');
+      heading.textContent = name;
+      const summary = document.createElement('p');
+      summary.textContent = 'File size: ' + new Intl.NumberFormat().format(bytes.length) + ' bytes';
+      box.append(heading, summary);
+      const sample = bytes.subarray(0, Math.min(bytes.length, 100000));
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(sample);
+      const readable = sample.length && !sample.includes(0) && (decoded.match(/[\uFFFD\x00-\x08\x0E-\x1F]/g) || []).length < decoded.length / 50;
+      const note = document.createElement('p');
+      note.textContent = readable
+        ? 'Text content preview (first 100 KB):'
+        : 'This format needs its own application for a visual preview. File details are shown here; download it if you want to open it.';
+      box.append(note);
+      if (readable) {
+        const pre = document.createElement('pre');
+        pre.textContent = decoded;
+        box.append(pre);
+      }
+      stage.replaceChildren(box);
+    } catch {
+      if (requestNumber === previewNumber && dialog.open) message('File details could not be loaded. You can download the file.');
+    }
+  }
 
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
@@ -167,7 +205,7 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
       content.textContent = 'Loading preview…';
     } else {
       content = document.createElement('p');
-      content.textContent = 'A browser preview is not available for this file type. Download it to open it in the appropriate app.';
+      content.textContent = 'Loading file details…';
     }
     if (['image', 'audio', 'video'].includes(kind)) content.src = previewUrl.toString();
     stage.append(content);
@@ -183,17 +221,29 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
       if (requestNumber === previewNumber && dialog.open) stage.replaceChildren(pre);
     }).catch(() => { if (requestNumber === previewNumber && dialog.open) message('Text preview could not be loaded.'); });
     if (kind === 'document' || kind === 'spreadsheet') renderOffice(kind, previewUrl, requestNumber);
+    if (kind === 'file') renderGeneric(previewUrl, name, requestNumber);
   });
   close.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => { ++previewNumber; clearStage(); });
 
   const input = document.getElementById('contact-reply-files');
   const selection = document.getElementById('contact-selected-files');
+  const replyForm = input?.closest('form');
+  function selectedSize() {
+    return Array.from(input?.files || []).reduce((sum, file) => sum + file.size, 0);
+  }
   input?.addEventListener('change', () => {
     if (!selection) return;
     const files = Array.from(input.files || []);
     selection.textContent = files.length
-      ? files.length + ' files selected: ' + files.map((file) => file.name).join(', ')
+      ? files.length + ' files selected (' + (selectedSize() / 1000000).toFixed(2) + ' MB of 25 MB): ' + files.map((file) => file.name).join(', ')
       : 'No files selected.';
+    if (selectedSize() > 25000000) selection.textContent += ' Reduce the files to 25 MB or less before sending.';
+  });
+  replyForm?.addEventListener('submit', (event) => {
+    if (selectedSize() <= 25000000) return;
+    event.preventDefault();
+    input.focus();
+    if (selection) selection.textContent = 'The combined file size exceeds 25 MB. Remove some files before sending.';
   });
 })();`;

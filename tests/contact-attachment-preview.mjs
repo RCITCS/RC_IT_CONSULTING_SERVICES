@@ -12,8 +12,9 @@ assert.deepEqual(attachmentPreview('notes.txt', 'text/plain'), { kind: 'text', c
 assert.equal(attachmentPreview('report.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document').kind, 'document');
 assert.equal(attachmentPreview('budget.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').kind, 'spreadsheet');
 assert.equal(attachmentPreview('archive.xls', 'application/vnd.ms-excel').kind, 'spreadsheet');
+assert.equal(attachmentPreview('active.svg', 'image/svg+xml').kind, 'text');
+assert.equal(attachmentPreview('page.html', 'text/html').kind, 'text');
 for (const [name, mime] of [
-  ['active.svg', 'image/svg+xml'], ['page.html', 'text/html'],
   ['fake.jpg', 'text/html'], ['fake.html', 'image/jpeg'], ['file', '__proto__'],
   ['document.doc', 'application/msword']
 ]) {
@@ -26,8 +27,9 @@ assert.match(contacts, /contact-attachment-dialog/);
 assert.match(contacts, /content-disposition.*inline/);
 assert.match(contacts, /wantsPreview \? preview\.contentType : "application\/octet-stream"/);
 assert.match(contacts, /type="file" multiple/);
-assert.match(contacts, /files\.length > MAX_ATTACHMENTS/);
-assert.match(contacts, /MAX_ATTACHMENTS = 5/);
+assert.match(contacts, /MAX_REPLY_ATTACHMENTS_BYTES = 25_000_000/);
+assert.doesNotMatch(contacts, /MAX_ATTACHMENTS = 5/);
+assert.match(ATTACHMENT_PREVIEW_SCRIPT, /renderGeneric/);
 assert.match(contacts, /preview-library/);
 assert.match(ATTACHMENT_PREVIEW_SCRIPT, /mammoth\.extractRawText/);
 assert.match(ATTACHMENT_PREVIEW_SCRIPT, /XLSX\.read/);
