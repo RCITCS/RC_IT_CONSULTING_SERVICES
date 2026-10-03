@@ -8,9 +8,7 @@ const PAGE_LIMIT = 25;
 const NOTE_MAX = 10000;
 const REPLY_SUBJECT_MAX = 300;
 const REPLY_BODY_MAX = 10000;
-const MAX_ATTACHMENTS = 5;
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const MAX_REPLY_ATTACHMENTS_BYTES = 20 * 1024 * 1024;
+const MAX_REPLY_ATTACHMENTS_BYTES = 25_000_000;
 const ATTACHMENT_BUCKET = "contact-attachments";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTACT_STATUSES = new Set(["all", "new", "open", "in_progress", "resolved", "closed", "spam"]);
@@ -365,7 +363,7 @@ function operationNotice(url: URL): { message: string; error: boolean } {
     invalid_archive: "Resolve, close, or mark the enquiry as spam before archiving it.",
     validation: "The requested contact operation was invalid.",
     note_validation: "Internal notes must contain between 1 and 10,000 characters.",
-    reply_validation: "Check the reply text and attachments. You can send up to 5 files, 10 MB each and 20 MB total.",
+    reply_validation: "Check the reply text and attachments. The combined file size must be 25 MB or less.",
     invalid_recipient: "The persisted customer email address is not valid for outbound delivery.",
     not_found: "The requested contact enquiry no longer exists.",
     failed: "The requested contact operation could not be completed."
@@ -420,7 +418,7 @@ function contactReplyComposer(basePath: string, session: AdminSessionView, enqui
   if (enquiry.archived_at) {
     return `<section class="data-plane" aria-labelledby="contact-reply-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-reply-title">Customer reply</h2><p>Restore this enquiry before replying to the customer.</p></div><span class="section-meta">Disabled while archived</span></header></section>`;
   }
-  return `<section class="data-plane" aria-labelledby="contact-reply-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-reply-title">Reply to customer</h2><p>Send from the approved company identity. The reply and files are saved in this conversation.</p></div><span class="section-meta">contact@rcitcs.com</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-bottom:16px">${fact("To", enquiry.email || "—", true)}${fact("From", "contact@rcitcs.com", true)}${fact("Reply-To", "contact@rcitcs.com", true)}</div><form method="post" enctype="multipart/form-data" action="${basePath}/contacts/${esc(id)}/reply"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><input type="hidden" name="expected_version" value="${esc(version)}"><div class="field"><label for="contact-reply-subject">Subject</label><input id="contact-reply-subject" name="subject" value="${esc(replySubject(enquiry, context))}" maxlength="${REPLY_SUBJECT_MAX}" required readonly style="display:block;width:100%;box-sizing:border-box"></div><div class="field"><label for="contact-reply-body">Message</label><textarea id="contact-reply-body" name="body" maxlength="${REPLY_BODY_MAX}" rows="8" required placeholder="Write the customer-facing response." style="display:block;width:100%;min-height:180px;box-sizing:border-box;resize:vertical"></textarea><p class="muted">Customer-facing message. Do not include passwords, private candidate documents, internal notes, or secrets.</p></div><div class="field"><label for="contact-reply-files">Attach files</label><input id="contact-reply-files" name="attachments" type="file" multiple style="display:block;width:100%"><p id="contact-selected-files" class="muted" aria-live="polite">No files selected.</p><p class="muted">Up to 5 files, 10 MB each and 20 MB total. Documents, PDFs, images and audio are supported.</p></div><button class="btn" type="submit">Send reply</button></form></div></section>`;
+  return `<section class="data-plane" aria-labelledby="contact-reply-title" style="margin-top:14px"><header class="section-header"><div><h2 id="contact-reply-title">Reply to customer</h2><p>Send from the approved company identity. The reply and files are saved in this conversation.</p></div><span class="section-meta">contact@rcitcs.com</span></header><div style="padding:18px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;margin-bottom:16px">${fact("To", enquiry.email || "—", true)}${fact("From", "contact@rcitcs.com", true)}${fact("Reply-To", "contact@rcitcs.com", true)}</div><form method="post" enctype="multipart/form-data" action="${basePath}/contacts/${esc(id)}/reply"><input type="hidden" name="csrf" value="${esc(session.csrf)}"><input type="hidden" name="expected_version" value="${esc(version)}"><div class="field"><label for="contact-reply-subject">Subject</label><input id="contact-reply-subject" name="subject" value="${esc(replySubject(enquiry, context))}" maxlength="${REPLY_SUBJECT_MAX}" required readonly style="display:block;width:100%;box-sizing:border-box"></div><div class="field"><label for="contact-reply-body">Message</label><textarea id="contact-reply-body" name="body" maxlength="${REPLY_BODY_MAX}" rows="8" required placeholder="Write the customer-facing response." style="display:block;width:100%;min-height:180px;box-sizing:border-box;resize:vertical"></textarea><p class="muted">Customer-facing message. Do not include passwords, private candidate documents, internal notes, or secrets.</p></div><div class="field"><label for="contact-reply-files">Attach files</label><input id="contact-reply-files" name="attachments" type="file" multiple style="display:block;width:100%"><p id="contact-selected-files" class="muted" aria-live="polite">No files selected.</p><p class="muted">Attach as many files as fit within 25 MB total. Common documents, PDFs, images, audio and video can be previewed here.</p></div><button class="btn" type="submit">Send reply</button></form></div></section>`;
 }
 
 function timelineEventLabel(event: ContactHistoryEvent): string {
@@ -648,7 +646,7 @@ export async function handleContactRoute({ request, url, path, basePath, authSta
       return redirect(`${basePath}/contacts/${enquiryId}?error=reply_validation`);
     }
     const files = form.getAll("attachments").filter((value): value is File => value instanceof File && value.size > 0);
-    if (files.length > MAX_ATTACHMENTS || files.some((file) => file.size > MAX_ATTACHMENT_BYTES) || files.reduce((sum, file) => sum + file.size, 0) > MAX_REPLY_ATTACHMENTS_BYTES) {
+    if (files.reduce((sum, file) => sum + file.size, 0) > MAX_REPLY_ATTACHMENTS_BYTES) {
       return redirect(`${basePath}/contacts/${enquiryId}?error=reply_validation`);
     }
     const uploaded = await uploadReplyAttachments(files);
