@@ -44,7 +44,10 @@ for (const file of runtimeFiles) {
     pattern.lastIndex = 0;
     assert.ok(!pattern.test(source), `credential-like literal found in runtime source: ${relative}`);
   }
-  if (relative.startsWith(`supabase${path.sep}functions${path.sep}`)) {
+  const browserBundleData = relative.startsWith(`supabase${path.sep}functions${path.sep}admin-auth${path.sep}vendor${path.sep}`)
+    && relative.endsWith('.module.js');
+  if (browserBundleData) assert.ok(source.startsWith('export default "'), `preview vendor module must only export an inert script string: ${relative}`);
+  if (relative.startsWith(`supabase${path.sep}functions${path.sep}`) && !browserBundleData) {
     assert.ok(!/console\.(?:log|debug|info|warn|error)\s*\(/.test(source), `sensitive Edge runtime must not debug-log payloads/secrets: ${relative}`);
   }
 }

@@ -10,7 +10,14 @@ const SAFE_MEDIA = Object.freeze({
   'audio/ogg': ['.ogg'],
   'audio/mp4': ['.m4a'],
   'video/mp4': ['.mp4'],
-  'video/webm': ['.webm']
+  'video/webm': ['.webm'],
+  'text/plain': ['.txt', '.log'],
+  'text/csv': ['.csv'],
+  'application/json': ['.json'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.ms-excel.sheet.binary.macroenabled.12': ['.xlsb']
 });
 
 export function attachmentPreview(filename, contentType) {
@@ -24,6 +31,9 @@ export function attachmentPreview(filename, contentType) {
   if (mime === 'application/pdf') return { kind: 'pdf', contentType: mime };
   if (mime.startsWith('audio/')) return { kind: 'audio', contentType: mime };
   if (mime.startsWith('video/')) return { kind: 'video', contentType: mime };
+  if (mime === 'text/plain' || mime === 'text/csv' || mime === 'application/json') return { kind: 'text', contentType: 'text/plain; charset=utf-8' };
+  if (name.endsWith('.docx')) return { kind: 'document', contentType: mime };
+  if (/\.(xlsx|xls|xlsb)$/.test(name)) return { kind: 'spreadsheet', contentType: mime };
   return { kind: 'file', contentType: 'application/octet-stream' };
 }
 
@@ -35,6 +45,66 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
   const download = document.getElementById('contact-attachment-download');
   const close = dialog.querySelector('[data-close-attachment]');
   if (!stage || !title || !download || !close) return;
+  const libraries = {};
+  const scriptBase = document.currentScript?.src || location.href;
+  let previewNumber = 0;
+  function loadLibrary(name) {
+    if (!libraries[name]) libraries[name] = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = new URL('preview-library/' + name + '.js', scriptBase).toString();
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Preview library could not be loaded.'));
+      document.head.append(script);
+    });
+    return libraries[name];
+  }
+  function message(value) {
+    const paragraph = document.createElement('p');
+    paragraph.textContent = value;
+    stage.replaceChildren(paragraph);
+  }
+  async function renderOffice(kind, url, requestNumber) {
+    try {
+      const library = kind === 'document' ? 'mammoth' : 'xlsx';
+      const [response] = await Promise.all([fetch(url, { credentials: 'same-origin', cache: 'no-store' }), loadLibrary(library)]);
+      if (!response.ok) throw new Error('Attachment could not be loaded.');
+      const bytes = await response.arrayBuffer();
+      if (requestNumber !== previewNumber || !dialog.open) return;
+      if (kind === 'document') {
+        const result = await window.mammoth.extractRawText({ arrayBuffer: bytes });
+        if (requestNumber !== previewNumber || !dialog.open) return;
+        const pre = document.createElement('pre');
+        pre.className = 'attachment-preview-text';
+        pre.textContent = result.value || 'This document has no readable text.';
+        stage.replaceChildren(pre);
+      } else {
+        const workbook = window.XLSX.read(bytes, { type: 'array', sheetRows: 201 });
+        const container = document.createElement('div');
+        container.className = 'attachment-preview-workbook';
+        for (const name of workbook.SheetNames.slice(0, 10)) {
+          const heading = document.createElement('h3');
+          heading.textContent = name;
+          container.append(heading);
+          const table = document.createElement('table');
+          const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
+          for (const row of rows.slice(0, 200)) {
+            const tr = document.createElement('tr');
+            for (const cell of row.slice(0, 30)) {
+              const td = document.createElement('td');
+              td.textContent = String(cell ?? '');
+              tr.append(td);
+            }
+            table.append(tr);
+          }
+          container.append(table);
+        }
+        if (requestNumber !== previewNumber || !dialog.open) return;
+        stage.replaceChildren(container);
+      }
+    } catch {
+      if (requestNumber === previewNumber && dialog.open) message('This file could not be previewed. You can download it and open it in the appropriate app.');
+    }
+  }
 
   document.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
@@ -51,6 +121,7 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
     download.href = downloadUrl.toString();
     download.setAttribute('download', name);
     stage.replaceChildren();
+    const requestNumber = ++previewNumber;
     let content;
     if (kind === 'image') {
       content = document.createElement('img');
@@ -65,17 +136,29 @@ export const ATTACHMENT_PREVIEW_SCRIPT = `(() => {
     } else if (kind === 'video') {
       content = document.createElement('video');
       content.controls = true;
+    } else if (kind === 'text' || kind === 'document' || kind === 'spreadsheet') {
+      content = document.createElement('p');
+      content.textContent = 'Loading preview…';
     } else {
       content = document.createElement('p');
       content.textContent = 'A browser preview is not available for this file type. Download it to open it in the appropriate app.';
     }
-    if (kind !== 'file') content.src = previewUrl.toString();
+    if (['image', 'pdf', 'audio', 'video'].includes(kind)) content.src = previewUrl.toString();
     stage.append(content);
     dialog.showModal();
     close.focus();
+    if (kind === 'image') content.onerror = () => message('Image preview could not be loaded. You can download the file.');
+    if (kind === 'text') fetch(previewUrl, { credentials: 'same-origin', cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) throw new Error('Attachment unavailable');
+      const pre = document.createElement('pre');
+      pre.className = 'attachment-preview-text';
+      pre.textContent = (await response.text()).slice(0, 500000);
+      if (requestNumber === previewNumber && dialog.open) stage.replaceChildren(pre);
+    }).catch(() => { if (requestNumber === previewNumber && dialog.open) message('Text preview could not be loaded.'); });
+    if (kind === 'document' || kind === 'spreadsheet') renderOffice(kind, previewUrl, requestNumber);
   });
   close.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => stage.replaceChildren());
+  dialog.addEventListener('close', () => { ++previewNumber; stage.replaceChildren(); });
 
   const input = document.getElementById('contact-reply-files');
   const selection = document.getElementById('contact-selected-files');
